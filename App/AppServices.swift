@@ -14,6 +14,7 @@ final class AppServices {
 
     var pendingImports: [ImportProposal] = []
     var importError: String?
+    var importedCount: Int = 0
 
     private init() {
         self.persistence = PersistenceController.shared
@@ -42,6 +43,7 @@ final class AppServices {
         do {
             _ = try await importer.confirmImport(proposal, activityType: activityType, title: title)
             pendingImports.removeAll { $0.sourceURL == proposal.sourceURL }
+            importedCount += 1
         } catch {
             NSLog("GPXManagement: confirmImport failed: \(error)")
             importError = "Échec de la confirmation : \(error.localizedDescription)"

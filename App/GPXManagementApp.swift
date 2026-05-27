@@ -13,6 +13,13 @@ struct GPXManagementApp: App {
             ContentView(services: services)
                 .environment(\.managedObjectContext, services.persistence.container.viewContext)
         }
+        .commands {
+            CommandGroup(replacing: .newItem) { }
+        }
+
+        Settings {
+            PreferencesView()
+        }
     }
 
     private func registerUbiquityContainer() {

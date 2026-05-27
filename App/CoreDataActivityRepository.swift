@@ -3,7 +3,7 @@ import CoreData
 import GPXCore
 
 final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable {
-    private let persistence: PersistenceController
+    let persistence: PersistenceController
 
     init(persistence: PersistenceController) {
         self.persistence = persistence
