@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACADC04245857846CE60BC /* SidebarView.swift */; };
+		0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */; };
 		142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */; };
 		1EBC3FD34D98053DF310C1C3 /* PersistenceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */; };
 		30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */; };
@@ -32,6 +33,7 @@
 		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
+		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
 		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
 /* End PBXBuildFile section */
@@ -55,6 +57,7 @@
 		44934C5F563E2D198B67B314 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		47DE51F8BF3C4AABD07045B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4E4E13A6F1C2CEE82DE9E10C /* GPXCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXCore; path = Packages/GPXCore; sourceTree = SOURCE_ROOT; };
+		4F25EFB570B8ADC9F59F35BD /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFiltersTests.swift; sourceTree = "<group>"; };
 		5B7894B1C175BDAA6118892D /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
@@ -66,6 +69,7 @@
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
 		B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileTabView.swift; sourceTree = "<group>"; };
 		B98887F275D8B5C626A27859 /* ActivityFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFilters.swift; sourceTree = "<group>"; };
+		BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetPresenter.swift; sourceTree = "<group>"; };
 		BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSheetView.swift; sourceTree = "<group>"; };
 		BDB3AE470DCC71F2465AD70B /* GPXManagement.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = GPXManagement.xcdatamodel; sourceTree = "<group>"; };
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
@@ -76,7 +80,7 @@
 		E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepository.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_55C1CDF3-44D9-46E4-B5C5-27A1EC120135" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,10 +135,12 @@
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */,
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
+				4F25EFB570B8ADC9F59F35BD /* ExportService.swift */,
 				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
 				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
+				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
 				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
 			);
@@ -168,10 +174,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_89621D6E-F60B-4815-A165-7A030B03FA9A" /* GPXManagement */ = {
+		"TEMP_142D7802-752F-452E-A678-DDCC2025CEC2" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */,
+				"TEMP_55C1CDF3-44D9-46E4-B5C5-27A1EC120135" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -279,11 +285,13 @@
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
 				30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */,
 				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
+				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
 				D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */,
 				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
 				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
+				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
 				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
 			);
@@ -333,7 +341,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_55C1CDF3-44D9-46E4-B5C5-27A1EC120135" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -421,7 +429,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_55C1CDF3-44D9-46E4-B5C5-27A1EC120135" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

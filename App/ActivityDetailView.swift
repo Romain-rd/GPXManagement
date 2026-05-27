@@ -24,6 +24,9 @@ struct ActivityDetailView: View {
     let repository: CoreDataActivityRepository
     @State private var selectedTab: DetailTab = .stats
     @State private var notesDraft: String = ""
+    @State private var shareURL: URL?
+    @State private var isShareSheetPresented = false
+    @State private var exportError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -52,6 +55,54 @@ struct ActivityDetailView: View {
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
             selectedTab = .stats
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    Task { await exportGPX() }
+                } label: {
+                    Label("Exporter en GPX", systemImage: "arrow.down.doc")
+                }
+                Button {
+                    Task { await prepareShare() }
+                } label: {
+                    Label("Partager", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
+        .background(
+            ShareSheetPresenter(isPresented: $isShareSheetPresented, url: shareURL)
+        )
+        .alert("Export", isPresented: hasExportErrorBinding) {
+            Button("OK") { exportError = nil }
+        } message: {
+            Text(exportError ?? "")
+        }
+    }
+
+    private var hasExportErrorBinding: Binding<Bool> {
+        Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )
+    }
+
+    private func exportGPX() async {
+        do {
+            _ = try await ExportService.exportGPX(activity: activity, repository: repository)
+        } catch ExportError.userCancelled {
+            // silent
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private func prepareShare() async {
+        do {
+            shareURL = try await ExportService.prepareShareGPX(activity: activity, repository: repository)
+            isShareSheetPresented = true
+        } catch {
+            exportError = error.localizedDescription
         }
     }
 
