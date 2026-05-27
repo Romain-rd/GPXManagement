@@ -21,7 +21,7 @@
 		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
-		"TEMP_BF4B4E1A-81E7-4522-99A3-F4E1732C2287" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_7BD58B3C-60C1-4F1B-B9E4-B3E294A53E2F" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,7 +44,7 @@
 				63E09BD6D9C59B595A913FA5 /* App */,
 				F8D3C5F1C21B7CF9AA48F4A5 /* Packages */,
 				93E8E9B8009CA324990F9289 /* Products */,
-				7AEA0A082FC7807D0048B2FE /* Recovered References */,
+				7A8663EE2FC78CE2006E6C4F /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -57,10 +57,10 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		7AEA0A082FC7807D0048B2FE /* Recovered References */ = {
+		7A8663EE2FC78CE2006E6C4F /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_BF4B4E1A-81E7-4522-99A3-F4E1732C2287" /* Secrets.xcconfig */,
+				"TEMP_7BD58B3C-60C1-4F1B-B9E4-B3E294A53E2F" /* Secrets.xcconfig */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -180,7 +180,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_BF4B4E1A-81E7-4522-99A3-F4E1732C2287" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_7BD58B3C-60C1-4F1B-B9E4-B3E294A53E2F" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -250,7 +250,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_BF4B4E1A-81E7-4522-99A3-F4E1732C2287" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_7BD58B3C-60C1-4F1B-B9E4-B3E294A53E2F" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
