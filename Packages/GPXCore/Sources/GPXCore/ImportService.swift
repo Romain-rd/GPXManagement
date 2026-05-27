@@ -67,11 +67,13 @@ public actor ImportService {
     private let storage: FileStorageService
     private let repository: ActivityRepository
     private let gpxParser: GPXParser
+    private let fitParser: FITParser
 
     public init(storage: FileStorageService, repository: ActivityRepository) {
         self.storage = storage
         self.repository = repository
         self.gpxParser = GPXParser()
+        self.fitParser = FITParser()
     }
 
     public func prepareImport(from url: URL) async throws -> ImportProposal {
@@ -88,7 +90,7 @@ public actor ImportService {
         case .gpx:
             parsed = try gpxParser.parse(data: data)
         case .fit:
-            throw ImportError.fitNotYetSupported
+            parsed = try fitParser.parse(data: data)
         }
 
         guard !parsed.points.isEmpty else { throw ImportError.noTrackData }

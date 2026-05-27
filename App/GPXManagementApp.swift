@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct GPXManagementApp: App {
-    private let persistence = PersistenceController.shared
+    @State private var services = AppServices.shared
 
     init() {
         registerUbiquityContainer()
@@ -10,14 +10,14 @@ struct GPXManagementApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, persistence.container.viewContext)
+            ContentView(services: services)
+                .environment(\.managedObjectContext, services.persistence.container.viewContext)
         }
     }
 
     private func registerUbiquityContainer() {
         Task.detached(priority: .utility) {
-            let identifier = "iCloud.com.demoustier.GPXManagement"
+            let identifier = AppConfig.iCloudContainerIdentifier
             guard let url = FileManager.default.url(forUbiquityContainerIdentifier: identifier) else {
                 NSLog("GPXManagement: ubiquity container '\(identifier)' unavailable")
                 return

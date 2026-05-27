@@ -105,14 +105,16 @@ final class ImportServiceTests: XCTestCase {
         XCTAssertEqual(decoded.count, 3)
     }
 
-    func testFITImportNotYetSupported() async throws {
-        let url = tempRoot.appendingPathComponent("ride.fit")
+    func testFITMalformedRejected() async throws {
+        let url = tempRoot.appendingPathComponent("broken.fit")
         try Data([0, 1, 2, 3]).write(to: url)
         do {
             _ = try await service.prepareImport(from: url)
             XCTFail("expected throw")
-        } catch let error as ImportError {
-            XCTAssertEqual(error, .fitNotYetSupported)
+        } catch is FITParseError {
+            // ok
+        } catch {
+            XCTFail("unexpected error \(error)")
         }
     }
 
