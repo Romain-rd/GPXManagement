@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="22500" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES" userDefinedModelVersionIdentifier="">
+    <entity name="Activity" representedClassName="Activity" syncable="YES" codeGenerationType="class">
+        <attribute name="activityType" attributeType="String" defaultValueString=""/>
+        <attribute name="avgHeartRate" optional="YES" attributeType="Double" usesScalarValueType="NO"/>
+        <attribute name="avgSpeed" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="distance" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="duration" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="editedFromActivityId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="elevationGain" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="elevationLoss" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="endDate" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="maxHeartRate" optional="YES" attributeType="Double" usesScalarValueType="NO"/>
+        <attribute name="maxLatitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="maxLongitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="maxSpeed" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="minLatitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="minLongitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="movingDuration" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="origin" attributeType="String" defaultValueString="manual_import"/>
+        <attribute name="sourceFileFormat" attributeType="String" defaultValueString=""/>
+        <attribute name="sourceFileName" attributeType="String" defaultValueString=""/>
+        <attribute name="startDate" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="stravaId" optional="YES" attributeType="String"/>
+        <attribute name="tags" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromData" customClassName="NSArray"/>
+        <attribute name="title" attributeType="String" defaultValueString=""/>
+        <attribute name="trackData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="updatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="StravaAccount" representedClassName="StravaAccount" syncable="YES" codeGenerationType="class">
+        <attribute name="athleteId" attributeType="String" defaultValueString=""/>
+        <attribute name="lastFullSyncDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="lastSyncDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="UserPreference" representedClassName="UserPreference" syncable="YES" codeGenerationType="class">
+        <attribute name="defaultMapLayer" attributeType="String" defaultValueString="ign_scan25"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="organizationPattern" attributeType="String" defaultValueString="{year}/{month}"/>
+        <attribute name="unitsSystem" attributeType="String" defaultValueString="metric"/>
+    </entity>
+</model>

@@ -99,14 +99,30 @@ targets:
         PRODUCT_NAME: GPXManagement
         GENERATE_INFOPLIST_FILE: NO
 
+  GPXManagementTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests/GPXManagementTests
+    dependencies:
+      - target: GPXManagement
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.demoustier.GPXManagementTests
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   GPXManagement:
     build:
       targets:
         GPXManagement: all
+        GPXManagementTests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - GPXManagementTests
     archive:
       config: Release

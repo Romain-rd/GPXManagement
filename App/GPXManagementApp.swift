@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct GPXManagementApp: App {
+    private let persistence = PersistenceController.shared
+
     init() {
         registerUbiquityContainer()
     }
@@ -9,6 +11,7 @@ struct GPXManagementApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.managedObjectContext, persistence.container.viewContext)
         }
     }
 
