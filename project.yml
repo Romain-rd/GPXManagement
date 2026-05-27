@@ -1,0 +1,112 @@
+name: GPXManagement
+options:
+  bundleIdPrefix: com.demoustier
+  deploymentTarget:
+    macOS: "15.0"
+  developmentLanguage: fr
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    COMBINE_HIDPI_IMAGES: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+  configs:
+    Debug:
+      CODE_SIGN_IDENTITY: "Apple Development"
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+    Release:
+      CODE_SIGN_IDENTITY: "Developer ID Application"
+
+configFiles:
+  Debug: Secrets.xcconfig
+  Release: Secrets.xcconfig
+
+packages:
+  GPXCore:
+    path: Packages/GPXCore
+  GPXMapKit:
+    path: Packages/GPXMapKit
+  GPXStrava:
+    path: Packages/GPXStrava
+
+targets:
+  GPXManagement:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: App
+        excludes:
+          - "Info.plist"
+          - "GPXManagement.entitlements"
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: GPXManagement
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        LSApplicationCategoryType: public.app-category.healthcare-fitness
+        NSHumanReadableCopyright: ""
+        NSUbiquitousContainers:
+          iCloud.com.demoustier.GPXManagement:
+            NSUbiquitousContainerName: GPXManagement
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerSupportedFolderLevels: Any
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: GPX Track
+            LSHandlerRank: Alternate
+            CFBundleTypeRole: Editor
+            LSItemContentTypes:
+              - public.xml
+            CFBundleTypeExtensions:
+              - gpx
+          - CFBundleTypeName: FIT Activity
+            LSHandlerRank: Alternate
+            CFBundleTypeRole: Editor
+            CFBundleTypeExtensions:
+              - fit
+    entitlements:
+      path: App/GPXManagement.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.network.client: true
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.com.demoustier.GPXManagement
+        com.apple.developer.icloud-services:
+          - CloudDocuments
+          - CloudKit
+        com.apple.developer.ubiquity-container-identifiers:
+          - iCloud.com.demoustier.GPXManagement
+    dependencies:
+      - package: GPXCore
+      - package: GPXMapKit
+      - package: GPXStrava
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.demoustier.GPXManagement
+        PRODUCT_NAME: GPXManagement
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  GPXManagement:
+    build:
+      targets:
+        GPXManagement: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    archive:
+      config: Release

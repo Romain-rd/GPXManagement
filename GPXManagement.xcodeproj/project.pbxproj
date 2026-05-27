@@ -1,0 +1,421 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DE51F8BF3C4AABD07045B9 /* ContentView.swift */; };
+		5E2086A9A62998F215D1204F /* GPXCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5239B19228804795EAC2D36D /* GPXCore */; };
+		79AA56D178C46C36327C524D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1156C2F4D05E434BAF53F7F /* Assets.xcassets */; };
+		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
+		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
+		A56A697B8F644CF486167127 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B74117EB5BFB2A12845086 /* GPXManagementApp.swift */; };
+		B6DEE4501F5A1F4B575E5B8E /* GPXManagement.xcodeproj in Resources */ = {isa = PBXBuildFile; fileRef = 2E1768F844834F74B2CF9D3C /* GPXManagement.xcodeproj */; };
+		BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */; };
+		F223511EE99A5CFF4F21E6CE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B783A507819C8A7373526B03 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2E1768F844834F74B2CF9D3C /* GPXManagement.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = GPXManagement.xcodeproj; sourceTree = "<group>"; };
+		47DE51F8BF3C4AABD07045B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4E4E13A6F1C2CEE82DE9E10C /* GPXCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXCore; path = Packages/GPXCore; sourceTree = SOURCE_ROOT; };
+		881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
+		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
+		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B783A507819C8A7373526B03 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
+		D9B74117EB5BFB2A12845086 /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
+		E1156C2F4D05E434BAF53F7F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		"TEMP_6DEC06F2-82EE-4430-8B3C-16E0DDA23CB2" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9B1C2C51D48DEF11B69FB9A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E2086A9A62998F215D1204F /* GPXCore in Frameworks */,
+				81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */,
+				A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		31D3505FC14BFFCB687B0352 = {
+			isa = PBXGroup;
+			children = (
+				63E09BD6D9C59B595A913FA5 /* App */,
+				F8D3C5F1C21B7CF9AA48F4A5 /* Packages */,
+				93E8E9B8009CA324990F9289 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		63E09BD6D9C59B595A913FA5 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				8EE4C96BAED4B5808A0BFCCA /* GPXManagement */,
+				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
+				2E1768F844834F74B2CF9D3C /* GPXManagement.xcodeproj */,
+				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		8EE4C96BAED4B5808A0BFCCA /* GPXManagement */ = {
+			isa = PBXGroup;
+			children = (
+				E1156C2F4D05E434BAF53F7F /* Assets.xcassets */,
+				B783A507819C8A7373526B03 /* ContentView.swift */,
+				D9B74117EB5BFB2A12845086 /* GPXManagementApp.swift */,
+			);
+			path = GPXManagement;
+			sourceTree = "<group>";
+		};
+		93E8E9B8009CA324990F9289 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9BB4378936EFA44AA940A32D /* GPXManagement.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F8D3C5F1C21B7CF9AA48F4A5 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				4E4E13A6F1C2CEE82DE9E10C /* GPXCore */,
+				BE197F6F1C2770F672064498 /* GPXMapKit */,
+				90D3C33FF122DE77F1F8FC03 /* GPXStrava */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		"TEMP_A7379928-928C-48B6-817C-D53028ED61E7" /* GPXManagement */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_6DEC06F2-82EE-4430-8B3C-16E0DDA23CB2" /* Secrets.xcconfig */,
+			);
+			path = GPXManagement;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C5FF65B068CF9AB66E4DE6FA /* GPXManagement */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7FC6BF24BA150F1D4AACD4FE /* Build configuration list for PBXNativeTarget "GPXManagement" */;
+			buildPhases = (
+				224E3A42BA87F08D1BD910CC /* Sources */,
+				EAA0277BC42738FEED03D5DA /* Resources */,
+				9B1C2C51D48DEF11B69FB9A0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GPXManagement;
+			packageProductDependencies = (
+				5239B19228804795EAC2D36D /* GPXCore */,
+				5AE15CBBEA76E19E78D5872B /* GPXMapKit */,
+				9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */,
+			);
+			productName = GPXManagement;
+			productReference = 9BB4378936EFA44AA940A32D /* GPXManagement.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		686AD7DFE4CAAEC625B308C4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C5FF65B068CF9AB66E4DE6FA = {
+						DevelopmentTeam = "$(DEVELOPMENT_TEAM)";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 49D3788C14E03619772764C6 /* Build configuration list for PBXProject "GPXManagement" */;
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				fr,
+			);
+			mainGroup = 31D3505FC14BFFCB687B0352;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */,
+				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */,
+				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 93E8E9B8009CA324990F9289 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C5FF65B068CF9AB66E4DE6FA /* GPXManagement */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		EAA0277BC42738FEED03D5DA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79AA56D178C46C36327C524D /* Assets.xcassets in Resources */,
+				B6DEE4501F5A1F4B575E5B8E /* GPXManagement.xcodeproj in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		224E3A42BA87F08D1BD910CC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
+				F223511EE99A5CFF4F21E6CE /* ContentView.swift in Sources */,
+				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
+				A56A697B8F644CF486167127 /* GPXManagementApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		4CC804CD064D3E508C048872 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/GPXManagement.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.demoustier.GPXManagement;
+				PRODUCT_NAME = GPXManagement;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		572343C4EE949BDFB2554D26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_6DEC06F2-82EE-4430-8B3C-16E0DDA23CB2" /* Secrets.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		73CD864D563E9C24C070CF2E /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_6DEC06F2-82EE-4430-8B3C-16E0DDA23CB2" /* Secrets.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AF34DC46CCECAA7C264FF34F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/GPXManagement.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.demoustier.GPXManagement;
+				PRODUCT_NAME = GPXManagement;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		49D3788C14E03619772764C6 /* Build configuration list for PBXProject "GPXManagement" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				572343C4EE949BDFB2554D26 /* Debug */,
+				73CD864D563E9C24C070CF2E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7FC6BF24BA150F1D4AACD4FE /* Build configuration list for PBXNativeTarget "GPXManagement" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4CC804CD064D3E508C048872 /* Debug */,
+				AF34DC46CCECAA7C264FF34F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/GPXCore;
+		};
+		EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/GPXStrava;
+		};
+		FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/GPXMapKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5239B19228804795EAC2D36D /* GPXCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GPXCore;
+		};
+		5AE15CBBEA76E19E78D5872B /* GPXMapKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GPXMapKit;
+		};
+		9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GPXStrava;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 686AD7DFE4CAAEC625B308C4 /* Project object */;
+}
