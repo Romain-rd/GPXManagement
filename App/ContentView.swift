@@ -46,7 +46,7 @@ struct ContentView: View {
         case .mapOverview:
             MapOverviewPlaceholder()
         case .statistics:
-            StatsOverviewPlaceholder()
+            StatisticsView(activities: listVM.allActivities)
         case .strava:
             StravaPlaceholder()
         }
@@ -56,8 +56,9 @@ struct ContentView: View {
     private var detail: some View {
         if navigation.mode == .threeColumn,
            let selectedId = navigation.listSelection.first,
-           let activity = listVM.visibleActivities.first(where: { $0.id == selectedId }) {
-            ActivityDetailView(activity: activity, listVM: listVM)
+           let activity = listVM.visibleActivities.first(where: { $0.id == selectedId }),
+           let repo = services.repository as? CoreDataActivityRepository {
+            ActivityDetailView(activity: activity, listVM: listVM, repository: repo)
         } else if navigation.mode == .threeColumn {
             ContentUnavailableView("Aucune activité sélectionnée", systemImage: "tray", description: Text("Choisissez une activité dans la liste."))
         } else {

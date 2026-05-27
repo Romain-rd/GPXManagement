@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACADC04245857846CE60BC /* SidebarView.swift */; };
+		142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */; };
 		1EBC3FD34D98053DF310C1C3 /* PersistenceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */; };
 		30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */; };
 		3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */; };
@@ -23,7 +24,6 @@
 		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
 		A52A49DCAB0612268A04D686 /* AppNavigationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */; };
 		B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */; };
-		B7F911071E5CD049C8B4D11C /* ActivitySummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE3202723C9A0CC113B3EFB /* ActivitySummary.swift */; };
 		BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */; };
 		C5426088620B57FAAB41E593 /* ActivityRepository+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */; };
 		C7789234717598A80B08C875 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44934C5F563E2D198B67B314 /* PreferencesView.swift */; };
@@ -32,6 +32,7 @@
 		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
+		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
 /* End PBXBuildFile section */
 
@@ -50,7 +51,6 @@
 		0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityRepository+Fetch.swift"; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		2BE3202723C9A0CC113B3EFB /* ActivitySummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivitySummary.swift; sourceTree = "<group>"; };
 		2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModel.swift; sourceTree = "<group>"; };
 		44934C5F563E2D198B67B314 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		47DE51F8BF3C4AABD07045B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -64,17 +64,19 @@
 		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
+		B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileTabView.swift; sourceTree = "<group>"; };
 		B98887F275D8B5C626A27859 /* ActivityFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFilters.swift; sourceTree = "<group>"; };
 		BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSheetView.swift; sourceTree = "<group>"; };
 		BDB3AE470DCC71F2465AD70B /* GPXManagement.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = GPXManagement.xcdatamodel; sourceTree = "<group>"; };
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
+		BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		C7ACADC04245857846CE60BC /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModelTests.swift; sourceTree = "<group>"; };
 		E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityType+Display.swift"; sourceTree = "<group>"; };
 		E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepository.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_872023EB-131A-482C-8193-5229893F3553" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,18 +124,19 @@
 				06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */,
 				2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */,
 				0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */,
-				2BE3202723C9A0CC113B3EFB /* ActivitySummary.swift */,
 				E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */,
 				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */,
+				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
 				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
 				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
+				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -165,10 +168,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_5FCE2672-CB91-45E5-93C9-1EC4BF7EC1F1" /* GPXManagement */ = {
+		"TEMP_89621D6E-F60B-4815-A165-7A030B03FA9A" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_872023EB-131A-482C-8193-5229893F3553" /* Secrets.xcconfig */,
+				"TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -269,19 +272,20 @@
 				410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */,
 				B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */,
 				C5426088620B57FAAB41E593 /* ActivityRepository+Fetch.swift in Sources */,
-				B7F911071E5CD049C8B4D11C /* ActivitySummary.swift in Sources */,
 				71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */,
 				344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
 				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
 				30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */,
+				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
 				D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */,
 				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
 				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
+				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,7 +333,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_872023EB-131A-482C-8193-5229893F3553" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -417,7 +421,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_872023EB-131A-482C-8193-5229893F3553" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_09F8CBC7-C8E0-471B-826F-4405F08BC273" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

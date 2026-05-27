@@ -21,6 +21,7 @@ enum DetailTab: String, CaseIterable, Identifiable {
 struct ActivityDetailView: View {
     let activity: ActivitySummary
     @Bindable var listVM: ActivityListViewModel
+    let repository: CoreDataActivityRepository
     @State private var selectedTab: DetailTab = .stats
     @State private var notesDraft: String = ""
 
@@ -38,7 +39,7 @@ struct ActivityDetailView: View {
             Group {
                 switch selectedTab {
                 case .map:     MapPlaceholderView()
-                case .profile: ProfilePlaceholderView()
+                case .profile: ElevationProfileTabView(activityId: activity.id, repository: repository)
                 case .stats:   StatsTabView(activity: activity)
                 case .notes:   NotesTabView(activity: activity, listVM: listVM, draft: $notesDraft)
                 }

@@ -26,6 +26,16 @@ extension CoreDataActivityRepository {
         }
     }
 
+    func fetchTrackData(id: UUID) async throws -> Data? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "trackData") as? Data
+        }
+    }
+
     func updateNotes(id: UUID, notes: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
