@@ -217,7 +217,7 @@ struct StravaPreferencesView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section("Compte") {
                 if strava.isConnected {
                     LabeledContent("État") {
                         Label("Connecté", systemImage: "checkmark.circle.fill")
@@ -230,10 +230,7 @@ struct StravaPreferencesView: View {
                         strava.disconnect()
                     }
                 } else {
-                    Text("Connectez votre compte Strava pour synchroniser vos activités.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    HStack {
+                    LabeledContent {
                         Button {
                             Task { await strava.connect() }
                         } label: {
@@ -244,8 +241,11 @@ struct StravaPreferencesView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(strava.isConnecting || !strava.isConfigured)
-
-                        if strava.isConnecting {
+                    } label: {
+                        Text("Connectez votre compte Strava pour synchroniser vos activités.")
+                    }
+                    if strava.isConnecting {
+                        HStack(spacing: 6) {
                             ProgressView().controlSize(.small)
                             Text("Autorisation dans le navigateur…")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -260,32 +260,23 @@ struct StravaPreferencesView: View {
                 if let error = strava.error {
                     Text(error).font(.caption).foregroundStyle(.red)
                 }
-            } header: {
-                Text("Compte Strava")
-            } footer: {
-                HStack {
-                    Spacer()
-                    Image("StravaPoweredBy")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 16)
-                }
             }
 
             if strava.isConnected {
-                Section("Synchronisation") {
-                    HStack {
-                        Button {
-                            Task { await services.syncStrava() }
-                        } label: {
-                            Label("Synchroniser maintenant", systemImage: "arrow.down.circle")
-                        }
-                        .disabled(services.isSyncingStrava)
-
-                        if services.isSyncingStrava {
-                            ProgressView().controlSize(.small)
-                            Text(services.stravaSyncProgress ?? "")
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Section {
+                    LabeledContent("Synchroniser") {
+                        HStack(spacing: 8) {
+                            if services.isSyncingStrava {
+                                ProgressView().controlSize(.small)
+                                Text(services.stravaSyncProgress ?? "")
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Button {
+                                Task { await services.syncStrava() }
+                            } label: {
+                                Label("Maintenant", systemImage: "arrow.down.circle")
+                            }
+                            .disabled(services.isSyncingStrava)
                         }
                     }
                     if let last = services.stravaLastSyncDate {
@@ -294,12 +285,22 @@ struct StravaPreferencesView: View {
                     if let summary = services.lastStravaSyncSummary {
                         Text(summary).font(.caption).foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Synchronisation")
+                } footer: {
                     Text("Récupère vos activités GPS depuis la dernière synchronisation (déduplication automatique). Le débit Strava est limité ; sur un gros historique la sync reprend là où elle s'est arrêtée.")
-                        .font(.caption2).foregroundStyle(.tertiary)
                 }
             }
         }
-        .padding()
+        .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom) {
+            Image("StravaPoweredBy")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 16)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 12)
+        }
     }
 
     private static func formatDate(_ d: Date) -> String {
