@@ -112,6 +112,12 @@ final class ActivityListViewModel {
         }
     }
 
+    func updateType(ids: Set<UUID>, type: ActivityType) async {
+        for id in ids {
+            await updateType(id: id, type: type)
+        }
+    }
+
     func autoRename(id: UUID) async {
         renamingIds.insert(id)
         defer { renamingIds.remove(id) }

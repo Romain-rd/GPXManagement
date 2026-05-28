@@ -74,15 +74,26 @@ struct MapOverviewView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background(.thinMaterial, in: Capsule())
-                    Button {
-                        Task { await exportPNG() }
+                    Menu {
+                        Button {
+                            Task { await exportPNG(fullRoute: false) }
+                        } label: {
+                            Label("Exporter la vue", systemImage: "rectangle.dashed")
+                        }
+                        Button {
+                            Task { await exportPNG(fullRoute: true) }
+                        } label: {
+                            Label("Exporter tout le parcours", systemImage: "arrow.up.left.and.arrow.down.right")
+                        }
                     } label: {
                         if isExporting {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("Exporter en PNG", systemImage: "photo.badge.arrow.down")
+                            Label("Exporter PNG", systemImage: "photo.badge.arrow.down")
                         }
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                     .disabled(isExporting)
                     .padding(6)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -102,8 +113,14 @@ struct MapOverviewView: View {
         }
     }
 
-    private func exportPNG() async {
-        guard let mapRect = proxy.visibleMapRect else { return }
+    private func exportPNG(fullRoute: Bool) async {
+        let mapRect: MKMapRect?
+        if fullRoute {
+            mapRect = tracksBoundingRect()
+        } else {
+            mapRect = proxy.visibleMapRect
+        }
+        guard let mapRect else { return }
         isExporting = true
         defer { isExporting = false }
         do {
@@ -117,6 +134,18 @@ struct MapOverviewView: View {
         } catch {
             exportError = error.localizedDescription
         }
+    }
+
+    private func tracksBoundingRect() -> MKMapRect? {
+        var rect = MKMapRect.null
+        for track in tracks {
+            for coord in track.coordinates {
+                let point = MKMapPoint(coord)
+                rect = rect.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
+            }
+        }
+        guard !rect.isNull, rect.size.width > 0 || rect.size.height > 0 else { return nil }
+        return rect.insetBy(dx: -rect.size.width * 0.06 - 1, dy: -rect.size.height * 0.06 - 1)
     }
 
     private var visibleActivitiesIDsKey: String {

@@ -101,6 +101,22 @@ struct ActivityListView: View {
                 EmptyView()
             }
             Spacer()
+            Menu {
+                ForEach(ActivityType.allCases, id: \.self) { type in
+                    Button {
+                        let ids = navigation.listSelection
+                        Task { await listVM.updateType(ids: ids, type: type) }
+                    } label: {
+                        Label(type.displayName, systemImage: type.symbolName)
+                    }
+                }
+            } label: {
+                Label("Changer le type", systemImage: "tag")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .font(.caption)
+
             Button("Tout désélectionner") {
                 navigation.listSelection = []
             }
