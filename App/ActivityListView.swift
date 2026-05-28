@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 import GPXCore
 
 struct ActivityListView: View {
@@ -36,13 +38,63 @@ struct ActivityListView: View {
             }
             .pickerStyle(.menu)
             .frame(maxWidth: 240)
+
+            Menu {
+                Button {
+                    pickFilesForImport()
+                } label: {
+                    Label("Importer des fichiers GPX/FIT…", systemImage: "doc.badge.plus")
+                }
+                Button {
+                    pickAppleHealthExport()
+                } label: {
+                    Label("Importer depuis Apple Santé…", systemImage: "heart.text.square")
+                }
+            } label: {
+                Label("Importer", systemImage: "plus")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
             Spacer()
+            if services.isScanningHealthExport {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text(services.healthScanProgress ?? "Analyse…")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
             Text("\(listVM.visibleActivities.count) résultat(s)")
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+
+    private func pickFilesForImport() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [
+            .init(filenameExtension: "gpx") ?? .xml,
+            .init(filenameExtension: "fit") ?? .data
+        ]
+        panel.title = "Choisir des fichiers GPX ou FIT"
+        guard panel.runModal() == .OK else { return }
+        let urls = panel.urls
+        Task { await services.prepareImports(from: urls) }
+    }
+
+    private func pickAppleHealthExport() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choisir le dossier d'export Apple Santé"
+        panel.message = "Sélectionnez le dossier qui contient export.xml (et workout-routes/)."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        Task { await services.importAppleHealthExport(rootURL: folder) }
     }
 
     private var list: some View {

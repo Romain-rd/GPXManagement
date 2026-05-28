@@ -49,6 +49,13 @@ struct ImportSheetView: View {
                     Button("Tout annuler") {
                         services.cancelAllImports()
                     }
+                    if services.pendingImports.count > 1 {
+                        Button("Tout importer (\(services.pendingImports.count))") {
+                            Task {
+                                await services.confirmAllPendingImports(defaultActivityType: editedType)
+                            }
+                        }
+                    }
                     Button("Importer") {
                         Task {
                             await services.confirmImport(proposal, activityType: editedType, title: editedTitle)

@@ -77,6 +77,10 @@ public actor ImportService {
     }
 
     public func prepareImport(from url: URL) async throws -> ImportProposal {
+        try await prepareImport(from: url, hintedActivityType: nil, hintedTitle: nil)
+    }
+
+    public func prepareImport(from url: URL, hintedActivityType: ActivityType?, hintedTitle: String?) async throws -> ImportProposal {
         let format = try detectFormat(url: url)
         let data: Data
         do {
@@ -95,8 +99,10 @@ public actor ImportService {
 
         guard !parsed.points.isEmpty else { throw ImportError.noTrackData }
         let stats = ActivityStatsCalculator.compute(points: parsed.points)
-        let suggestedType = ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
-        let title = parsed.name?.isEmpty == false ? parsed.name! : url.deletingPathExtension().lastPathComponent
+        let detectedType = ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
+        let suggestedType = hintedActivityType ?? detectedType
+        let parsedTitle = parsed.name?.isEmpty == false ? parsed.name! : url.deletingPathExtension().lastPathComponent
+        let title = (hintedTitle?.isEmpty == false ? hintedTitle! : parsedTitle)
         let sha = Self.sha256(of: data)
         let startDate = parsed.startDate ?? Date()
         let duplicate = try await repository.findDuplicate(sha256: sha, startDate: startDate, distance: stats.distance)
