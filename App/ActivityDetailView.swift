@@ -59,6 +59,18 @@ struct ActivityDetailView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
+                    Task { await listVM.autoRename(id: activity.id) }
+                } label: {
+                    if listVM.renamingIds.contains(activity.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Nommer d'après le parcours", systemImage: "mappin.and.ellipse")
+                    }
+                }
+                .disabled(listVM.renamingIds.contains(activity.id))
+                .help("Renomme l'activité avec lieu de départ → point de passage → arrivée")
+
+                Button {
                     Task { await exportGPX() }
                 } label: {
                     Label("Exporter en GPX", systemImage: "arrow.down.doc")

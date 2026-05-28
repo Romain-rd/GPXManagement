@@ -39,6 +39,7 @@
 		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
 		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
+		FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityRepository+Fetch.swift"; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseGeocoder.swift; sourceTree = "<group>"; };
 		2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapOverviewView.swift; sourceTree = "<group>"; };
 		2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModel.swift; sourceTree = "<group>"; };
 		44934C5F563E2D198B67B314 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
@@ -86,7 +88,7 @@
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		F996281407C82E5D515CE59D /* ActivityMapTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMapTabView.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_FD1571E2-078C-4B16-8A10-37657C3B61F7" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +150,7 @@
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
+				2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */,
 				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
 				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
@@ -183,10 +186,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_BF51B440-0F88-49B9-84BF-D759577E631D" /* GPXManagement */ = {
+		"TEMP_AFC4DA8F-BD3E-44DD-91B9-5496A3FAEEE1" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_FD1571E2-078C-4B16-8A10-37657C3B61F7" /* Secrets.xcconfig */,
+				"TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -302,6 +305,7 @@
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
+				FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */,
 				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
 				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
@@ -353,7 +357,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_FD1571E2-078C-4B16-8A10-37657C3B61F7" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -441,7 +445,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_FD1571E2-078C-4B16-8A10-37657C3B61F7" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

@@ -5,6 +5,7 @@ struct ImportSheetView: View {
     @Bindable var services: AppServices
     @State private var editedTitle: String = ""
     @State private var editedType: ActivityType = .cyclingRoad
+    @State private var isNaming = false
 
     private var currentProposal: ImportProposal? {
         services.pendingImports.first
@@ -22,7 +23,20 @@ struct ImportSheetView: View {
                 }
 
                 Form {
-                    TextField("Titre", text: $editedTitle)
+                    HStack {
+                        TextField("Titre", text: $editedTitle)
+                        Button {
+                            Task { await suggestName(from: proposal) }
+                        } label: {
+                            if isNaming {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "mappin.and.ellipse")
+                            }
+                        }
+                        .disabled(isNaming)
+                        .help("Nommer d'après le parcours (départ → passage → arrivée)")
+                    }
                     Picker("Type d'activité", selection: $editedType) {
                         ForEach(ActivityType.allCases, id: \.self) { type in
                             Text(type.displayName).tag(type)
@@ -78,6 +92,14 @@ struct ImportSheetView: View {
         if let p = currentProposal {
             editedTitle = p.suggestedTitle
             editedType = p.suggestedActivityType ?? .cyclingRoad
+        }
+    }
+
+    private func suggestName(from proposal: ImportProposal) async {
+        isNaming = true
+        defer { isNaming = false }
+        if let name = await RouteNamer.suggestName(points: proposal.parsed.points) {
+            editedTitle = name
         }
     }
 

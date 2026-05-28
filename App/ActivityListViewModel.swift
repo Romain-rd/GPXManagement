@@ -10,6 +10,7 @@ final class ActivityListViewModel {
     var searchText: String = ""
     var isLoading: Bool = false
     var error: String?
+    var renamingIds: Set<UUID> = []
 
     private let repository: CoreDataActivityRepository
 
@@ -82,30 +83,39 @@ final class ActivityListViewModel {
         do {
             try await repository.updateNotes(id: id, notes: notes)
             if let idx = allActivities.firstIndex(where: { $0.id == id }) {
-                let original = allActivities[idx]
-                allActivities[idx] = ActivitySummary(
-                    id: original.id,
-                    title: original.title,
-                    activityType: original.activityType,
-                    startDate: original.startDate,
-                    endDate: original.endDate,
-                    distance: original.distance,
-                    duration: original.duration,
-                    movingDuration: original.movingDuration,
-                    elevationGain: original.elevationGain,
-                    elevationLoss: original.elevationLoss,
-                    avgSpeed: original.avgSpeed,
-                    maxSpeed: original.maxSpeed,
-                    avgHeartRate: original.avgHeartRate,
-                    maxHeartRate: original.maxHeartRate,
-                    sourceFileName: original.sourceFileName,
-                    sourceFileFormat: original.sourceFileFormat,
-                    tags: original.tags,
-                    notes: notes
-                )
+                allActivities[idx] = allActivities[idx].updatingNotes(notes)
             }
         } catch {
             self.error = "Échec de la mise à jour : \(error.localizedDescription)"
+        }
+    }
+
+    func updateTitle(id: UUID, title: String) async {
+        do {
+            try await repository.updateTitle(id: id, title: title)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingTitle(title)
+            }
+        } catch {
+            self.error = "Échec du renommage : \(error.localizedDescription)"
+        }
+    }
+
+    func autoRename(id: UUID) async {
+        renamingIds.insert(id)
+        defer { renamingIds.remove(id) }
+        guard let data = try? await repository.fetchTrackData(id: id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data),
+              let name = await RouteNamer.suggestName(points: points) else {
+            error = "Impossible de déterminer un nom depuis le parcours (pas de réseau ou pas de GPS ?)."
+            return
+        }
+        await updateTitle(id: id, title: name)
+    }
+
+    func autoRenameVisible() async {
+        for activity in visibleActivities {
+            await autoRename(id: activity.id)
         }
     }
 
