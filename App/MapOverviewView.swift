@@ -2,6 +2,30 @@ import SwiftUI
 import GPXCore
 import GPXMapKit
 
+struct LayerPicker: View {
+    @Binding var layer: MapLayer
+
+    var body: some View {
+        Menu {
+            ForEach(MapLayer.allCases) { l in
+                Button {
+                    layer = l
+                } label: {
+                    Label(l.displayName, systemImage: l == layer ? "checkmark" : "")
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "square.stack.3d.up")
+                Text(layer.displayName)
+            }
+        }
+        .menuStyle(.borderedButton)
+        .padding(6)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 struct MapOverviewView: View {
     let activities: [ActivitySummary]
     let selectedIds: Set<UUID>

@@ -11,7 +11,6 @@
 		0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */; };
 		142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */; };
 		1EBC3FD34D98053DF310C1C3 /* PersistenceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */; };
-		1FC71395C25AF682E061365F /* ActivityMapTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F996281407C82E5D515CE59D /* ActivityMapTabView.swift */; };
 		30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */; };
 		3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */; };
 		344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7894B1C175BDAA6118892D /* AppConfig.swift */; };
@@ -88,9 +87,8 @@
 		E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepository.swift; sourceTree = "<group>"; };
 		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
-		F996281407C82E5D515CE59D /* ActivityMapTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMapTabView.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,7 +135,6 @@
 				B98887F275D8B5C626A27859 /* ActivityFilters.swift */,
 				06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */,
 				2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */,
-				F996281407C82E5D515CE59D /* ActivityMapTabView.swift */,
 				0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */,
 				E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */,
 				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
@@ -189,10 +186,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_3D3FB3A5-526F-4E82-8C98-FEF2EB3AB488" /* GPXManagement */ = {
+		"TEMP_E8CB1F9A-C9ED-448F-B5EE-0F7D0BE03571" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */,
+				"TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -304,7 +301,6 @@
 				D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */,
 				410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */,
 				B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */,
-				1FC71395C25AF682E061365F /* ActivityMapTabView.swift in Sources */,
 				C5426088620B57FAAB41E593 /* ActivityRepository+Fetch.swift in Sources */,
 				71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */,
 				344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */,
@@ -372,7 +368,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -460,7 +456,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

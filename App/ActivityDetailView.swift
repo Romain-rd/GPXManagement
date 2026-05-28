@@ -2,7 +2,6 @@ import SwiftUI
 import GPXCore
 
 enum DetailTab: String, CaseIterable, Identifiable {
-    case map = "Carte"
     case profile = "Profil"
     case stats = "Statistiques"
     case notes = "Notes"
@@ -10,7 +9,6 @@ enum DetailTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var systemImage: String {
         switch self {
-        case .map:     return "map"
         case .profile: return "chart.xyaxis.line"
         case .stats:   return "list.bullet.rectangle"
         case .notes:   return "note.text"
@@ -41,7 +39,6 @@ struct ActivityDetailView: View {
 
             Group {
                 switch selectedTab {
-                case .map:     ActivityMapTabView(activity: activity, repository: repository)
                 case .profile: ElevationProfileTabView(activityId: activity.id, repository: repository)
                 case .stats:   StatsTabView(activity: activity)
                 case .notes:   NotesTabView(activity: activity, listVM: listVM, draft: $notesDraft)
@@ -137,40 +134,6 @@ struct ActivityDetailView: View {
         f.timeStyle = .short
         return f.string(from: d)
     }
-}
-
-struct MapPlaceholderView: View {
-    var body: some View {
-        contentUnavailable(
-            title: "Carte",
-            message: "Sera disponible en P6 (MapKit + tuiles IGN).",
-            systemImage: "map"
-        )
-    }
-}
-
-struct ProfilePlaceholderView: View {
-    var body: some View {
-        contentUnavailable(
-            title: "Profil altimétrique",
-            message: "Sera disponible en P7 (Swift Charts).",
-            systemImage: "chart.xyaxis.line"
-        )
-    }
-}
-
-@ViewBuilder
-private func contentUnavailable(title: String, message: String, systemImage: String) -> some View {
-    VStack(spacing: 12) {
-        Image(systemName: systemImage)
-            .font(.system(size: 40))
-            .foregroundStyle(.secondary)
-        Text(title).font(.title3)
-        Text(message)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
 }
 
 struct StatsTabView: View {
