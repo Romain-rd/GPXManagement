@@ -17,8 +17,9 @@ public struct ImportProposal: Sendable {
     public let duplicateOfActivityId: UUID?
     public let fileSHA256: String
     public let fileFormat: SourceFileFormat
+    public let origin: ActivityOrigin
 
-    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat) {
+    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport) {
         self.sourceURL = sourceURL
         self.parsed = parsed
         self.stats = stats
@@ -27,6 +28,7 @@ public struct ImportProposal: Sendable {
         self.duplicateOfActivityId = duplicateOfActivityId
         self.fileSHA256 = fileSHA256
         self.fileFormat = fileFormat
+        self.origin = origin
     }
 }
 
@@ -80,7 +82,7 @@ public actor ImportService {
         try await prepareImport(from: url, hintedActivityType: nil, hintedTitle: nil)
     }
 
-    public func prepareImport(from url: URL, hintedActivityType: ActivityType?, hintedTitle: String?) async throws -> ImportProposal {
+    public func prepareImport(from url: URL, hintedActivityType: ActivityType?, hintedTitle: String?, origin: ActivityOrigin = .manualImport) async throws -> ImportProposal {
         let format = try detectFormat(url: url)
         let data: Data
         do {
@@ -115,7 +117,8 @@ public actor ImportService {
             suggestedTitle: title,
             duplicateOfActivityId: duplicate,
             fileSHA256: sha,
-            fileFormat: format
+            fileFormat: format,
+            origin: origin
         )
     }
 
@@ -139,7 +142,7 @@ public actor ImportService {
             id: id,
             title: title,
             activityType: activityType,
-            origin: .manualImport,
+            origin: proposal.origin,
             sourceFileName: relativePath,
             sourceFileFormat: proposal.fileFormat,
             startDate: startDate,

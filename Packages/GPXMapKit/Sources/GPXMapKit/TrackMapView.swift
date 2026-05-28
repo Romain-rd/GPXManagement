@@ -84,9 +84,9 @@ public struct TrackMapView: NSViewRepresentable {
         default:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
             let overlay = IGNTileOverlay(layer: layer)
-            // Tuile au niveau .aboveRoads, polylines au niveau .aboveLabels (plus haut) :
-            // la trace passe TOUJOURS au-dessus du raster IGN opaque, quel que soit l'ordre d'ajout.
-            mapView.addOverlay(overlay, level: .aboveRoads)
+            // canReplaceMapContent=true → la tuile sert de fond et masque les labels Apple ;
+            // les polylines (ajoutées ensuite, même niveau) se dessinent par-dessus.
+            mapView.addOverlay(overlay, level: .aboveLabels)
         }
     }
 
