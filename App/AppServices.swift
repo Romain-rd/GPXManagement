@@ -18,6 +18,9 @@ final class AppServices {
     var importedCount: Int = 0
     var isScanningHealthExport: Bool = false
     var healthScanProgress: String?
+    var isScanningWatchedFolder: Bool = false
+    var watchedFolderProgress: String?
+    var lastWatchedFolderSummary: String?
 
     private init() {
         self.persistence = PersistenceController.shared
@@ -122,5 +125,66 @@ final class AppServices {
 
     func cancelAllImports() {
         pendingImports.removeAll()
+    }
+
+    func scanWatchedFolder(_ folderURL: URL) async {
+        isScanningWatchedFolder = true
+        defer {
+            isScanningWatchedFolder = false
+            watchedFolderProgress = nil
+        }
+        importError = nil
+        lastWatchedFolderSummary = nil
+
+        let didStartAccess = folderURL.startAccessingSecurityScopedResource()
+        defer { if didStartAccess { folderURL.stopAccessingSecurityScopedResource() } }
+
+        let fm = FileManager.default
+        let candidates: [URL]
+        do {
+            candidates = try fm.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
+        } catch {
+            importError = "Échec de la lecture du dossier : \(error.localizedDescription)"
+            return
+        }
+
+        let supported = candidates.filter { url in
+            let ext = url.pathExtension.lowercased()
+            return ext == "gpx" || ext == "fit"
+        }
+
+        if supported.isEmpty {
+            lastWatchedFolderSummary = "Aucun fichier GPX/FIT trouvé."
+            return
+        }
+
+        var proposals: [ImportProposal] = []
+        var duplicates = 0
+        var failures = 0
+        for (idx, url) in supported.enumerated() {
+            watchedFolderProgress = "Analyse \(idx + 1)/\(supported.count)…"
+            do {
+                let proposal = try await importer.prepareImport(from: url)
+                if proposal.duplicateOfActivityId != nil {
+                    duplicates += 1
+                } else {
+                    proposals.append(proposal)
+                }
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: prepareImport failed for \(url.lastPathComponent): \(error)")
+            }
+        }
+
+        pendingImports.append(contentsOf: proposals)
+
+        var parts: [String] = []
+        parts.append("\(proposals.count) nouveau(x)")
+        if duplicates > 0 { parts.append("\(duplicates) déjà importé(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastWatchedFolderSummary = parts.joined(separator: " · ")
+        if proposals.isEmpty && duplicates > 0 {
+            importError = "Tous les fichiers (\(duplicates)) sont déjà importés."
+        }
     }
 }

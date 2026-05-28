@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import GPXCore
 import GPXMapKit
 
@@ -35,28 +36,70 @@ struct GeneralPreferencesView: View {
 
 struct OrganizationPreferencesView: View {
     @AppStorage("organizationPattern") private var pattern: String = OrganizationPattern.default.template
+    @State private var watchedFolderPath: String = ""
 
     var body: some View {
         Form {
-            Picker("Modèle prédéfini", selection: $pattern) {
-                ForEach(OrganizationPattern.presets, id: \.template) { preset in
-                    Text(preset.label).tag(preset.template)
+            Section("Modèle d'organisation") {
+                Picker("Modèle prédéfini", selection: $pattern) {
+                    ForEach(OrganizationPattern.presets, id: \.template) { preset in
+                        Text(preset.label).tag(preset.template)
+                    }
+                }
+                TextField("Modèle personnalisé", text: $pattern, axis: .vertical)
+                    .lineLimit(2...4)
+                    .font(.system(.body, design: .monospaced))
+                Text("Variables : {year}, {month}, {day}, {activity}, {subactivity}, {title}, {ext}")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button("Réorganiser maintenant") {}
+                        .disabled(true)
+                        .help("Fonctionnalité prévue ultérieurement")
                 }
             }
-            TextField("Modèle personnalisé", text: $pattern, axis: .vertical)
-                .lineLimit(2...4)
-                .font(.system(.body, design: .monospaced))
-            Text("Variables : {year}, {month}, {day}, {activity}, {subactivity}, {title}, {ext}")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("Réorganiser maintenant") {}
-                    .disabled(true)
-                    .help("Fonctionnalité prévue après P5")
+
+            Section("Dossier surveillé (HealthFit, etc.)") {
+                if watchedFolderPath.isEmpty {
+                    Text("Aucun dossier configuré.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(watchedFolderPath)
+                        .font(.system(.callout, design: .monospaced))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+                HStack {
+                    Button("Choisir un dossier…") {
+                        pickFolder()
+                    }
+                    Button("Oublier") {
+                        WatchedFolderBookmark.clear()
+                        watchedFolderPath = ""
+                    }
+                    .disabled(watchedFolderPath.isEmpty)
+                }
+                Text("Les fichiers GPX/FIT déposés par HealthFit ou un autre service de sync dans ce dossier iCloud seront proposés à l'import (avec filtrage automatique des doublons).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
+        .onAppear {
+            watchedFolderPath = WatchedFolderBookmark.resolve()?.path ?? ""
+        }
+    }
+
+    private func pickFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choisir un dossier à surveiller"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        try? WatchedFolderBookmark.save(url: folder)
+        watchedFolderPath = folder.path
     }
 }
 
