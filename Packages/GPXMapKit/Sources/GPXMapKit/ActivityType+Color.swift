@@ -5,16 +5,36 @@ import GPXCore
 public extension ActivityType {
     var trackColor: NSColor {
         switch self {
-        case .cyclingRoad:     return NSColor(hex: 0x1E88E5)
-        case .cyclingMTB:      return NSColor(hex: 0x43A047)
-        case .cyclingGravel:   return NSColor(hex: 0x43A047)
-        case .motorcycle:      return NSColor(hex: 0xE53935)
-        case .walking:         return NSColor(hex: 0xFB8C00)
-        case .hiking:          return NSColor(hex: 0x6D4C41)
-        case .skiingAlpine:    return NSColor(hex: 0x00ACC1)
-        case .skiingNordic:    return NSColor(hex: 0x5E35B1)
-        case .skiingTouring:   return NSColor(hex: 0x3949AB)
-        case .skiingFreeride:  return NSColor(hex: 0x8E24AA)
+        case .cyclingRoad, .virtualRide:       return NSColor(hex: 0x1E88E5)
+        case .cyclingMTB, .cyclingGravel:      return NSColor(hex: 0x43A047)
+        case .eBike, .eMountainBike:           return NSColor(hex: 0x00897B)
+        case .velomobile, .handcycle:          return NSColor(hex: 0x1565C0)
+        case .motorcycle:                      return NSColor(hex: 0xE53935)
+        case .walking:                         return NSColor(hex: 0xFB8C00)
+        case .hiking:                          return NSColor(hex: 0x6D4C41)
+        case .running, .trailRunning, .virtualRun: return NSColor(hex: 0xEF6C00)
+        case .mountaineering:                  return NSColor(hex: 0x546E7A)
+        case .skiingAlpine:                    return NSColor(hex: 0x00ACC1)
+        case .skiingNordic:                    return NSColor(hex: 0x5E35B1)
+        case .skiingTouring:                   return NSColor(hex: 0x3949AB)
+        case .skiingFreeride:                  return NSColor(hex: 0x8E24AA)
+        case .rollerSki:                       return NSColor(hex: 0x7E57C2)
+        case .snowboard:                       return NSColor(hex: 0x5C6BC0)
+        case .snowshoe:                        return NSColor(hex: 0x90A4AE)
+        case .iceSkate, .inlineSkate, .skateboard: return NSColor(hex: 0xAB47BC)
+        case .swimming:                        return NSColor(hex: 0x26C6DA)
+        case .rowing, .virtualRow:             return NSColor(hex: 0x9CCC65)
+        case .canoeing, .kayaking, .standUpPaddling: return NSColor(hex: 0x00ACC1)
+        case .surfing, .kitesurf, .windsurf:   return NSColor(hex: 0x26A69A)
+        case .sailing:                         return NSColor(hex: 0x0277BD)
+        case .climbing:                        return NSColor(hex: 0xF4511E)
+        case .strengthTraining, .crossfit, .hiit, .elliptical, .stairStepper,
+             .pilates, .yoga, .workout:        return NSColor(hex: 0x8D6E63)
+        case .golf:                            return NSColor(hex: 0x7CB342)
+        case .wheelchair:                      return NSColor(hex: 0x5E35B1)
+        case .badminton, .tennis, .tableTennis, .pickleball, .racquetball, .squash, .soccer:
+            return NSColor(hex: 0xD81B60)
+        case .other:                           return NSColor(hex: 0x9E9E9E)
         }
     }
 }

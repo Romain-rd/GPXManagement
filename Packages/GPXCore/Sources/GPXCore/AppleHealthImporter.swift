@@ -68,6 +68,14 @@ private extension ActivityType {
         case .skiingNordic:   return "Ski nordique"
         case .skiingTouring:  return "Ski de randonnée"
         case .skiingFreeride: return "Ski freeride"
+        case .climbing:         return "Escalade"
+        case .strengthTraining: return "Musculation"
+        case .swimming:         return "Natation"
+        case .mountaineering:   return "Alpinisme"
+        case .rowing:           return "Aviron"
+        case .surfing:          return "Surf"
+        case .other:            return "Autre"
+        default:                return shortName.capitalized
         }
     }
 }
