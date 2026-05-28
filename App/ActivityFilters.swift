@@ -10,6 +10,7 @@ struct ActivityFilters: Equatable {
         activityTypes.isEmpty && years.isEmpty && tags.isEmpty
     }
 
+    /// Intersection (ET) entre facettes ; union (OU) à l'intérieur d'une facette.
     func matches(_ summary: ActivitySummary) -> Bool {
         if !activityTypes.isEmpty, !activityTypes.contains(summary.activityType) { return false }
         if !years.isEmpty {
@@ -21,6 +22,22 @@ struct ActivityFilters: Equatable {
             if summaryTags.intersection(tags).isEmpty { return false }
         }
         return true
+    }
+
+    mutating func toggleType(_ type: ActivityType) {
+        if activityTypes.contains(type) { activityTypes.remove(type) } else { activityTypes.insert(type) }
+    }
+
+    mutating func toggleYear(_ year: Int) {
+        if years.contains(year) { years.remove(year) } else { years.insert(year) }
+    }
+
+    mutating func toggleTag(_ tag: String) {
+        if tags.contains(tag) { tags.remove(tag) } else { tags.insert(tag) }
+    }
+
+    mutating func reset() {
+        self = .init()
     }
 }
 

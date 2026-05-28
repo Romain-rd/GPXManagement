@@ -1,58 +1,30 @@
 import SwiftUI
 import GPXCore
 
-enum DetailTab: String, CaseIterable, Identifiable {
-    case profile = "Profil"
-    case stats = "Statistiques"
-    case notes = "Notes"
-
-    var id: String { rawValue }
-    var systemImage: String {
-        switch self {
-        case .profile: return "chart.xyaxis.line"
-        case .stats:   return "list.bullet.rectangle"
-        case .notes:   return "note.text"
-        }
-    }
-}
-
 struct ActivityDetailView: View {
     let activity: ActivitySummary
     @Bindable var listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
-    @State private var selectedTab: DetailTab = .stats
     @State private var notesDraft: String = ""
     @State private var shareURL: URL?
     @State private var isShareSheetPresented = false
     @State private var exportError: String?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            Picker("Vue", selection: $selectedTab) {
-                ForEach(DetailTab.allCases) { tab in
-                    Label(tab.rawValue, systemImage: tab.systemImage).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
-            Group {
-                switch selectedTab {
-                case .profile: ElevationProfileTabView(activityId: activity.id, repository: repository)
-                case .stats:   StatsTabView(activity: activity)
-                case .notes:   NotesTabView(activity: activity, listVM: listVM, draft: $notesDraft)
-                }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                header
+                metricsGrid
+                profileSection
+                notesSection
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(20)
         }
-        .padding(.vertical)
         .navigationTitle(activity.title)
         .onAppear { notesDraft = activity.notes ?? "" }
-        .onChange(of: activity.id) { _, _ in
-            notesDraft = activity.notes ?? ""
-            selectedTab = .stats
-        }
+        .onChange(of: activity.id) { _, _ in notesDraft = activity.notes ?? "" }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -79,9 +51,7 @@ struct ActivityDetailView: View {
                 }
             }
         }
-        .background(
-            ShareSheetPresenter(isPresented: $isShareSheetPresented, url: shareURL)
-        )
+        .background(ShareSheetPresenter(isPresented: $isShareSheetPresented, url: shareURL))
         .alert("Export", isPresented: hasExportErrorBinding) {
             Button("OK") { exportError = nil }
         } message: {
@@ -89,18 +59,89 @@ struct ActivityDetailView: View {
         }
     }
 
+    private var header: some View {
+        HStack(spacing: 14) {
+            Image(systemName: activity.activityType.symbolName)
+                .font(.system(size: 28))
+                .foregroundStyle(.tint)
+                .frame(width: 52, height: 52)
+                .background(Circle().fill(.tint.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(activity.title).font(.title.bold())
+                Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")
+                    .foregroundStyle(.secondary)
+                if !activity.tags.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(activity.tags, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Capsule().fill(.quaternary))
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private var metricsGrid: some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            MetricCard(icon: "ruler", value: Self.distance(activity.distance), label: "Distance", tint: .blue)
+            MetricCard(icon: "arrow.up.forward", value: "\(Int(activity.elevationGain.rounded())) m", label: "Dénivelé +", tint: .green)
+            MetricCard(icon: "arrow.down.forward", value: "\(Int(activity.elevationLoss.rounded())) m", label: "Dénivelé −", tint: .orange)
+            MetricCard(icon: "clock", value: Self.duration(activity.duration), label: "Durée totale", tint: .purple)
+            MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
+            MetricCard(icon: "speedometer", value: Self.speed(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
+            MetricCard(icon: "gauge.with.dots.needle.67percent", value: Self.speed(activity.maxSpeed), label: "Vitesse max", tint: .teal)
+            if let hr = activity.avgHeartRate {
+                MetricCard(icon: "heart", value: "\(Int(hr.rounded())) bpm", label: "FC moyenne", tint: .red)
+            }
+            if let hr = activity.maxHeartRate {
+                MetricCard(icon: "heart.fill", value: "\(Int(hr.rounded())) bpm", label: "FC max", tint: .red)
+            }
+        }
+    }
+
+    private var profileSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Profil altimétrique", systemImage: "chart.xyaxis.line")
+                .font(.headline)
+            ElevationProfileTabView(activityId: activity.id, repository: repository)
+                .frame(height: 280)
+                .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+        }
+    }
+
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Notes", systemImage: "note.text").font(.headline)
+                Spacer()
+                Button("Enregistrer") {
+                    Task { await listVM.updateNotes(id: activity.id, notes: notesDraft) }
+                }
+                .disabled(notesDraft == (activity.notes ?? ""))
+            }
+            TextEditor(text: $notesDraft)
+                .frame(minHeight: 100)
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
+            Text("Fichier source : \(activity.sourceFileFormat.rawValue.uppercased()) · \(activity.sourceFileName)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
     private var hasExportErrorBinding: Binding<Bool> {
-        Binding(
-            get: { exportError != nil },
-            set: { if !$0 { exportError = nil } }
-        )
+        Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })
     }
 
     private func exportGPX() async {
         do {
             _ = try await ExportService.exportGPX(activity: activity, repository: repository)
         } catch ExportError.userCancelled {
-            // silent
         } catch {
             exportError = error.localizedDescription
         }
@@ -115,18 +156,6 @@ struct ActivityDetailView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(activity.title).font(.title2.bold())
-                Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal)
-    }
-
     private static func formatDate(_ d: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "fr_FR")
@@ -134,83 +163,45 @@ struct ActivityDetailView: View {
         f.timeStyle = .short
         return f.string(from: d)
     }
-}
 
-struct StatsTabView: View {
-    let activity: ActivitySummary
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
-                    statRow("Distance", Self.formatDistance(activity.distance))
-                    statRow("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m")
-                    statRow("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m")
-                    statRow("Durée totale", Self.formatDuration(activity.duration))
-                    statRow("Durée en mouvement", Self.formatDuration(activity.movingDuration))
-                    statRow("Vitesse moyenne", Self.formatSpeed(activity.avgSpeed))
-                    statRow("Vitesse max", Self.formatSpeed(activity.maxSpeed))
-                    if let hr = activity.avgHeartRate {
-                        statRow("FC moyenne", "\(Int(hr.rounded())) bpm")
-                    }
-                    if let hr = activity.maxHeartRate {
-                        statRow("FC max", "\(Int(hr.rounded())) bpm")
-                    }
-                    statRow("Fichier source", "\(activity.sourceFileFormat.rawValue.uppercased()) · \(activity.sourceFileName)")
-                }
-            }
-            .padding()
-        }
+    private static func distance(_ m: Double) -> String {
+        m >= 1000 ? String(format: "%.2f km", m / 1000) : "\(Int(m)) m"
     }
 
-    @ViewBuilder
-    private func statRow(_ label: String, _ value: String) -> some View {
-        GridRow {
-            Text(label).foregroundStyle(.secondary)
-            Text(value).bold()
-        }
-    }
-
-    private static func formatDistance(_ m: Double) -> String {
-        if m >= 1000 { return String(format: "%.2f km", m / 1000) }
-        return "\(Int(m)) m"
-    }
-
-    private static func formatDuration(_ s: Double) -> String {
+    private static func duration(_ s: Double) -> String {
         let h = Int(s) / 3600
         let m = (Int(s) % 3600) / 60
         let sec = Int(s) % 60
-        if h > 0 { return String(format: "%dh %02dm", h, m) }
-        return String(format: "%dm %02ds", m, sec)
+        return h > 0 ? String(format: "%dh %02dm", h, m) : String(format: "%dm %02ds", m, sec)
     }
 
-    private static func formatSpeed(_ mps: Double) -> String {
+    private static func speed(_ mps: Double) -> String {
         String(format: "%.1f km/h", mps * 3.6)
     }
 }
 
-struct NotesTabView: View {
-    let activity: ActivitySummary
-    @Bindable var listVM: ActivityListViewModel
-    @Binding var draft: String
+struct MetricCard: View {
+    let icon: String
+    let value: String
+    let label: String
+    var tint: Color = .accentColor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Notes")
-                .font(.headline)
-                .padding(.horizontal)
-            TextEditor(text: $draft)
-                .border(.secondary.opacity(0.3))
-                .padding(.horizontal)
-            HStack {
-                Spacer()
-                Button("Enregistrer") {
-                    Task { await listVM.updateNotes(id: activity.id, notes: draft) }
-                }
-                .disabled(draft == (activity.notes ?? ""))
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.title2.bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
 }

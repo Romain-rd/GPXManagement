@@ -218,15 +218,16 @@ struct ActivityRow: View {
         .padding(.vertical, 4)
     }
 
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
         f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "EEE d MMM yyyy"
         return f
     }()
 
     private static func subtitle(for activity: ActivitySummary) -> String {
-        let relative = relativeFormatter.localizedString(for: activity.startDate, relativeTo: Date())
-        return "\(activity.activityType.displayName) · \(relative)"
+        let date = dateFormatter.string(from: activity.startDate)
+        return "\(activity.activityType.displayName) · \(date)"
     }
 
     private static func formatDistance(_ m: Double) -> String {

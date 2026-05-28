@@ -6,23 +6,24 @@ struct SidebarView: View {
     @Bindable var listVM: ActivityListViewModel
 
     var body: some View {
-        List(selection: Binding(
-            get: { navigation.sidebarSelection },
-            set: { newValue in
-                guard let newValue else { return }
-                navigation.sidebarSelection = newValue
-                navigation.applySidebar(newValue, to: &listVM.filters)
-            }
-        )) {
+        List {
             Section("Activités") {
-                NavigationLink(value: SidebarItem.allActivities) {
-                    Label("Toutes", systemImage: "tray.full")
-                        .badge(listVM.allActivities.count)
+                FacetRow(
+                    label: "Toutes",
+                    systemImage: "tray.full",
+                    count: listVM.allActivities.count,
+                    isOn: listVM.filters.isEmpty
+                ) {
+                    listVM.filters.reset()
                 }
                 ForEach(listVM.availableActivityTypes, id: \.type) { entry in
-                    NavigationLink(value: SidebarItem.activityType(entry.type)) {
-                        Label(entry.type.displayName, systemImage: entry.type.symbolName)
-                            .badge(entry.count)
+                    FacetRow(
+                        label: entry.type.displayName,
+                        systemImage: entry.type.symbolName,
+                        count: entry.count,
+                        isOn: listVM.filters.activityTypes.contains(entry.type)
+                    ) {
+                        listVM.filters.toggleType(entry.type)
                     }
                 }
             }
@@ -30,10 +31,13 @@ struct SidebarView: View {
             if !listVM.availableYears.isEmpty {
                 Section("Années") {
                     ForEach(listVM.availableYears, id: \.year) { entry in
-                        let label = String(entry.year)
-                        NavigationLink(value: SidebarItem.year(entry.year)) {
-                            Label(label, systemImage: "calendar")
-                                .badge(entry.count)
+                        FacetRow(
+                            label: String(entry.year),
+                            systemImage: "calendar",
+                            count: entry.count,
+                            isOn: listVM.filters.years.contains(entry.year)
+                        ) {
+                            listVM.filters.toggleYear(entry.year)
                         }
                     }
                 }
@@ -42,17 +46,51 @@ struct SidebarView: View {
             if !listVM.availableTags.isEmpty {
                 Section("Tags") {
                     ForEach(listVM.availableTags, id: \.tag) { entry in
-                        NavigationLink(value: SidebarItem.tag(entry.tag)) {
-                            Label(entry.tag, systemImage: "tag")
-                                .badge(entry.count)
+                        FacetRow(
+                            label: entry.tag,
+                            systemImage: "tag",
+                            count: entry.count,
+                            isOn: listVM.filters.tags.contains(entry.tag)
+                        ) {
+                            listVM.filters.toggleTag(entry.tag)
                         }
                     }
                 }
             }
-
         }
         .navigationTitle("Filtres")
         .listStyle(.sidebar)
+    }
+}
+
+private struct FacetRow: View {
+    let label: String
+    let systemImage: String
+    let count: Int
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: systemImage)
+                    .frame(width: 18)
+                    .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                Text(label)
+                    .fontWeight(isOn ? .semibold : .regular)
+                Spacer()
+                Text("\(count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

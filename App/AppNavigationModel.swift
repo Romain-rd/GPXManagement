@@ -1,13 +1,6 @@
 import Foundation
 import GPXCore
 
-enum SidebarItem: Hashable, Sendable {
-    case allActivities
-    case activityType(ActivityType)
-    case year(Int)
-    case tag(String)
-}
-
 enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
     case activities
     case statistics
@@ -35,20 +28,6 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 @MainActor
 @Observable
 final class AppNavigationModel {
-    var sidebarSelection: SidebarItem? = .allActivities
     var listSelection: Set<UUID> = []
     var visualizationMode: VisualizationMode = .activities
-
-    func applySidebar(_ item: SidebarItem, to filters: inout ActivityFilters) {
-        switch item {
-        case .allActivities:
-            filters = .init()
-        case .activityType(let type):
-            filters = ActivityFilters(activityTypes: [type])
-        case .year(let y):
-            filters = ActivityFilters(years: [y])
-        case .tag(let t):
-            filters = ActivityFilters(tags: [t])
-        }
-    }
 }
