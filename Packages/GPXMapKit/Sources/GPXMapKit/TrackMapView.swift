@@ -72,8 +72,9 @@ public struct TrackMapView: NSViewRepresentable {
         default:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
             let overlay = IGNTileOverlay(layer: layer)
-            // Insert at the bottom so the opaque IGN raster never hides the track polylines.
-            mapView.insertOverlay(overlay, at: 0, level: .aboveLabels)
+            // Tuile au niveau .aboveRoads, polylines au niveau .aboveLabels (plus haut) :
+            // la trace passe TOUJOURS au-dessus du raster IGN opaque, quel que soit l'ordre d'ajout.
+            mapView.addOverlay(overlay, level: .aboveRoads)
         }
     }
 
@@ -95,7 +96,7 @@ public struct TrackMapView: NSViewRepresentable {
                 let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
                 polyline.activityId = track.activityId
                 polyline.activityType = track.activityType
-                mapView.addOverlay(polyline)
+                mapView.addOverlay(polyline, level: .aboveLabels)
                 allCoords.append(contentsOf: track.coordinates)
             }
 

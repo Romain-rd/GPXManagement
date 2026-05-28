@@ -28,11 +28,17 @@ final class IGNTileOverlayTests: XCTestCase {
     }
 
     func testScan25UsesPrivateEndpointWithKey() {
-        let url = IGNTileOverlay.buildURL(layerIdentifier: "GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR", format: "image/jpeg", apiKey: "ign_scan_ws", z: 15, x: 16830, y: 11862)
+        let url = IGNTileOverlay.buildURL(layerIdentifier: "GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR", format: "image/jpeg", tileMatrixSet: "PM_6_16", apiKey: "ign_scan_ws", z: 15, x: 16830, y: 11862)
         XCTAssertEqual(url.path, "/private/wmts")
         XCTAssertTrue(url.query?.contains("apikey=ign_scan_ws") ?? false)
         XCTAssertTrue(url.query?.contains("LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR") ?? false)
         XCTAssertTrue(url.query?.contains("FORMAT=image/jpeg") ?? false)
+        XCTAssertTrue(url.query?.contains("TILEMATRIXSET=PM_6_16") ?? false)
+    }
+
+    func testScan25TileMatrixSet() {
+        XCTAssertEqual(MapLayer.ignScan25.wmtsTileMatrixSet, "PM_6_16")
+        XCTAssertEqual(MapLayer.ignPlanV2.wmtsTileMatrixSet, "PM")
     }
 
     func testScan25LayerProperties() {

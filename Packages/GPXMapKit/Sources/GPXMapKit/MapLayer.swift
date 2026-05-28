@@ -48,6 +48,13 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    public var wmtsTileMatrixSet: String {
+        switch self {
+        case .ignScan25: return "PM_6_16"
+        default:         return "PM"
+        }
+    }
+
     /// Clé de découverte publique IGN requise pour les couches sous l'endpoint privé
     /// (`data.geopf.fr/private/wmts`). Le SCAN 25 est un produit sous licence : usage
     /// personnel toléré, à vérifier pour toute redistribution.
