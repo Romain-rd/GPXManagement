@@ -14,8 +14,6 @@ final class AppServices {
     let repository: ActivityRepository
     let importer: ImportService
     let healthImporter: AppleHealthImporter
-    let navigation = AppNavigationModel()
-    let listVM: ActivityListViewModel
 
     var pendingImports: [ImportProposal] = []
     var importError: String?
@@ -29,12 +27,6 @@ final class AppServices {
     var renameAllProgress: String?
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
-    var mapExportToken: Int = 0
-    var mapExportFullRoute: Bool = false
-
-    private var coreDataRepository: CoreDataActivityRepository? {
-        repository as? CoreDataActivityRepository
-    }
 
     private init() {
         self.persistence = PersistenceController.shared
@@ -44,19 +36,13 @@ final class AppServices {
         self.repository = repo
         self.importer = ImportService(storage: storage, repository: repo)
         self.healthImporter = AppleHealthImporter()
-        self.listVM = ActivityListViewModel(repository: repo)
     }
 
-    // MARK: - Sélection courante
-
-    private var selectedSummaries: [ActivitySummary] {
-        listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }
+    var coreDataRepository: CoreDataActivityRepository? {
+        repository as? CoreDataActivityRepository
     }
 
-    var hasSelection: Bool { !navigation.listSelection.isEmpty }
-    var canExportMap: Bool { navigation.visualizationMode == .mapOverview }
-
-    // MARK: - Commandes (barre de menus)
+    // MARK: - Imports (barre de menus)
 
     func importFilesViaPanel() {
         let panel = NSOpenPanel()
@@ -97,41 +83,6 @@ final class AppServices {
         panel.message = "Sélectionnez le dossier qui contient export.xml (et workout-routes/)."
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         Task { await importAppleHealthExport(rootURL: folder) }
-    }
-
-    func exportSelectedActivityGPX() {
-        guard let activity = selectedSummaries.first, let repo = coreDataRepository else { return }
-        Task {
-            do {
-                _ = try await ExportService.exportGPX(activity: activity, repository: repo)
-            } catch ExportError.userCancelled {
-            } catch {
-                importError = error.localizedDescription
-            }
-        }
-    }
-
-    func renameSelectedFromRoute() {
-        let ids = navigation.listSelection
-        Task { for id in ids { await listVM.autoRename(id: id) } }
-    }
-
-    func changeTypeOfSelection(_ type: ActivityType) {
-        let ids = navigation.listSelection
-        Task { await listVM.updateType(ids: ids, type: type) }
-    }
-
-    func deleteSelection() {
-        let ids = navigation.listSelection
-        Task {
-            for id in ids { await listVM.delete(id: id) }
-            navigation.listSelection = []
-        }
-    }
-
-    func requestMapExport(fullRoute: Bool) {
-        mapExportFullRoute = fullRoute
-        mapExportToken += 1
     }
 
     func importAppleHealthExport(rootURL: URL) async {

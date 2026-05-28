@@ -3,14 +3,16 @@ import GPXCore
 
 struct ContentView: View {
     @Bindable var services: AppServices
-    @Bindable var navigation: AppNavigationModel
-    @Bindable var listVM: ActivityListViewModel
+    @State private var window: WindowModel
 
     init(services: AppServices = .shared) {
         self._services = Bindable(wrappedValue: services)
-        self._navigation = Bindable(wrappedValue: services.navigation)
-        self._listVM = Bindable(wrappedValue: services.listVM)
+        let repo = (services.repository as? CoreDataActivityRepository) ?? CoreDataActivityRepository(persistence: services.persistence)
+        self._window = State(initialValue: WindowModel(repository: repo))
     }
+
+    private var navigation: AppNavigationModel { window.navigation }
+    private var listVM: ActivityListViewModel { window.listVM }
 
     private var repository: CoreDataActivityRepository? {
         services.repository as? CoreDataActivityRepository
@@ -36,7 +38,10 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("Mode", selection: $navigation.visualizationMode) {
+                Picker("Mode", selection: Binding(
+                    get: { navigation.visualizationMode },
+                    set: { navigation.visualizationMode = $0 }
+                )) {
                     ForEach(VisualizationMode.allCases) { mode in
                         Label(mode.label, systemImage: mode.systemImage).tag(mode)
                     }
@@ -44,6 +49,7 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
             }
         }
+        .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()
         }
@@ -76,6 +82,7 @@ struct ContentView: View {
                     activities: targetActivities,
                     selectedIds: [],
                     repository: repository,
+                    window: window,
                     onSelect: { id in
                         navigation.listSelection = [id]
                         navigation.visualizationMode = .activities

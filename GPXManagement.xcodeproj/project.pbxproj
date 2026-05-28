@@ -13,6 +13,7 @@
 		1EBC3FD34D98053DF310C1C3 /* PersistenceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */; };
 		30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */; };
 		3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */; };
+		31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D245452CFD3422DFE36DB3 /* WindowModel.swift */; };
 		344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7894B1C175BDAA6118892D /* AppConfig.swift */; };
 		39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DE51F8BF3C4AABD07045B9 /* ContentView.swift */; };
 		3DAD5B0820EBA343E4EC07DB /* ActivityFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */; };
@@ -76,6 +77,7 @@
 		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
+		B5D245452CFD3422DFE36DB3 /* WindowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowModel.swift; sourceTree = "<group>"; };
 		B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileTabView.swift; sourceTree = "<group>"; };
 		B98887F275D8B5C626A27859 /* ActivityFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFilters.swift; sourceTree = "<group>"; };
 		BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetPresenter.swift; sourceTree = "<group>"; };
@@ -90,7 +92,7 @@
 		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_967B1026-0DE6-46C4-8212-475AB754F1F7" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,6 +160,7 @@
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
 				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
 				E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */,
+				B5D245452CFD3422DFE36DB3 /* WindowModel.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -189,10 +192,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_859D4787-1614-4115-B6A0-E8CF11B45175" /* GPXManagement */ = {
+		"TEMP_7501BA2D-D13F-48C7-9002-FCD2AAAD47CF" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */,
+				"TEMP_967B1026-0DE6-46C4-8212-475AB754F1F7" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -325,6 +328,7 @@
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
 				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
 				6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */,
+				31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -372,7 +376,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_967B1026-0DE6-46C4-8212-475AB754F1F7" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -460,7 +464,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_967B1026-0DE6-46C4-8212-475AB754F1F7" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
