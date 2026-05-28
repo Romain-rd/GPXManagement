@@ -42,28 +42,6 @@ struct ActivityListView: View {
             .pickerStyle(.menu)
             .frame(maxWidth: 240)
 
-            Menu {
-                Button {
-                    services.importFilesViaPanel()
-                } label: {
-                    Label("Importer des fichiers GPX/FIT…", systemImage: "doc.badge.plus")
-                }
-                Button {
-                    services.importWatchedFolderViaPanel()
-                } label: {
-                    Label("Importer depuis HealthFit / dossier iCloud…", systemImage: "applewatch.radiowaves.left.and.right")
-                }
-                Button {
-                    services.importAppleHealthViaPanel()
-                } label: {
-                    Label("Importer depuis Apple Santé (export ZIP)…", systemImage: "heart.text.square")
-                }
-            } label: {
-                Label("Importer", systemImage: "plus")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-
             Spacer()
             if services.isScanningHealthExport || services.isScanningWatchedFolder {
                 ProgressView()
