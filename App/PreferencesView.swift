@@ -291,6 +291,30 @@ struct StravaPreferencesView: View {
                     Text("Récupère vos activités GPS depuis la dernière synchronisation (déduplication automatique). Le débit Strava est limité ; sur un gros historique la sync reprend là où elle s'est arrêtée.")
                 }
             }
+
+            Section {
+                HStack(spacing: 8) {
+                    Button {
+                        services.importStravaViaPanel()
+                    } label: {
+                        Label("Importer un export Strava…", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(services.isScanningWatchedFolder)
+
+                    if services.isScanningWatchedFolder {
+                        ProgressView().controlSize(.small)
+                        Text(services.watchedFolderProgress ?? "")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                if let summary = services.lastWatchedFolderSummary {
+                    Text(summary).font(.caption).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Import manuel")
+            } footer: {
+                Text("Pas de connexion ? Demandez votre archive sur strava.com (Réglages › Mon compte › Télécharger ou supprimer votre compte), puis importez ici le fichier ZIP ou le dossier « activities » décompressé. Déduplication automatique.")
+            }
         }
         .formStyle(.grouped)
         .safeAreaInset(edge: .bottom) {

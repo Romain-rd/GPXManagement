@@ -55,7 +55,8 @@ targets:
       properties:
         CFBundleDisplayName: GPXManagement
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "2"
+        CFBundleVersion: "3"
+        ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSHumanReadableCopyright: ""
         StravaClientID: $(STRAVA_CLIENT_ID)

@@ -80,6 +80,15 @@ Fonds de carte commutables, dont les **cartes IGN** (Géoplateforme) :
 
 La synchronisation reprend automatiquement là où elle s'est arrêtée et déduplique les sorties déjà présentes.
 
+### Importer depuis un export Strava (sans connexion)
+
+Si vous préférez ne pas connecter votre compte, vous pouvez importer l'archive complète de vos activités :
+
+1. Sur **strava.com**, allez dans **Réglages → Mon compte → Télécharger ou supprimer votre compte**.
+2. Sous *Télécharger une demande*, cliquez sur **Demander votre archive**. Strava vous enverra un e-mail avec un fichier ZIP (cela peut prendre quelques heures).
+3. Téléchargez et décompressez le ZIP : le dossier **`activities`** contient toutes vos traces (GPX/FIT/TCX).
+4. Dans GPXManagement, lancez l'import de ce dossier — les activités sont ajoutées avec déduplication automatique (aucun doublon si vous avez déjà synchronisé via Strava).
+
 ---
 
 ## Confidentialité
