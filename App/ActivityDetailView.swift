@@ -61,11 +61,28 @@ struct ActivityDetailView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            Image(systemName: activity.activityType.symbolName)
-                .font(.system(size: 28))
-                .foregroundStyle(.tint)
-                .frame(width: 52, height: 52)
-                .background(Circle().fill(.tint.opacity(0.15)))
+            Menu {
+                ForEach(ActivityType.allCases, id: \.self) { type in
+                    Button {
+                        Task { await listVM.updateType(id: activity.id, type: type) }
+                    } label: {
+                        Label(type.displayName, systemImage: type == activity.activityType ? "checkmark" : type.symbolName)
+                    }
+                }
+            } label: {
+                Image(systemName: activity.activityType.symbolName)
+                    .font(.system(size: 28))
+                    .foregroundStyle(.tint)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(.tint.opacity(0.15)))
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary, Color(NSColor.windowBackgroundColor))
+                    }
+            }
+            .buttonStyle(.plain)
+            .help("Changer le type d'activité")
             VStack(alignment: .leading, spacing: 3) {
                 Text(activity.title).font(.title.bold())
                 Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")

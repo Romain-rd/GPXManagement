@@ -101,6 +101,17 @@ final class ActivityListViewModel {
         }
     }
 
+    func updateType(id: UUID, type: ActivityType) async {
+        do {
+            try await repository.updateActivityType(id: id, rawValue: type.rawValue)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingActivityType(type)
+            }
+        } catch {
+            self.error = "Échec du changement de type : \(error.localizedDescription)"
+        }
+    }
+
     func autoRename(id: UUID) async {
         renamingIds.insert(id)
         defer { renamingIds.remove(id) }

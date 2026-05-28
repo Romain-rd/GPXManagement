@@ -109,4 +109,14 @@ final class ActivityListViewModelTests: XCTestCase {
         await vm.updateNotes(id: id, notes: "Belle sortie")
         XCTAssertEqual(vm.allActivities[0].notes, "Belle sortie")
     }
+
+    func testUpdateTypePersists() async throws {
+        try await seed([payload(type: .cyclingRoad, year: 2025)])
+        let id = vm.allActivities[0].id
+        await vm.updateType(id: id, type: .hiking)
+        XCTAssertEqual(vm.allActivities[0].activityType, .hiking)
+
+        await vm.reload()
+        XCTAssertEqual(vm.allActivities[0].activityType, .hiking)
+    }
 }

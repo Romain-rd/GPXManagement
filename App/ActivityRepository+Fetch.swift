@@ -50,6 +50,20 @@ extension CoreDataActivityRepository {
         }
     }
 
+    func updateActivityType(id: UUID, rawValue: String) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(rawValue, forKey: "activityType")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
     func updateNotes(id: UUID, notes: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {

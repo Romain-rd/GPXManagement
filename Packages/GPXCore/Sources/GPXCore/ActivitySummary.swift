@@ -67,4 +67,8 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
     public func updatingNotes(_ newNotes: String?) -> ActivitySummary {
         ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, tags: tags, notes: newNotes)
     }
+
+    public func updatingActivityType(_ newType: ActivityType) -> ActivitySummary {
+        ActivitySummary(id: id, title: title, activityType: newType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, tags: tags, notes: notes)
+    }
 }
