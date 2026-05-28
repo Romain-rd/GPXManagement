@@ -92,15 +92,17 @@ public struct TrackMapView: NSViewRepresentable {
             mapView.removeOverlays(existingPolylines)
 
             let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
-            let useTypeColor = nonEmpty.count <= 1
+            let distinctTypes = Set(nonEmpty.map(\.activityType))
+            // Plusieurs traces toutes du même type → la couleur de type ne distingue rien → rotation de 4 couleurs.
+            // Types différents (ou trace unique) → couleur du type d'activité.
+            let useRotation = nonEmpty.count > 1 && distinctTypes.count == 1
 
             var allCoords: [CLLocationCoordinate2D] = []
             for (index, track) in nonEmpty.enumerated() {
                 let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
                 polyline.activityId = track.activityId
                 polyline.activityType = track.activityType
-                // 1 trace → couleur par type d'activité ; plusieurs → rotation de 4 couleurs pour les distinguer.
-                polyline.color = useTypeColor ? track.activityType.trackColor : MapTrackPalette.color(at: index)
+                polyline.color = useRotation ? MapTrackPalette.color(at: index) : track.activityType.trackColor
                 mapView.addOverlay(polyline, level: .aboveLabels)
                 allCoords.append(contentsOf: track.coordinates)
             }
