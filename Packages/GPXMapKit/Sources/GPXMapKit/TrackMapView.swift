@@ -21,14 +21,25 @@ public struct TrackOverlayInput: Sendable {
     }
 }
 
+@MainActor
+public final class MapViewProxy {
+    public weak var mapView: MKMapView?
+    public init() {}
+
+    public var visibleMapRect: MKMapRect? { mapView?.visibleMapRect }
+    public var boundsSize: CGSize? { mapView?.bounds.size }
+}
+
 public struct TrackMapView: NSViewRepresentable {
     public let tracks: [TrackOverlayInput]
     @Binding public var layer: MapLayer
     public var onSelectActivity: ((UUID) -> Void)?
+    public var proxy: MapViewProxy?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, onSelectActivity: ((UUID) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, onSelectActivity: ((UUID) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
+        self.proxy = proxy
         self.onSelectActivity = onSelectActivity
     }
 
@@ -44,6 +55,7 @@ public struct TrackMapView: NSViewRepresentable {
         mapView.showsScale = true
         mapView.isZoomEnabled = true
         mapView.isScrollEnabled = true
+        proxy?.mapView = mapView
         configure(mapView: mapView, layer: layer)
         if onSelectActivity != nil {
             let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
