@@ -7,8 +7,11 @@ let package = Package(
     products: [
         .library(name: "GPXMapKit", targets: ["GPXMapKit"])
     ],
+    dependencies: [
+        .package(path: "../GPXCore")
+    ],
     targets: [
-        .target(name: "GPXMapKit"),
+        .target(name: "GPXMapKit", dependencies: ["GPXCore"]),
         .testTarget(name: "GPXMapKitTests", dependencies: ["GPXMapKit"])
     ]
 )

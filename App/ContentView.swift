@@ -44,7 +44,19 @@ struct ContentView: View {
         case .threeColumn:
             ActivityListView(listVM: listVM, navigation: navigation, services: services)
         case .mapOverview:
-            MapOverviewPlaceholder()
+            if let repo = services.repository as? CoreDataActivityRepository {
+                MapOverviewView(
+                    activities: listVM.visibleActivities,
+                    selectedIds: navigation.listSelection,
+                    repository: repo,
+                    onSelect: { id in
+                        navigation.listSelection = [id]
+                        navigation.mode = .threeColumn
+                    }
+                )
+            } else {
+                MapOverviewPlaceholder()
+            }
         case .statistics:
             StatisticsView(activities: listVM.allActivities)
         case .strava:

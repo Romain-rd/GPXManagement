@@ -1,5 +1,6 @@
 import SwiftUI
 import GPXCore
+import GPXMapKit
 
 struct PreferencesView: View {
     var body: some View {
@@ -18,16 +19,14 @@ struct PreferencesView: View {
 }
 
 struct GeneralPreferencesView: View {
-    @AppStorage("defaultMapLayer") private var mapLayer: String = "ign_scan25"
+    @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignPlanV2.rawValue
 
     var body: some View {
         Form {
             Picker("Couche carte par défaut", selection: $mapLayer) {
-                Text("IGN — Scan 25").tag("ign_scan25")
-                Text("IGN — Plan v2").tag("ign_planv2")
-                Text("IGN — Pentes").tag("ign_slopes")
-                Text("Apple — Standard").tag("mapkit_standard")
-                Text("Apple — Satellite").tag("mapkit_satellite")
+                ForEach(MapLayer.allCases) { layer in
+                    Text(layer.displayName).tag(layer.rawValue)
+                }
             }
         }
         .padding()

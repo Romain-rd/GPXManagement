@@ -41,7 +41,7 @@ struct ActivityDetailView: View {
 
             Group {
                 switch selectedTab {
-                case .map:     MapPlaceholderView()
+                case .map:     ActivityMapTabView(activity: activity, repository: repository)
                 case .profile: ElevationProfileTabView(activityId: activity.id, repository: repository)
                 case .stats:   StatsTabView(activity: activity)
                 case .notes:   NotesTabView(activity: activity, listVM: listVM, draft: $notesDraft)
