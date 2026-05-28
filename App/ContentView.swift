@@ -48,6 +48,14 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            if window.isExportingMap {
+                ToolbarItem(placement: .automatic) {
+                    ProgressView(value: window.mapExportFraction)
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .help("Export de la carte — \(window.mapExportStatus)")
+                }
+            }
         }
         .focusedSceneValue(\.windowModel, window)
         .task {

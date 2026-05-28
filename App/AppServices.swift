@@ -14,6 +14,7 @@ final class AppServices {
     let repository: ActivityRepository
     let importer: ImportService
     let healthImporter: AppleHealthImporter
+    let stravaImporter: StravaArchiveImporter
 
     var pendingImports: [ImportProposal] = []
     var importError: String?
@@ -36,6 +37,7 @@ final class AppServices {
         self.repository = repo
         self.importer = ImportService(storage: storage, repository: repo)
         self.healthImporter = AppleHealthImporter()
+        self.stravaImporter = StravaArchiveImporter()
     }
 
     var coreDataRepository: CoreDataActivityRepository? {
@@ -129,6 +131,92 @@ final class AppServices {
         if failures > 0 {
             importError = "\(failures) workout(s) n'ont pas pu être préparé(s)."
         }
+    }
+
+    func importStravaViaPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.zip, .folder]
+        panel.title = "Choisir l'export Strava (ZIP ou dossier)"
+        panel.message = "Sélectionnez le .zip téléchargé depuis Strava, ou le dossier déjà décompressé."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await importStravaArchive(at: url, fallbackType: .cyclingRoad) }
+    }
+
+    func importStravaArchive(at url: URL, fallbackType: ActivityType) async {
+        isScanningWatchedFolder = true
+        defer {
+            isScanningWatchedFolder = false
+            watchedFolderProgress = nil
+        }
+        importError = nil
+        lastWatchedFolderSummary = nil
+
+        let result: StravaArchiveResult
+        do {
+            watchedFolderProgress = "Lecture de l'export…"
+            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            result = isDir
+                ? try await stravaImporter.extract(folderURL: url)
+                : try await stravaImporter.extract(zipURL: url)
+        } catch {
+            importError = "Échec de la lecture de l'export Strava : \(error.localizedDescription)"
+            return
+        }
+
+        if result.extractedFiles.isEmpty {
+            var parts = ["Aucune trace GPX/FIT trouvée dans activities/."]
+            if result.unsupportedCount > 0 {
+                parts.append("\(result.unsupportedCount) fichier(s) .tcx ignoré(s) (format non supporté).")
+            }
+            importError = parts.joined(separator: " ")
+            return
+        }
+
+        var imported = 0
+        var duplicates = 0
+        var fallbackUsed = 0
+        var failures = result.failedCount
+        let files = result.extractedFiles
+        for (idx, fileURL) in files.enumerated() {
+            watchedFolderProgress = "Import \(idx + 1)/\(files.count)…"
+            do {
+                let proposal = try await importer.prepareImport(
+                    from: fileURL,
+                    hintedActivityType: nil,
+                    hintedTitle: nil,
+                    origin: .strava
+                )
+                if proposal.duplicateOfActivityId != nil {
+                    duplicates += 1
+                    continue
+                }
+                let type = proposal.suggestedActivityType ?? fallbackType
+                if proposal.suggestedActivityType == nil { fallbackUsed += 1 }
+                _ = try await importer.confirmImport(proposal, activityType: type, title: proposal.suggestedTitle)
+                imported += 1
+                if imported % 25 == 0 {
+                    importedCount += 1
+                    libraryRevision += 1
+                }
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: Strava import failed for \(fileURL.lastPathComponent): \(error)")
+            }
+        }
+
+        try? FileManager.default.removeItem(at: result.workingDirectory)
+        importedCount += 1
+        libraryRevision += 1
+
+        var parts: [String] = ["\(imported) importée(s)"]
+        if duplicates > 0 { parts.append("\(duplicates) déjà présente(s)") }
+        if fallbackUsed > 0 { parts.append("\(fallbackUsed) type indéterminé → \(fallbackType.displayName)") }
+        if result.unsupportedCount > 0 { parts.append("\(result.unsupportedCount) .tcx ignorée(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastWatchedFolderSummary = parts.joined(separator: " · ")
     }
 
     func confirmAllPendingImports(defaultActivityType: ActivityType) async {

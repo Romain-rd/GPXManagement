@@ -42,7 +42,6 @@ struct MapOverviewView: View {
     @State private var loadedCount = 0
     @State private var totalCount = 0
     @State private var proxy = MapViewProxy()
-    @State private var isExporting = false
     @State private var exportError: String?
 
     private var visibleActivities: [ActivitySummary] {
@@ -75,11 +74,6 @@ struct MapOverviewView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background(.thinMaterial, in: Capsule())
-                    if isExporting {
-                        ProgressView().controlSize(.small)
-                            .padding(6)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
                     LayerPicker(layer: $layer)
                 }
                 .padding(8)
@@ -108,10 +102,22 @@ struct MapOverviewView: View {
             mapRect = proxy.visibleMapRect
         }
         guard let mapRect else { return }
-        isExporting = true
-        defer { isExporting = false }
+        window.isExportingMap = true
+        window.mapExportFraction = 0
+        window.mapExportStatus = "Préparation de l'export…"
+        defer {
+            window.isExportingMap = false
+            window.mapExportStatus = ""
+        }
         do {
-            let data = try await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: tracks)
+            let data = try await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: tracks) { progress in
+                Task { @MainActor in
+                    window.mapExportFraction = progress.fraction
+                    window.mapExportStatus = progress.label
+                }
+            }
+            window.mapExportFraction = 1
+            window.mapExportStatus = "Enregistrement…"
             let panel = NSSavePanel()
             panel.title = "Exporter la carte en PNG"
             panel.nameFieldStringValue = "carte-\(Int(Date().timeIntervalSince1970)).png"

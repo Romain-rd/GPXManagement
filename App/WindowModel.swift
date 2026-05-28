@@ -8,6 +8,9 @@ final class WindowModel {
     let listVM: ActivityListViewModel
     var mapExportToken: Int = 0
     var mapExportFullRoute: Bool = false
+    var isExportingMap: Bool = false
+    var mapExportFraction: Double = 0
+    var mapExportStatus: String = ""
 
     private let repository: CoreDataActivityRepository
 

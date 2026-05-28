@@ -13,24 +13,30 @@ public enum MapImageExporter {
     private static let session = URLSession(configuration: .default)
     private static let maxTiles = 1200
 
+    public struct Progress: Sendable {
+        public let fraction: Double
+        public let label: String
+    }
+
     /// Rend un PNG WYSIWYG de la zone visible : tuiles WMTS IGN (ou snapshot Apple) + traces dessinées.
     public static func renderPNG(
         layer: MapLayer,
         mapRect: MKMapRect,
-        tracks: [TrackOverlayInput]
+        tracks: [TrackOverlayInput],
+        onProgress: (@Sendable (Progress) -> Void)? = nil
     ) async throws -> Data {
         guard mapRect.size.width > 0, mapRect.size.height > 0 else { throw MapImageExportError.emptyRegion }
 
         if layer.isIGN {
-            return try await renderIGN(layer: layer, mapRect: mapRect, tracks: tracks)
+            return try await renderIGN(layer: layer, mapRect: mapRect, tracks: tracks, onProgress: onProgress)
         } else {
-            return try await renderApple(layer: layer, mapRect: mapRect, tracks: tracks)
+            return try await renderApple(layer: layer, mapRect: mapRect, tracks: tracks, onProgress: onProgress)
         }
     }
 
     // MARK: - IGN (composition de tuiles WMTS)
 
-    private static func renderIGN(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput]) async throws -> Data {
+    private static func renderIGN(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
         let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
         let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
         let topLat = topLeft.latitude, leftLon = topLeft.longitude
@@ -71,6 +77,9 @@ public enum MapImageExporter {
             }
         }
 
+        let total = positions.count
+        onProgress?(Progress(fraction: 0, label: "Téléchargement des tuiles 0/\(total)…"))
+
         let images: [(TilePos, CGImage?)] = await withTaskGroup(of: (TilePos, CGImage?).self) { group in
             for pos in positions {
                 let url = IGNTileOverlay.buildURL(
@@ -86,9 +95,15 @@ public enum MapImageExporter {
                 }
             }
             var out: [(TilePos, CGImage?)] = []
-            for await result in group { out.append(result) }
+            for await result in group {
+                out.append(result)
+                let done = out.count
+                onProgress?(Progress(fraction: Double(done) / Double(total) * 0.9, label: "Téléchargement des tuiles \(done)/\(total)…"))
+            }
             return out
         }
+
+        onProgress?(Progress(fraction: 0.93, label: "Composition de l'image…"))
 
         // Dessiner les tuiles (origine CG en bas-gauche → flip vertical)
         for (pos, image) in images {
@@ -102,13 +117,15 @@ public enum MapImageExporter {
         // Dessiner les traces
         drawTracks(tracks, in: ctx, heightPx: heightPx, originX: r.originX, originY: r.originY, z: z)
 
+        onProgress?(Progress(fraction: 0.98, label: "Encodage du PNG…"))
         guard let cgImage = ctx.makeImage() else { throw MapImageExportError.contextFailure }
         return try png(from: cgImage)
     }
 
     // MARK: - Apple (MKMapSnapshotter)
 
-    private static func renderApple(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput]) async throws -> Data {
+    private static func renderApple(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
+        onProgress?(Progress(fraction: 0.2, label: "Capture de la carte…"))
         let options = MKMapSnapshotter.Options()
         options.mapRect = mapRect
         options.size = CGSize(width: min(2400, max(800, mapRect.size.width / 200)), height: min(2400, max(600, mapRect.size.height / 200)))
@@ -119,6 +136,7 @@ public enum MapImageExporter {
         }
 
         let snapshot = try await MKMapSnapshotter(options: options).start()
+        onProgress?(Progress(fraction: 0.9, label: "Composition de l'image…"))
         let size = snapshot.image.size
         guard let ctx = makeContext(width: Int(size.width), height: Int(size.height)) else { throw MapImageExportError.contextFailure }
 

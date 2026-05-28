@@ -23,6 +23,10 @@ struct AppMenuCommands: Commands {
                 services.importAppleHealthViaPanel()
             }
 
+            Button("Importer un export Strava (ZIP ou dossier)…") {
+                services.importStravaViaPanel()
+            }
+
             Divider()
 
             Button("Exporter l'activité en GPX…") {
