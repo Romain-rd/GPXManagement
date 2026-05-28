@@ -42,9 +42,14 @@ public struct TrackMapView: NSViewRepresentable {
         mapView.showsCompass = true
         mapView.showsZoomControls = true
         mapView.showsScale = true
+        mapView.isZoomEnabled = true
+        mapView.isScrollEnabled = true
         configure(mapView: mapView, layer: layer)
-        let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
-        mapView.addGestureRecognizer(tap)
+        if onSelectActivity != nil {
+            let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
+            tap.delegate = context.coordinator
+            mapView.addGestureRecognizer(tap)
+        }
         return mapView
     }
 
@@ -71,7 +76,7 @@ public struct TrackMapView: NSViewRepresentable {
         }
     }
 
-    public final class Coordinator: NSObject, MKMapViewDelegate {
+    public final class Coordinator: NSObject, MKMapViewDelegate, NSGestureRecognizerDelegate {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
         private let onSelectActivity: ((UUID) -> Void)?
@@ -112,6 +117,18 @@ public struct TrackMapView: NSViewRepresentable {
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
+        }
+
+        public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
+            guard let mapView = gestureRecognizer.view, let superview = mapView.superview else { return true }
+            let superPoint = superview.convert(event.locationInWindow, from: nil)
+            guard let hit = mapView.hitTest(superPoint) else { return true }
+            var view: NSView? = hit
+            while let current = view, current !== mapView {
+                if current is NSControl { return false }
+                view = current.superview
+            }
+            return true
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
