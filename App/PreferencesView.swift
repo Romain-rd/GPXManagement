@@ -215,9 +215,6 @@ struct StravaPreferencesView: View {
     @Bindable private var strava = AppServices.shared.strava
     @Bindable private var services = AppServices.shared
 
-    // Orange officiel de la marque Strava (#FC4C02).
-    static let stravaOrange = Color(red: 0xFC / 255, green: 0x4C / 255, blue: 0x02 / 255)
-
     var body: some View {
         Form {
             Section {
@@ -240,11 +237,10 @@ struct StravaPreferencesView: View {
                         Button {
                             Task { await strava.connect() }
                         } label: {
-                            Text("Se connecter avec Strava")
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 7)
-                                .background(Self.stravaOrange, in: Capsule())
+                            Image("StravaConnectButton")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 32)
                         }
                         .buttonStyle(.plain)
                         .disabled(strava.isConnecting || !strava.isConfigured)
@@ -267,13 +263,12 @@ struct StravaPreferencesView: View {
             } header: {
                 Text("Compte Strava")
             } footer: {
-                HStack(spacing: 4) {
+                HStack {
                     Spacer()
-                    Text("Powered by")
-                        .font(.caption2).foregroundStyle(.secondary)
-                    Text("STRAVA")
-                        .font(.caption2.weight(.heavy))
-                        .foregroundStyle(Self.stravaOrange)
+                    Image("StravaPoweredBy")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 16)
                 }
             }
 
