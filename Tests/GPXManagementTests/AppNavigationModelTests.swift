@@ -9,7 +9,6 @@ final class AppNavigationModelTests: XCTestCase {
         var filters = ActivityFilters()
         nav.applySidebar(.activityType(.cyclingRoad), to: &filters)
         XCTAssertEqual(filters.activityTypes, [.cyclingRoad])
-        XCTAssertEqual(nav.mode, .threeColumn)
     }
 
     func testYearSidebarFiltersList() {
@@ -17,6 +16,13 @@ final class AppNavigationModelTests: XCTestCase {
         var filters = ActivityFilters()
         nav.applySidebar(.year(2024), to: &filters)
         XCTAssertEqual(filters.years, [2024])
+    }
+
+    func testTagSidebarFiltersList() {
+        let nav = AppNavigationModel()
+        var filters = ActivityFilters()
+        nav.applySidebar(.tag("alpes"), to: &filters)
+        XCTAssertEqual(filters.tags, ["alpes"])
     }
 
     func testAllActivitiesResetsFilters() {
@@ -27,10 +33,17 @@ final class AppNavigationModelTests: XCTestCase {
         XCTAssertTrue(filters.isEmpty)
     }
 
-    func testMapOverviewChangesMode() {
+    func testDefaultVisualizationModeIsActivities() {
         let nav = AppNavigationModel()
+        XCTAssertEqual(nav.visualizationMode, .activities)
+    }
+
+    func testVisualizationModeIndependentOfSidebar() {
+        let nav = AppNavigationModel()
+        nav.visualizationMode = .mapOverview
         var filters = ActivityFilters()
-        nav.applySidebar(.mapOverview, to: &filters)
-        XCTAssertEqual(nav.mode, .mapOverview)
+        nav.applySidebar(.activityType(.hiking), to: &filters)
+        // changer le filtre ne doit pas changer le mode de visualisation
+        XCTAssertEqual(nav.visualizationMode, .mapOverview)
     }
 }

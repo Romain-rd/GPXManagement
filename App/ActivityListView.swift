@@ -12,6 +12,9 @@ struct ActivityListView: View {
     var body: some View {
         VStack(spacing: 0) {
             sortBar
+            if !navigation.listSelection.isEmpty {
+                selectionBar
+            }
             list
         }
         .searchable(text: $listVM.searchText, prompt: "Rechercher (titre, notes, tags)")
@@ -79,6 +82,34 @@ struct ActivityListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.tint)
+            Text("\(navigation.listSelection.count) sélectionnée(s)")
+                .font(.caption)
+            switch navigation.visualizationMode {
+            case .statistics:
+                Text("· statistiques sur la sélection")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .mapOverview:
+                Text("· affichées sur la carte")
+                    .font(.caption).foregroundStyle(.secondary)
+            case .activities:
+                EmptyView()
+            }
+            Spacer()
+            Button("Tout désélectionner") {
+                navigation.listSelection = []
+            }
+            .font(.caption)
+            .buttonStyle(.link)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(.quaternary.opacity(0.5))
     }
 
     private func pickFilesForImport() {

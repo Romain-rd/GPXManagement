@@ -12,15 +12,37 @@ struct ContentView: View {
         self._listVM = State(initialValue: ActivityListViewModel(repository: repo))
     }
 
+    private var repository: CoreDataActivityRepository? {
+        services.repository as? CoreDataActivityRepository
+    }
+
+    /// Activités ciblées par le mode courant : la sélection si elle existe, sinon tout l'ensemble filtré.
+    private var targetActivities: [ActivitySummary] {
+        if navigation.listSelection.isEmpty {
+            return listVM.visibleActivities
+        }
+        return listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(navigation: navigation, listVM: listVM)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+                .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } content: {
-            content
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380)
+            ActivityListView(listVM: listVM, navigation: navigation, services: services)
+                .navigationSplitViewColumnWidth(min: 280, ideal: 340)
         } detail: {
-            detail
+            modeContent
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Mode", selection: $navigation.visualizationMode) {
+                    ForEach(VisualizationMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.systemImage).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
         }
         .task {
             await listVM.reload()
@@ -42,42 +64,41 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
-        switch navigation.mode {
-        case .threeColumn:
-            ActivityListView(listVM: listVM, navigation: navigation, services: services)
+    private var modeContent: some View {
+        switch navigation.visualizationMode {
+        case .activities:
+            activitiesDetail
+        case .statistics:
+            StatisticsView(activities: targetActivities)
         case .mapOverview:
-            if let repo = services.repository as? CoreDataActivityRepository {
+            if let repository {
                 MapOverviewView(
-                    activities: listVM.visibleActivities,
-                    selectedIds: navigation.listSelection,
-                    repository: repo,
+                    activities: targetActivities,
+                    selectedIds: [],
+                    repository: repository,
                     onSelect: { id in
                         navigation.listSelection = [id]
-                        navigation.mode = .threeColumn
+                        navigation.visualizationMode = .activities
                     }
                 )
             } else {
                 MapOverviewPlaceholder()
             }
-        case .statistics:
-            StatisticsView(activities: listVM.allActivities)
-        case .strava:
-            StravaPlaceholder()
         }
     }
 
     @ViewBuilder
-    private var detail: some View {
-        if navigation.mode == .threeColumn,
-           let selectedId = navigation.listSelection.first,
+    private var activitiesDetail: some View {
+        if let selectedId = navigation.listSelection.first,
            let activity = listVM.visibleActivities.first(where: { $0.id == selectedId }),
-           let repo = services.repository as? CoreDataActivityRepository {
-            ActivityDetailView(activity: activity, listVM: listVM, repository: repo)
-        } else if navigation.mode == .threeColumn {
-            ContentUnavailableView("Aucune activité sélectionnée", systemImage: "tray", description: Text("Choisissez une activité dans la liste."))
+           let repository {
+            ActivityDetailView(activity: activity, listVM: listVM, repository: repository)
         } else {
-            EmptyView()
+            ContentUnavailableView(
+                "Aucune activité sélectionnée",
+                systemImage: "tray",
+                description: Text("Choisissez une activité dans la liste.")
+            )
         }
     }
 
@@ -101,27 +122,7 @@ struct MapOverviewPlaceholder: View {
         ContentUnavailableView(
             "Carte d'ensemble",
             systemImage: "map",
-            description: Text("Disponible en P6 (MapKit + tuiles IGN).")
-        )
-    }
-}
-
-struct StatsOverviewPlaceholder: View {
-    var body: some View {
-        ContentUnavailableView(
-            "Statistiques",
-            systemImage: "chart.bar.xaxis",
-            description: Text("Disponible en P8 (vues agrégées Swift Charts).")
-        )
-    }
-}
-
-struct StravaPlaceholder: View {
-    var body: some View {
-        ContentUnavailableView(
-            "Strava",
-            systemImage: "arrow.triangle.2.circlepath",
-            description: Text("Connexion et synchronisation prévues en P8.")
+            description: Text("Sélectionnez des activités pour les afficher.")
         )
     }
 }

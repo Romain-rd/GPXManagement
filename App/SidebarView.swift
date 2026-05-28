@@ -50,19 +50,8 @@ struct SidebarView: View {
                 }
             }
 
-            Section {
-                NavigationLink(value: SidebarItem.mapOverview) {
-                    Label("Carte d'ensemble", systemImage: "map")
-                }
-                NavigationLink(value: SidebarItem.statistics) {
-                    Label("Statistiques", systemImage: "chart.bar.xaxis")
-                }
-                NavigationLink(value: SidebarItem.strava) {
-                    Label("Strava", systemImage: "arrow.triangle.2.circlepath")
-                }
-            }
         }
-        .navigationTitle("GPXManagement")
+        .navigationTitle("Filtres")
         .listStyle(.sidebar)
     }
 }

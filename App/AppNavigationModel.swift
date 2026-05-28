@@ -6,16 +6,30 @@ enum SidebarItem: Hashable, Sendable {
     case activityType(ActivityType)
     case year(Int)
     case tag(String)
-    case mapOverview
-    case statistics
-    case strava
 }
 
-enum NavigationMode: Hashable {
-    case threeColumn
-    case mapOverview
+enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
+    case activities
     case statistics
-    case strava
+    case mapOverview
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .activities:  return "Activités"
+        case .statistics:  return "Statistiques"
+        case .mapOverview: return "Vue d'ensemble"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .activities:  return "list.bullet"
+        case .statistics:  return "chart.bar.xaxis"
+        case .mapOverview: return "map"
+        }
+    }
 }
 
 @MainActor
@@ -23,29 +37,18 @@ enum NavigationMode: Hashable {
 final class AppNavigationModel {
     var sidebarSelection: SidebarItem? = .allActivities
     var listSelection: Set<UUID> = []
-    var mode: NavigationMode = .threeColumn
-    var showPreferences: Bool = false
+    var visualizationMode: VisualizationMode = .activities
 
     func applySidebar(_ item: SidebarItem, to filters: inout ActivityFilters) {
         switch item {
         case .allActivities:
             filters = .init()
-            mode = .threeColumn
         case .activityType(let type):
             filters = ActivityFilters(activityTypes: [type])
-            mode = .threeColumn
         case .year(let y):
             filters = ActivityFilters(years: [y])
-            mode = .threeColumn
         case .tag(let t):
             filters = ActivityFilters(tags: [t])
-            mode = .threeColumn
-        case .mapOverview:
-            mode = .mapOverview
-        case .statistics:
-            mode = .statistics
-        case .strava:
-            mode = .strava
         }
     }
 }
