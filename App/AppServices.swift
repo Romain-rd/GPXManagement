@@ -149,7 +149,7 @@ final class AppServices {
         var renamed = 0
         var skipped = 0
         for (idx, summary) in summaries.enumerated() {
-            renameAllProgress = "Renommage \(idx + 1)/\(summaries.count)…"
+            renameAllProgress = "Renommage \(idx + 1)/\(summaries.count)… (le débit du géocodage est limité, soyez patient)"
             guard let data = try? await repo.fetchTrackData(id: summary.id), !data.isEmpty,
                   let points = try? TrackPointCodec.decode(data),
                   let name = await RouteNamer.suggestName(points: points) else {
@@ -162,7 +162,7 @@ final class AppServices {
             } catch {
                 skipped += 1
             }
-            try? await Task.sleep(nanoseconds: 120_000_000)
+            if idx % 10 == 9 { libraryRevision += 1 }
         }
 
         libraryRevision += 1

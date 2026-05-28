@@ -37,6 +37,7 @@
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
 		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
+		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
 		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
 		FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */; };
@@ -69,6 +70,7 @@
 		6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
 		881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
 		8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceControllerTests.swift; sourceTree = "<group>"; };
+		8F705DA1DD220140BBC3930E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
 		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,7 +90,7 @@
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		F996281407C82E5D515CE59D /* ActivityMapTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMapTabView.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +143,7 @@
 				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
+				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */,
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
@@ -186,10 +189,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_AFC4DA8F-BD3E-44DD-91B9-5496A3FAEEE1" /* GPXManagement */ = {
+		"TEMP_3D3FB3A5-526F-4E82-8C98-FEF2EB3AB488" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */,
+				"TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -202,6 +205,7 @@
 			buildConfigurationList = 7FC6BF24BA150F1D4AACD4FE /* Build configuration list for PBXNativeTarget "GPXManagement" */;
 			buildPhases = (
 				224E3A42BA87F08D1BD910CC /* Sources */,
+				EAA0277BC42738FEED03D5DA /* Resources */,
 				9B1C2C51D48DEF11B69FB9A0 /* Frameworks */,
 			);
 			buildRules = (
@@ -280,6 +284,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		EAA0277BC42738FEED03D5DA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		224E3A42BA87F08D1BD910CC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -357,7 +372,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -445,7 +460,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_6211FA4C-E9A7-42D6-932F-3C1EFAAF38AC" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_2289AE16-AB94-4F50-9291-C9330AF80342" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
