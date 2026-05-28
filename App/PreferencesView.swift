@@ -37,8 +37,11 @@ struct GeneralPreferencesView: View {
 }
 
 struct OrganizationPreferencesView: View {
+    @Bindable private var services = AppServices.shared
     @AppStorage("organizationPattern") private var pattern: String = OrganizationPattern.default.template
     @State private var watchedFolderPath: String = ""
+    @State private var showReorganizeConfirmation = false
+    @State private var reorganizeAlreadyTidy = false
 
     var body: some View {
         Form {
@@ -55,10 +58,37 @@ struct OrganizationPreferencesView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
+                    if services.isReorganizing {
+                        ProgressView().controlSize(.small)
+                        Text(services.reorganizeProgress ?? "")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else if reorganizeAlreadyTidy {
+                        Text("Déjà organisé selon le modèle.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    Button("Réorganiser maintenant") {}
-                        .disabled(true)
-                        .help("Fonctionnalité prévue ultérieurement")
+                    Button("Réorganiser maintenant") {
+                        Task {
+                            reorganizeAlreadyTidy = false
+                            let count = await services.prepareReorganization()
+                            if count > 0 { showReorganizeConfirmation = true }
+                            else { reorganizeAlreadyTidy = true }
+                        }
+                    }
+                    .disabled(services.isReorganizing)
+                    .help("Déplace les fichiers iCloud pour correspondre au modèle choisi")
+                }
+                .confirmationDialog(
+                    "Réorganiser les fichiers ?",
+                    isPresented: $showReorganizeConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Déplacer \(services.pendingReorganizeCount) fichier(s)") {
+                        Task { await services.applyReorganization() }
+                    }
+                    Button("Annuler", role: .cancel) {}
+                } message: {
+                    Text("\(services.pendingReorganizeCount) fichier(s) seront déplacés dans iCloud pour correspondre au modèle « \(pattern) ». La synchronisation s'appliquera sur tous vos appareils.")
                 }
             }
 

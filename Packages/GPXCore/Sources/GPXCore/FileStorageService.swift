@@ -124,6 +124,22 @@ public actor FileStorageService {
         return moves
     }
 
+    /// Applique une liste de déplacements déjà calculés (issus d'un dry-run). Renvoie ceux réellement effectués.
+    public func reorganizeMoves(_ moves: [ReorganizationMove]) async throws -> [ReorganizationMove] {
+        var applied: [ReorganizationMove] = []
+        for move in moves {
+            let fromURL = try await container.relativeURL(for: move.from)
+            let toURL = try await container.relativeURL(for: move.to)
+            guard fileManager.fileExists(atPath: fromURL.path) else { continue }
+            try fileManager.createDirectory(at: toURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard !fileManager.fileExists(atPath: toURL.path) else { continue }
+            try fileManager.moveItem(at: fromURL, to: toURL)
+            try? pruneEmptyParents(of: fromURL)
+            applied.append(move)
+        }
+        return applied
+    }
+
     private func resolveDestination(computed: String, existing: String?) async throws -> String {
         if existing == computed { return computed }
         var candidate = computed
