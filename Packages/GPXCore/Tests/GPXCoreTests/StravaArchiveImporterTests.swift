@@ -44,12 +44,26 @@ final class StravaArchiveImporterTests: XCTestCase {
     </trkseg></trk></gpx>
     """
 
-    func testExtractsGpxAndGzippedGpxAndSkipsTcx() async throws {
+    private let sampleTCX = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <TrainingCenterDatabase><Activities><Activity Sport="Biking">
+      <Lap><Track>
+        <Trackpoint><Time>2025-07-14T08:00:00Z</Time>
+          <Position><LatitudeDegrees>43.70</LatitudeDegrees><LongitudeDegrees>7.26</LongitudeDegrees></Position>
+          <AltitudeMeters>50</AltitudeMeters></Trackpoint>
+        <Trackpoint><Time>2025-07-14T08:10:00Z</Time>
+          <Position><LatitudeDegrees>43.71</LatitudeDegrees><LongitudeDegrees>7.27</LongitudeDegrees></Position>
+          <AltitudeMeters>120</AltitudeMeters></Trackpoint>
+      </Track></Lap>
+    </Activity></Activities></TrainingCenterDatabase>
+    """
+
+    func testExtractsGpxFitTcxAndIgnoresNonTracks() async throws {
         let gpxData = Data(sampleGPX.utf8)
         let zip = ZipBuilder.storedZip([
             ("activities/100.gpx", gpxData),
             ("activities/200.gpx.gz", try ZipBuilder.gzip(gpxData)),
-            ("activities/300.tcx", Data("<TrainingCenterDatabase/>".utf8)),
+            ("activities/300.tcx.gz", try ZipBuilder.gzip(Data(sampleTCX.utf8))),
             ("activities.csv", Data("id,name\n".utf8)),
             ("media/photo.jpg", Data([0xFF, 0xD8, 0xFF])),
         ])
@@ -62,15 +76,8 @@ final class StravaArchiveImporterTests: XCTestCase {
         let result = try await importer.extract(zipURL: zipURL)
         defer { try? FileManager.default.removeItem(at: result.workingDirectory) }
 
-        XCTAssertEqual(result.extractedFiles.count, 2)
-        XCTAssertEqual(result.unsupportedCount, 1)
         XCTAssertEqual(result.failedCount, 0)
-        XCTAssertEqual(Set(result.extractedFiles.map { $0.lastPathComponent }), ["100.gpx", "200.gpx"])
-
-        for url in result.extractedFiles {
-            let parsed = try GPXParser().parse(url: url)
-            XCTAssertEqual(parsed.points.count, 2)
-        }
+        XCTAssertEqual(Set(result.extractedFiles.map { $0.lastPathComponent }), ["100.gpx", "200.gpx", "300.tcx"])
     }
 
     func testFolderImportScansActivitiesAndIgnoresRoutes() async throws {
@@ -85,7 +92,7 @@ final class StravaArchiveImporterTests: XCTestCase {
 
         try gpxData.write(to: activities.appendingPathComponent("100.gpx"))
         try ZipBuilder.gzip(gpxData).write(to: activities.appendingPathComponent("200.gpx.gz"))
-        try Data("<TrainingCenterDatabase/>".utf8).write(to: activities.appendingPathComponent("300.tcx"))
+        try Data(sampleTCX.utf8).write(to: activities.appendingPathComponent("300.tcx"))
         // Un parcours planifié — ne doit PAS être importé.
         try gpxData.write(to: routes.appendingPathComponent("plan.gpx"))
 
@@ -93,8 +100,7 @@ final class StravaArchiveImporterTests: XCTestCase {
         let result = try await importer.extract(folderURL: root)
         defer { try? fm.removeItem(at: result.workingDirectory) }
 
-        XCTAssertEqual(Set(result.extractedFiles.map { $0.lastPathComponent }), ["100.gpx", "200.gpx"])
-        XCTAssertEqual(result.unsupportedCount, 1)
+        XCTAssertEqual(Set(result.extractedFiles.map { $0.lastPathComponent }), ["100.gpx", "200.gpx", "300.tcx"])
         XCTAssertEqual(result.failedCount, 0)
     }
 }

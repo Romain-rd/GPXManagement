@@ -26,6 +26,7 @@ final class AppServices {
     var lastWatchedFolderSummary: String?
     var isRenamingAll: Bool = false
     var renameAllProgress: String?
+    var isDeletingAll: Bool = false
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
 
@@ -143,7 +144,7 @@ final class AppServices {
         panel.title = "Choisir l'export Strava (ZIP ou dossier)"
         panel.message = "Sélectionnez le .zip téléchargé depuis Strava, ou le dossier déjà décompressé."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task { await importStravaArchive(at: url, fallbackType: .cyclingRoad) }
+        Task { await importStravaArchive(at: url, fallbackType: .other) }
     }
 
     func importStravaArchive(at url: URL, fallbackType: ActivityType) async {
@@ -210,8 +211,8 @@ final class AppServices {
 
         var parts: [String] = ["\(imported) importée(s)"]
         if duplicates > 0 { parts.append("\(duplicates) déjà présente(s)") }
-        if fallbackUsed > 0 { parts.append("\(fallbackUsed) type indéterminé → \(fallbackType.displayName)") }
-        if failures > 0 { parts.append("\(failures) échec(s)") }
+        if fallbackUsed > 0 { parts.append("\(fallbackUsed) classée(s) \(fallbackType.displayName)") }
+        if failures > 0 { parts.append("\(failures) échec(s) réel(s)") }
         lastWatchedFolderSummary = parts.joined(separator: " · ")
     }
 
@@ -263,6 +264,23 @@ final class AppServices {
 
     func cancelAllImports() {
         pendingImports.removeAll()
+    }
+
+    func deleteAllData() async {
+        guard let repo = coreDataRepository else { return }
+        isDeletingAll = true
+        lastMaintenanceSummary = nil
+        importError = nil
+        defer { isDeletingAll = false }
+
+        do {
+            let count = try await repo.deleteAllActivities()
+            try await storage.removeAllStoredFiles()
+            libraryRevision += 1
+            lastMaintenanceSummary = "\(count) activité(s) supprimée(s). Bibliothèque et fichiers vidés."
+        } catch {
+            importError = "Échec de la suppression : \(error.localizedDescription)"
+        }
     }
 
     func renameAllActivitiesFromRoute() async {

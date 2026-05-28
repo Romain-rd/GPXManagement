@@ -43,6 +43,14 @@ public actor FileStorageService {
         self.pattern = newPattern
     }
 
+    public func removeAllStoredFiles() async throws {
+        let root = try await container.rootURL()
+        let contents = (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: [])) ?? []
+        for url in contents {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
     public func store(sourceFile: URL, for activity: ActivityDescriptor, existingRelativePath: String? = nil) async throws -> String {
         guard fileManager.fileExists(atPath: sourceFile.path) else { throw FileStorageError.sourceNotFound }
 

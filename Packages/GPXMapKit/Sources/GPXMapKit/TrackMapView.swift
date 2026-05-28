@@ -176,6 +176,7 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         private func polylineRect(_ coords: [CLLocationCoordinate2D]) -> MKMapRect {
+            guard !coords.isEmpty else { return .null }
             let mapPoints = coords.map { MKMapPoint($0) }
             var minX = mapPoints[0].x
             var maxX = mapPoints[0].x

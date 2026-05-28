@@ -44,6 +44,47 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(parsed.points.count, 1)
     }
 
+    func testSessionWithoutRecordsProducesSummary() throws {
+        let data = makeFITSession(sport: 31, startTime: 1000, elapsedRaw: 3_600_000, distanceRaw: 0)
+        let parsed = try parser.parse(data: data)
+        XCTAssertTrue(parsed.points.isEmpty)
+        XCTAssertEqual(parsed.activityHint, "rock_climbing")
+        XCTAssertEqual(parsed.summary?.duration, 3600)
+        XCTAssertEqual(parsed.summary?.startDate?.timeIntervalSince1970 ?? 0, fitEpoch + 1000, accuracy: 0.5)
+        XCTAssertEqual(ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: .fit), .climbing)
+    }
+
+    func testNewSportHintsMapToTypes() {
+        let cases: [(UInt8, ActivityType)] = [
+            (5, .swimming), (10, .strengthTraining), (4, .strengthTraining),
+            (15, .rowing), (16, .mountaineering), (38, .surfing), (48, .climbing)
+        ]
+        for (code, expected) in cases {
+            let parsed = try? parser.parse(data: makeFITSession(sport: code, startTime: 0, elapsedRaw: 1000, distanceRaw: 0))
+            XCTAssertEqual(ActivityTypeDetector.detect(hint: parsed?.activityHint, fileFormat: .fit), expected, "sport \(code)")
+        }
+    }
+
+    private func makeFITSession(sport: UInt8, startTime: UInt32, elapsedRaw: UInt32, distanceRaw: UInt32) -> Data {
+        var body: [UInt8] = []
+        body.append(0x40); body.append(0); body.append(0)
+        body.append(18); body.append(0)
+        body.append(4)
+        body.append(2); body.append(4); body.append(0x86)
+        body.append(5); body.append(1); body.append(0x00)
+        body.append(7); body.append(4); body.append(0x86)
+        body.append(9); body.append(4); body.append(0x86)
+        body.append(0x00)
+        appendUInt32LE(&body, startTime)
+        body.append(sport)
+        appendUInt32LE(&body, elapsedRaw)
+        appendUInt32LE(&body, distanceRaw)
+        var bytes = makeFITHeader(dataSize: UInt32(body.count))
+        bytes += body
+        bytes += [0, 0]
+        return Data(bytes)
+    }
+
     private func makeFITHeader(dataSize: UInt32) -> [UInt8] {
         var bytes: [UInt8] = []
         bytes.append(12)

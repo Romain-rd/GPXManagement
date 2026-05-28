@@ -13,6 +13,17 @@ extension CoreDataActivityRepository {
         }
     }
 
+    func deleteAllActivities() async throws -> Int {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            let all = try context.fetch(fetch)
+            for object in all { context.delete(object) }
+            if context.hasChanges { try context.save() }
+            return all.count
+        }
+    }
+
     func deleteActivity(id: UUID) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {

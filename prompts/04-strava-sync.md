@@ -52,6 +52,7 @@ public actor StravaAPIClient {
 public struct StravaActivitySummary {
     public let id: String
     public let name: String
+    public let description: String?   // mappé vers Activity.notes
     public let startDate: Date
     public let sportType: String
     public let distance: Double
@@ -88,6 +89,9 @@ public struct SyncProgress {
     - Télécharge les streams.
     - Reconstruit un GPX temporaire.
     - Passe par `ImportService.prepareImport` puis `confirmImport` avec `origin = "strava"` et `stravaId` renseigné.
+    - **Mapping métadonnées (sinon perdues)** : `name → Activity.title`, `description → Activity.notes`. C'est la seule source externe de notes/titres personnalisés — les fichiers FIT/Apple Santé n'en portent pas. Ne pas l'oublier sous peine d'importer des activités sans titre custom ni notes.
+      - ⚠️ `confirmImport(_:activityType:title:)` ne prend **pas** de `notes` aujourd'hui → étendre la signature en `confirmImport(_:activityType:title:notes:)` (ou écrire les `notes` via le repository juste après l'import).
+      - ⚠️ Le `description` n'est **pas** renvoyé par l'endpoint liste (`SummaryActivity`) — il faut le détail `GET /activities/{id}` (`DetailedActivity`). Cela coûte **un appel lecture supplémentaire par activité** → en tenir compte pour le rate limit, ou ne le récupérer que si une description existe.
   - Met à jour `StravaAccount.lastFullSyncDate`.
 - `incrementalSync` :
   - Liste activités `after: lastSyncDate`.

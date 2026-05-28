@@ -105,6 +105,33 @@ final class ImportServiceTests: XCTestCase {
         XCTAssertEqual(decoded.count, 3)
     }
 
+    func testTracklessFITImportsWithSessionMetadata() async throws {
+        // Session FIT (msg 18) sport=31 (escalade), 0 record GPS, durée 1h.
+        var body: [UInt8] = [0x40, 0, 0, 18, 0, 4,
+                             2, 4, 0x86, 5, 1, 0x00, 7, 4, 0x86, 9, 4, 0x86,
+                             0x00]
+        func u32(_ v: UInt32) -> [UInt8] { [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)] }
+        body += u32(1000) + [31] + u32(3_600_000) + u32(0)
+        var header: [UInt8] = [12, 0x10, 0, 0]
+        header += u32(UInt32(body.count))
+        header += [0x2E, 0x46, 0x49, 0x54]
+        let url = tempRoot.appendingPathComponent("climb.fit")
+        try Data(header + body + [0, 0]).write(to: url)
+
+        let proposal = try await service.prepareImport(from: url)
+        XCTAssertTrue(proposal.parsed.points.isEmpty)
+        XCTAssertEqual(proposal.suggestedActivityType, .climbing)
+        XCTAssertEqual(proposal.stats.duration, 3600)
+
+        let id = try await service.confirmImport(proposal, activityType: .climbing, title: "Séance escalade")
+        let created = await repository.created
+        let activity = try XCTUnwrap(created.first { $0.id == id })
+        XCTAssertEqual(activity.activityType, .climbing)
+        XCTAssertEqual(activity.trackData.count, try TrackPointCodec.encode([]).count)
+        // Date issue de la session (FIT epoch + 1000), pas la date d'import.
+        XCTAssertEqual(activity.startDate.timeIntervalSince1970, 631_065_600 + 1000, accuracy: 0.5)
+    }
+
     func testFITMalformedRejected() async throws {
         let url = tempRoot.appendingPathComponent("broken.fit")
         try Data([0, 1, 2, 3]).write(to: url)
@@ -119,7 +146,7 @@ final class ImportServiceTests: XCTestCase {
     }
 
     func testUnsupportedExtensionRejected() async throws {
-        let url = tempRoot.appendingPathComponent("ride.tcx")
+        let url = tempRoot.appendingPathComponent("ride.kml")
         try Data().write(to: url)
         do {
             _ = try await service.prepareImport(from: url)

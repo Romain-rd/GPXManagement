@@ -3,7 +3,6 @@ import Foundation
 public struct StravaArchiveResult: Sendable {
     public let extractedFiles: [URL]
     public let workingDirectory: URL
-    public let unsupportedCount: Int
     public let failedCount: Int
 }
 
@@ -54,14 +53,12 @@ public actor StravaArchiveImporter {
 
     private struct ExtractContext {
         var extracted: [URL] = []
-        var unsupported = 0
         var failed = 0
 
         func result(workDir: URL) -> StravaArchiveResult {
             StravaArchiveResult(
                 extractedFiles: extracted,
                 workingDirectory: workDir,
-                unsupportedCount: unsupported,
                 failedCount: failed
             )
         }
@@ -73,7 +70,7 @@ public actor StravaArchiveImporter {
         let ext = (logicalName as NSString).pathExtension.lowercased()
 
         switch ext {
-        case "gpx", "fit":
+        case "gpx", "fit", "tcx":
             do {
                 var bytes = try load()
                 if isGz { bytes = try Gzip.decompress(bytes) }
@@ -84,8 +81,6 @@ public actor StravaArchiveImporter {
             } catch {
                 ctx.failed += 1
             }
-        case "tcx":
-            ctx.unsupported += 1
         default:
             break
         }

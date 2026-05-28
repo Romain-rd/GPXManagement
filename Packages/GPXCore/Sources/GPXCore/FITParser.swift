@@ -21,6 +21,9 @@ public struct FITParser: Sendable {
         var definitions: [UInt8: FITDefinition] = [:]
         var pendingSport: UInt8?
         var pendingSubSport: UInt8?
+        var sessionStart: Date?
+        var sessionDuration: Double?
+        var sessionDistance: Double?
 
         while decoder.hasMoreRecords {
             let header = try decoder.readUInt8()
@@ -55,6 +58,11 @@ public struct FITParser: Sendable {
                 case 18, 12:
                     if let sport = fields[5]?.uint8Value { pendingSport = sport }
                     if let sub = fields[6]?.uint8Value { pendingSubSport = sub }
+                    if def.globalMessageNumber == 18 {
+                        if let st = fields[2]?.uint32Value { sessionStart = Self.fitEpoch.addingTimeInterval(TimeInterval(st)) }
+                        if let el = fields[7]?.doubleValue { sessionDuration = el / 1000.0 }
+                        if let di = fields[9]?.doubleValue { sessionDistance = di / 100.0 }
+                    }
                 case 34:
                     if let sport = fields[4]?.uint8Value, pendingSport == nil { pendingSport = sport }
                 case 0:
@@ -70,12 +78,19 @@ public struct FITParser: Sendable {
         }
 
         let timestamps = points.compactMap(\.timestamp)
+        let summary: ParsedTrack.Summary?
+        if sessionStart != nil || sessionDuration != nil || sessionDistance != nil {
+            summary = ParsedTrack.Summary(startDate: sessionStart, duration: sessionDuration, distance: sessionDistance)
+        } else {
+            summary = nil
+        }
         return ParsedTrack(
             name: trackName,
             activityHint: activityHint,
             startDate: timestamps.first,
             endDate: timestamps.last,
-            points: points
+            points: points,
+            summary: summary
         )
     }
 
@@ -131,11 +146,19 @@ public struct FITParser: Sendable {
         switch sport {
         case 1: main = "running"
         case 2: main = "cycling"
+        case 4: main = "fitness_equipment"
+        case 5: main = "swimming"
+        case 10: main = "training"
         case 11: main = "walking"
         case 12: main = "cross_country_skiing"
         case 13: main = "alpine_skiing"
+        case 15: main = "rowing"
+        case 16: main = "mountaineering"
         case 17: main = "hiking"
         case 22: main = "motorcycling"
+        case 31: main = "rock_climbing"
+        case 38: main = "surfing"
+        case 48: main = "floor_climbing"
         default: main = "sport_\(sport)"
         }
         if sport == 2, let sub = subSport {

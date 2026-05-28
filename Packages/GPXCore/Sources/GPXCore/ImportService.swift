@@ -70,12 +70,14 @@ public actor ImportService {
     private let repository: ActivityRepository
     private let gpxParser: GPXParser
     private let fitParser: FITParser
+    private let tcxParser: TCXParser
 
     public init(storage: FileStorageService, repository: ActivityRepository) {
         self.storage = storage
         self.repository = repository
         self.gpxParser = GPXParser()
         self.fitParser = FITParser()
+        self.tcxParser = TCXParser()
     }
 
     public func prepareImport(from url: URL) async throws -> ImportProposal {
@@ -97,16 +99,17 @@ public actor ImportService {
             parsed = try gpxParser.parse(data: data)
         case .fit:
             parsed = try fitParser.parse(data: data)
+        case .tcx:
+            parsed = try tcxParser.parse(data: data)
         }
 
-        guard !parsed.points.isEmpty else { throw ImportError.noTrackData }
-        let stats = ActivityStatsCalculator.compute(points: parsed.points)
+        let stats = Self.makeStats(for: parsed)
         let detectedType = ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
         let suggestedType = hintedActivityType ?? detectedType
         let parsedTitle = parsed.name?.isEmpty == false ? parsed.name! : url.deletingPathExtension().lastPathComponent
         let title = (hintedTitle?.isEmpty == false ? hintedTitle! : parsedTitle)
         let sha = Self.sha256(of: data)
-        let startDate = parsed.startDate ?? Date()
+        let startDate = Self.startDate(for: parsed)
         let duplicate = try await repository.findDuplicate(sha256: sha, startDate: startDate, distance: stats.distance)
 
         return ImportProposal(
@@ -124,8 +127,10 @@ public actor ImportService {
 
     public func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String) async throws -> UUID {
         let id = UUID()
-        let startDate = proposal.parsed.startDate ?? Date()
-        let endDate = proposal.parsed.endDate ?? startDate
+        let startDate = Self.startDate(for: proposal.parsed)
+        let endDate = proposal.parsed.endDate
+            ?? proposal.parsed.summary?.duration.map { startDate.addingTimeInterval($0) }
+            ?? startDate
 
         let descriptor = ActivityDescriptor(
             id: id,
@@ -161,8 +166,32 @@ public actor ImportService {
         switch ext {
         case "gpx": return .gpx
         case "fit": return .fit
+        case "tcx": return .tcx
         default: throw ImportError.unsupportedFormat(ext)
         }
+    }
+
+    private static func startDate(for parsed: ParsedTrack) -> Date {
+        parsed.startDate ?? parsed.summary?.startDate ?? Date()
+    }
+
+    private static func makeStats(for parsed: ParsedTrack) -> ActivityStats {
+        guard parsed.points.isEmpty else {
+            return ActivityStatsCalculator.compute(points: parsed.points)
+        }
+        let duration = parsed.summary?.duration ?? 0
+        return ActivityStats(
+            distance: parsed.summary?.distance ?? 0,
+            duration: duration,
+            movingDuration: duration,
+            elevationGain: 0,
+            elevationLoss: 0,
+            avgSpeed: 0,
+            maxSpeed: 0,
+            avgHeartRate: nil,
+            maxHeartRate: nil,
+            boundingBox: .zero
+        )
     }
 
     private static func sha256(of data: Data) -> String {

@@ -107,6 +107,7 @@ struct OrganizationPreferencesView: View {
 
 struct MaintenanceView: View {
     @Bindable private var services = AppServices.shared
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         Form {
@@ -140,6 +141,40 @@ struct MaintenanceView: View {
                 Text("Nécessite une connexion réseau. Le débit du géocodage Apple est limité ; sur de gros volumes, certaines activités peuvent être ignorées (leur nom actuel est alors conservé).")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+            }
+
+            Section("Zone de danger") {
+                Text("Supprime **toutes** les activités et leurs fichiers, localement et dans iCloud (la suppression se synchronise sur tous vos appareils). Action **irréversible**.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Tout supprimer…", systemImage: "trash")
+                    }
+                    .disabled(services.isDeletingAll)
+
+                    if services.isDeletingAll {
+                        ProgressView().controlSize(.small)
+                        Text("Suppression en cours…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .confirmationDialog(
+                    "Supprimer toutes les données ?",
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Tout supprimer", role: .destructive) {
+                        Task { await services.deleteAllData() }
+                    }
+                    Button("Annuler", role: .cancel) {}
+                } message: {
+                    Text("Toutes les activités et leurs fichiers GPX/FIT/TCX seront définitivement supprimés, y compris dans iCloud. Cette action est irréversible.")
+                }
             }
         }
         .padding()

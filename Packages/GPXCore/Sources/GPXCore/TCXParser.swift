@@ -1,58 +1,27 @@
 import Foundation
 
-public struct ParsedTrack: Sendable, Equatable {
-    public let name: String?
-    public let activityHint: String?
-    public let startDate: Date?
-    public let endDate: Date?
-    public let points: [TrackPoint]
-    public let summary: Summary?
-
-    public struct Summary: Sendable, Equatable {
-        public let startDate: Date?
-        public let duration: Double?
-        public let distance: Double?
-
-        public init(startDate: Date?, duration: Double?, distance: Double?) {
-            self.startDate = startDate
-            self.duration = duration
-            self.distance = distance
-        }
-    }
-
-    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], summary: Summary? = nil) {
-        self.name = name
-        self.activityHint = activityHint
-        self.startDate = startDate
-        self.endDate = endDate
-        self.points = points
-        self.summary = summary
-    }
-}
-
-public enum GPXParseError: Error, Equatable {
+public enum TCXParseError: Error, Equatable {
     case xmlError(String)
     case noTracks
-    case malformedCoordinates(String)
 }
 
-public struct GPXParser: Sendable {
+public struct TCXParser: Sendable {
     public init() {}
 
     public func parse(data: Data) throws -> ParsedTrack {
-        let delegate = GPXParserDelegate()
+        let delegate = TCXParserDelegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
         parser.shouldProcessNamespaces = false
 
         guard parser.parse() else {
             let message = parser.parserError?.localizedDescription ?? "unknown XML error"
-            throw GPXParseError.xmlError(message)
+            throw TCXParseError.xmlError(message)
         }
         if let pendingError = delegate.pendingError {
             throw pendingError
         }
-        guard !delegate.points.isEmpty else { throw GPXParseError.noTracks }
+        guard !delegate.points.isEmpty else { throw TCXParseError.noTracks }
         return delegate.build()
     }
 
@@ -62,15 +31,15 @@ public struct GPXParser: Sendable {
     }
 }
 
-private final class GPXParserDelegate: NSObject, XMLParserDelegate {
-    var trackName: String?
-    var trackType: String?
+private final class TCXParserDelegate: NSObject, XMLParserDelegate {
+    var sport: String?
     var points: [TrackPoint] = []
-    var pendingError: GPXParseError?
+    var pendingError: TCXParseError?
 
     private var elementStack: [String] = []
     private var textBuffer: String = ""
 
+    private var inTrackpoint = false
     private var currentLat: Double?
     private var currentLon: Double?
     private var currentEle: Double?
@@ -94,8 +63,8 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
     func build() -> ParsedTrack {
         let timestamps = points.compactMap(\.timestamp)
         return ParsedTrack(
-            name: trackName,
-            activityHint: trackType,
+            name: nil,
+            activityHint: sport,
             startDate: timestamps.first,
             endDate: timestamps.last,
             points: points
@@ -107,20 +76,20 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
         elementStack.append(local)
         textBuffer = ""
 
-        if local == "trkpt" || local == "rtept" || local == "wpt" {
-            guard let latStr = attributeDict["lat"], let lonStr = attributeDict["lon"],
-                  let lat = Double(latStr), let lon = Double(lonStr) else {
-                pendingError = .malformedCoordinates(attributeDict["lat"].map { "lat=\($0)" } ?? "lat=missing")
-                parser.abortParsing()
-                return
-            }
-            currentLat = lat
-            currentLon = lon
+        switch local {
+        case "Activity", "Course":
+            if sport == nil { sport = attributeDict["Sport"] }
+        case "Trackpoint":
+            inTrackpoint = true
+            currentLat = nil
+            currentLon = nil
             currentEle = nil
             currentTime = nil
             currentHR = nil
             currentCadence = nil
             currentPower = nil
+        default:
+            break
         }
     }
 
@@ -135,30 +104,30 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
             textBuffer = ""
         }
 
+        guard inTrackpoint else {
+            if local == "Trackpoint" { inTrackpoint = false }
+            return
+        }
+
         let raw = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
 
         switch local {
-        case "name":
-            if elementStack.dropLast().contains("trk"), trackName == nil {
-                trackName = raw.isEmpty ? nil : raw
-            }
-        case "type":
-            if elementStack.dropLast().contains("trk"), trackType == nil {
-                trackType = raw.isEmpty ? nil : raw
-            }
-        case "ele":
+        case "LatitudeDegrees":
+            currentLat = Double(raw)
+        case "LongitudeDegrees":
+            currentLon = Double(raw)
+        case "AltitudeMeters":
             currentEle = Double(raw)
-        case "time":
-            if let date = Self.parseISO8601(raw) {
-                currentTime = date
-            }
-        case "hr":
-            currentHR = Double(raw)
-        case "cad":
+        case "Time":
+            if let date = Self.parseISO8601(raw) { currentTime = date }
+        case "Value":
+            if elementStack.dropLast().contains("HeartRateBpm") { currentHR = Double(raw) }
+        case "Cadence":
             currentCadence = Double(raw)
-        case "power":
+        case "Watts":
             currentPower = Double(raw)
-        case "trkpt", "rtept", "wpt":
+        case "Trackpoint":
+            inTrackpoint = false
             guard let lat = currentLat, let lon = currentLon else { return }
             points.append(TrackPoint(
                 latitude: lat,
