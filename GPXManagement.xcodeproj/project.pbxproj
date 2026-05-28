@@ -23,6 +23,7 @@
 		69199036BADF737CF4157B63 /* CoreDataActivityRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */; };
 		6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */; };
 		71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */; };
+		736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */; };
 		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
 		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
@@ -91,8 +92,9 @@
 		E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepository.swift; sourceTree = "<group>"; };
 		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
+		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_D42B49EF-F9DA-48FA-8C41-50CC03AE40A0" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_FAE7EBAC-6FF1-409A-BEDE-CD5BA56D6BD6" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +155,7 @@
 				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
 				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
+				FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */,
@@ -192,10 +195,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_D297B57A-96E6-4313-A8F8-48A2BAD16C3E" /* GPXManagement */ = {
+		"TEMP_70A8794B-4A98-4F6F-B034-AE247B2B9A47" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_D42B49EF-F9DA-48FA-8C41-50CC03AE40A0" /* Secrets.xcconfig */,
+				"TEMP_FAE7EBAC-6FF1-409A-BEDE-CD5BA56D6BD6" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -321,6 +324,7 @@
 				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
 				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
+				736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */,
@@ -376,7 +380,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_D42B49EF-F9DA-48FA-8C41-50CC03AE40A0" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_FAE7EBAC-6FF1-409A-BEDE-CD5BA56D6BD6" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -464,7 +468,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_D42B49EF-F9DA-48FA-8C41-50CC03AE40A0" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_FAE7EBAC-6FF1-409A-BEDE-CD5BA56D6BD6" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

@@ -1,5 +1,6 @@
 import SwiftUI
 import GPXCore
+import GPXMapKit
 
 @MainActor
 @Observable
@@ -11,6 +12,8 @@ final class WindowModel {
     var isExportingMap: Bool = false
     var mapExportFraction: Double = 0
     var mapExportStatus: String = ""
+    var isExportingPDF: Bool = false
+    var exportError: String?
 
     private let repository: CoreDataActivityRepository
 
@@ -24,6 +27,27 @@ final class WindowModel {
 
     private var selectedSummaries: [ActivitySummary] {
         listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }
+    }
+
+    func exportSelectedActivityPDF() {
+        guard let activity = selectedSummaries.first else { return }
+        let layerRaw = UserDefaults.standard.string(forKey: "defaultMapLayer")
+        let layer = layerRaw.flatMap { MapLayer(rawValue: $0) } ?? .ignScan25
+        isExportingPDF = true
+        Task {
+            defer { isExportingPDF = false }
+            do {
+                let data = try await PDFReportRenderer.render(activity: activity, repository: repository, layer: layer)
+                let panel = NSSavePanel()
+                panel.title = "Exporter en PDF"
+                panel.nameFieldStringValue = "\(activity.title.replacingOccurrences(of: "/", with: "-")).pdf"
+                panel.allowedContentTypes = [.pdf]
+                guard panel.runModal() == .OK, let url = panel.url else { return }
+                try data.write(to: url, options: .atomic)
+            } catch {
+                exportError = error.localizedDescription
+            }
+        }
     }
 
     func exportSelectedActivityGPX() {

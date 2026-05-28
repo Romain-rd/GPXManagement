@@ -1,5 +1,7 @@
 import SwiftUI
+import AppKit
 import GPXCore
+import GPXMapKit
 
 struct ActivityDetailView: View {
     let activity: ActivitySummary
@@ -9,6 +11,8 @@ struct ActivityDetailView: View {
     @State private var shareURL: URL?
     @State private var isShareSheetPresented = false
     @State private var exportError: String?
+    @State private var isExportingPDF = false
+    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -44,6 +48,16 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Exporter en GPX", systemImage: "arrow.down.doc")
                 }
+                Button {
+                    Task { await exportPDF() }
+                } label: {
+                    if isExportingPDF {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Exporter en PDF", systemImage: "doc.richtext")
+                    }
+                }
+                .disabled(isExportingPDF)
                 Button {
                     Task { await prepareShare() }
                 } label: {
@@ -159,6 +173,23 @@ struct ActivityDetailView: View {
         do {
             _ = try await ExportService.exportGPX(activity: activity, repository: repository)
         } catch ExportError.userCancelled {
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private func exportPDF() async {
+        isExportingPDF = true
+        defer { isExportingPDF = false }
+        let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        do {
+            let data = try await PDFReportRenderer.render(activity: activity, repository: repository, layer: layer)
+            let panel = NSSavePanel()
+            panel.title = "Exporter en PDF"
+            panel.nameFieldStringValue = "\(activity.title.replacingOccurrences(of: "/", with: "-")).pdf"
+            panel.allowedContentTypes = [.pdf]
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try data.write(to: url, options: .atomic)
         } catch {
             exportError = error.localizedDescription
         }

@@ -35,6 +35,12 @@ struct AppMenuCommands: Commands {
             .keyboardShortcut("e", modifiers: .command)
             .disabled(!(window?.hasSelection ?? false))
 
+            Button("Exporter l'activité en PDF…") {
+                window?.exportSelectedActivityPDF()
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!(window?.hasSelection ?? false))
+
             Menu("Exporter la carte en PNG") {
                 Button("Exporter la vue") { window?.requestMapExport(fullRoute: false) }
                 Button("Exporter tout le parcours") { window?.requestMapExport(fullRoute: true) }
