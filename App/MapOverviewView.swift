@@ -8,8 +8,8 @@ struct MapOverviewView: View {
     let repository: CoreDataActivityRepository
     let onSelect: (UUID) -> Void
 
-    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignPlanV2.rawValue
-    @State private var layer: MapLayer = .ignPlanV2
+    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoading = true
     @State private var loadedCount = 0
@@ -52,7 +52,7 @@ struct MapOverviewView: View {
         }
         .navigationTitle("Carte d'ensemble")
         .task(id: visibleActivitiesIDsKey) { await loadAll() }
-        .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignPlanV2 }
+        .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
     }
 

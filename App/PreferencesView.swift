@@ -20,7 +20,7 @@ struct PreferencesView: View {
 }
 
 struct GeneralPreferencesView: View {
-    @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignPlanV2.rawValue
+    @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignScan25.rawValue
 
     var body: some View {
         Form {

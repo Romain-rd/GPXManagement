@@ -27,6 +27,23 @@ final class IGNTileOverlayTests: XCTestCase {
         XCTAssertTrue(url.query?.contains("LAYER=GEOGRAPHICALGRIDSYSTEMS.SLOPES.MOUNTAIN") ?? false)
     }
 
+    func testScan25UsesPrivateEndpointWithKey() {
+        let url = IGNTileOverlay.buildURL(layerIdentifier: "GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR", format: "image/jpeg", apiKey: "ign_scan_ws", z: 15, x: 16830, y: 11862)
+        XCTAssertEqual(url.path, "/private/wmts")
+        XCTAssertTrue(url.query?.contains("apikey=ign_scan_ws") ?? false)
+        XCTAssertTrue(url.query?.contains("LAYER=GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR") ?? false)
+        XCTAssertTrue(url.query?.contains("FORMAT=image/jpeg") ?? false)
+    }
+
+    func testScan25LayerProperties() {
+        XCTAssertTrue(MapLayer.ignScan25.isIGN)
+        XCTAssertEqual(MapLayer.ignScan25.wmtsLayerIdentifier, "GEOGRAPHICALGRIDSYSTEMS.MAPS.SCAN25TOUR")
+        XCTAssertEqual(MapLayer.ignScan25.discoveryAPIKey, "ign_scan_ws")
+        XCTAssertEqual(MapLayer.ignScan25.wmtsFormat, "image/jpeg")
+        XCTAssertEqual(MapLayer.ignScan25.maxZoom, 16)
+        XCTAssertNil(MapLayer.ignPlanV2.discoveryAPIKey)
+    }
+
     func testMapLayerProperties() {
         XCTAssertTrue(MapLayer.ignPlanV2.isIGN)
         XCTAssertFalse(MapLayer.mapkitStandard.isIGN)

@@ -72,7 +72,8 @@ public struct TrackMapView: NSViewRepresentable {
         default:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
             let overlay = IGNTileOverlay(layer: layer)
-            mapView.addOverlay(overlay, level: .aboveLabels)
+            // Insert at the bottom so the opaque IGN raster never hides the track polylines.
+            mapView.insertOverlay(overlay, at: 0, level: .aboveLabels)
         }
     }
 

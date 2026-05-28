@@ -6,8 +6,8 @@ struct ActivityMapTabView: View {
     let activity: ActivitySummary
     let repository: CoreDataActivityRepository
 
-    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignPlanV2.rawValue
-    @State private var layer: MapLayer = .ignPlanV2
+    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoading = true
     @State private var error: String?
@@ -34,7 +34,7 @@ struct ActivityMapTabView: View {
         }
         .task(id: activity.id) { await load() }
         .onAppear {
-            layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignPlanV2
+            layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
         }
         .onChange(of: layer) { _, newValue in
             defaultLayerRaw = newValue.rawValue
