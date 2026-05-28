@@ -39,10 +39,11 @@ final class AppServices {
     var lastStravaSyncSummary: String?
 
     private let stravaAPI = StravaAPI()
-    private static let stravaLastSyncKey = "stravaLastSync"
+    private static let stravaLastRunKey = "stravaLastSyncRun"
 
+    /// Date du dernier lancement de sync (affichage uniquement). Le curseur réel est dérivé des données.
     var stravaLastSyncDate: Date? {
-        let t = UserDefaults.standard.double(forKey: Self.stravaLastSyncKey)
+        let t = UserDefaults.standard.double(forKey: Self.stravaLastRunKey)
         return t > 0 ? Date(timeIntervalSince1970: t) : nil
     }
 
@@ -304,6 +305,8 @@ final class AppServices {
         do {
             let count = try await repo.deleteAllActivities()
             try await storage.removeAllStoredFiles()
+            UserDefaults.standard.removeObject(forKey: Self.stravaLastRunKey)
+            lastStravaSyncSummary = nil
             libraryRevision += 1
             lastMaintenanceSummary = "\(count) activité(s) supprimée(s). Bibliothèque et fichiers vidés."
         } catch {
@@ -362,11 +365,13 @@ final class AppServices {
         defer {
             isSyncingStrava = false
             stravaSyncProgress = nil
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.stravaLastRunKey)
         }
 
-        // 1. Lister les activités (pagination, depuis la dernière sync).
+        // 1. Lister les activités (pagination, depuis la dernière activité Strava connue en base).
+        //    Curseur dérivé des données → se réinitialise automatiquement si on a tout supprimé.
         stravaSyncProgress = "Récupération de la liste des activités…"
-        let after = stravaLastSyncDate
+        let after = (try? await coreDataRepository?.latestStravaActivityDate()) ?? nil
         var summaries: [StravaActivitySummary] = []
         var page = 1
         do {
@@ -398,9 +403,7 @@ final class AppServices {
             guard let token = await strava.validAccessToken() else { break }
             do {
                 let stream = try await stravaAPI.streams(accessToken: token, activityId: act.id)
-                guard !stream.isEmpty else {
-                    advanceStravaLastSync(act.startDate); continue
-                }
+                guard !stream.isEmpty else { continue }
                 let type = ActivityType.fromStravaSportType(act.sportType)
                 let points = stream.map { p in
                     TrackPoint(
@@ -421,7 +424,6 @@ final class AppServices {
                     imported += 1
                 }
                 try? FileManager.default.removeItem(at: tmp)
-                advanceStravaLastSync(act.startDate)
                 if imported % 10 == 0 && imported > 0 { libraryRevision += 1 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
             } catch StravaError.rateLimited {
@@ -443,13 +445,6 @@ final class AppServices {
         let name = url.deletingPathExtension().lastPathComponent
         let digits = name.prefix { $0.isNumber }
         return digits.isEmpty ? nil : String(digits)
-    }
-
-    private func advanceStravaLastSync(_ date: Date) {
-        let current = stravaLastSyncDate ?? .distantPast
-        if date > current {
-            UserDefaults.standard.set(date.timeIntervalSince1970, forKey: Self.stravaLastSyncKey)
-        }
     }
 
     // MARK: - Réorganisation des fichiers selon le modèle

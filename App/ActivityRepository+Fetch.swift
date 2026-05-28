@@ -37,6 +37,18 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Date de départ la plus récente parmi les activités importées depuis Strava (curseur de sync).
+    func latestStravaActivityDate() async throws -> Date? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "origin == %@", ActivityOrigin.strava.rawValue)
+            fetch.sortDescriptors = [NSSortDescriptor(key: "startDate", ascending: false)]
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "startDate") as? Date
+        }
+    }
+
     func fetchTrackData(id: UUID) async throws -> Data? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
