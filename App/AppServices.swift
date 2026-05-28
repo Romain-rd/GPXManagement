@@ -15,6 +15,7 @@ final class AppServices {
     let importer: ImportService
     let healthImporter: AppleHealthImporter
     let stravaImporter: StravaArchiveImporter
+    let strava = StravaAuthService()
 
     var pendingImports: [ImportProposal] = []
     var importError: String?

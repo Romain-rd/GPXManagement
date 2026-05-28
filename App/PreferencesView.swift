@@ -212,18 +212,57 @@ struct MaintenanceView: View {
 }
 
 struct StravaPreferencesView: View {
+    @Bindable private var strava = AppServices.shared.strava
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-            Text("Synchronisation Strava").font(.title3)
-            Text("Disponible en P8 (Strava sync).")
-                .foregroundStyle(.secondary)
-            Button("Connecter Strava") {}
-                .disabled(true)
+        Form {
+            Section("Compte Strava") {
+                if strava.isConnected {
+                    LabeledContent("État") {
+                        Label("Connecté", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    if let name = strava.athleteName, !name.isEmpty {
+                        LabeledContent("Athlète", value: name)
+                    }
+                    Button("Déconnecter", role: .destructive) {
+                        strava.disconnect()
+                    }
+                } else {
+                    Text("Connectez votre compte Strava pour préparer la synchronisation des activités.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button {
+                            Task { await strava.connect() }
+                        } label: {
+                            Label("Connecter Strava", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(strava.isConnecting || !strava.isConfigured)
+
+                        if strava.isConnecting {
+                            ProgressView().controlSize(.small)
+                            Text("Autorisation dans le navigateur…")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if !strava.isConfigured {
+                        Text("Identifiants Strava absents — renseignez STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET dans Secrets.xcconfig.")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+
+                if let error = strava.error {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            Section {
+                Text("La synchronisation des activités (récupération automatique) sera ajoutée dans une prochaine étape. Cette version établit la connexion sécurisée (tokens stockés dans le trousseau).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }

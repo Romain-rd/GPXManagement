@@ -67,5 +67,9 @@
 			<string>Any</string>
 		</dict>
 	</dict>
+	<key>StravaClientID</key>
+	<string>$(STRAVA_CLIENT_ID)</string>
+	<key>StravaClientSecret</key>
+	<string>$(STRAVA_CLIENT_SECRET)</string>
 </dict>
 </plist>
