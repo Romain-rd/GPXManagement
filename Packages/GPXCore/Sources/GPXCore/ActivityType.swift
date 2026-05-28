@@ -123,6 +123,11 @@ public enum ActivityType: String, Codable, CaseIterable, Sendable {
             return nil
         }
     }
+
+    /// ActivityType correspondant à un sport_type Strava (ex. "TrailRun" → .trailRunning).
+    public static func fromStravaSportType(_ raw: String) -> ActivityType? {
+        allCases.first { $0.stravaSportType == raw }
+    }
 }
 
 public enum ActivityOrigin: String, Codable, CaseIterable, Sendable {

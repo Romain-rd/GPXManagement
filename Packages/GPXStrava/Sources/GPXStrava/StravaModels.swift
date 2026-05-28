@@ -26,6 +26,7 @@ public enum StravaError: Error, LocalizedError {
     case http(Int, String)
     case decoding
     case notConnected
+    case rateLimited
 
     public var errorDescription: String? {
         switch self {
@@ -33,6 +34,26 @@ public enum StravaError: Error, LocalizedError {
         case .http(let code, let body): return "Erreur Strava (HTTP \(code)) : \(body)"
         case .decoding: return "Impossible de décoder la réponse Strava."
         case .notConnected: return "Non connecté à Strava."
+        case .rateLimited: return "Limite de requêtes Strava atteinte. Réessayez dans quelques minutes."
         }
     }
+}
+
+public struct StravaActivitySummary: Sendable {
+    public let id: Int64
+    public let name: String
+    public let sportType: String
+    public let startDate: Date
+    public let distanceMeters: Double
+    public let hasGPS: Bool
+}
+
+public struct StravaStreamPoint: Sendable {
+    public let latitude: Double
+    public let longitude: Double
+    public let altitude: Double?
+    public let timeOffset: Double?
+    public let heartRate: Double?
+    public let cadence: Double?
+    public let power: Double?
 }

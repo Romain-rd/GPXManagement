@@ -63,4 +63,20 @@ final class StravaAuthService {
         StravaTokenStore.clear()
         tokens = nil
     }
+
+    /// Renvoie un access token valide, en rafraîchissant si nécessaire.
+    func validAccessToken() async -> String? {
+        guard var current = tokens else { return nil }
+        if current.isExpired {
+            do {
+                current = try await oauth.refresh(current)
+                try StravaTokenStore.save(current)
+                tokens = current
+            } catch {
+                self.error = "Échec du rafraîchissement du token Strava : \(error.localizedDescription)"
+                return nil
+            }
+        }
+        return current.accessToken
+    }
 }

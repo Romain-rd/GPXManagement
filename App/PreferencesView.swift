@@ -213,6 +213,7 @@ struct MaintenanceView: View {
 
 struct StravaPreferencesView: View {
     @Bindable private var strava = AppServices.shared.strava
+    @Bindable private var services = AppServices.shared
 
     var body: some View {
         Form {
@@ -257,13 +258,39 @@ struct StravaPreferencesView: View {
                 }
             }
 
-            Section {
-                Text("La synchronisation des activités (récupération automatique) sera ajoutée dans une prochaine étape. Cette version établit la connexion sécurisée (tokens stockés dans le trousseau).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if strava.isConnected {
+                Section("Synchronisation") {
+                    HStack {
+                        Button {
+                            Task { await services.syncStrava() }
+                        } label: {
+                            Label("Synchroniser maintenant", systemImage: "arrow.down.circle")
+                        }
+                        .disabled(services.isSyncingStrava)
+
+                        if services.isSyncingStrava {
+                            ProgressView().controlSize(.small)
+                            Text(services.stravaSyncProgress ?? "")
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    if let last = services.stravaLastSyncDate {
+                        LabeledContent("Dernière sync", value: Self.formatDate(last))
+                    }
+                    if let summary = services.lastStravaSyncSummary {
+                        Text(summary).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("Récupère vos activités GPS depuis la dernière synchronisation (déduplication automatique). Le débit Strava est limité ; sur un gros historique la sync reprend là où elle s'est arrêtée.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
         }
         .padding()
+    }
+
+    private static func formatDate(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .medium; f.timeStyle = .short
+        return f.string(from: d)
     }
 }
 
