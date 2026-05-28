@@ -99,6 +99,26 @@ struct ActivityListView: View {
             .onDelete(perform: deleteActivities)
         }
         .listStyle(.inset)
+        .contextMenu(forSelectionType: UUID.self) { ids in
+            Menu("Changer le type") {
+                ForEach(ActivityType.allCases, id: \.self) { type in
+                    Button {
+                        Task { await listVM.updateType(ids: ids, type: type) }
+                    } label: {
+                        Label(type.displayName, systemImage: type.symbolName)
+                    }
+                }
+            }
+            Divider()
+            Button("Supprimer", role: .destructive) {
+                Task {
+                    for id in ids { await listVM.delete(id: id) }
+                    navigation.listSelection.subtract(ids)
+                }
+            }
+        } primaryAction: { ids in
+            if ids.count == 1 { navigation.listSelection = ids }
+        }
     }
 
     private var emptyState: some View {
