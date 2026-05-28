@@ -28,6 +28,9 @@ struct ContentView: View {
         .onChange(of: services.importedCount) { _, _ in
             Task { await listVM.reload() }
         }
+        .onChange(of: services.libraryRevision) { _, _ in
+            Task { await listVM.reload() }
+        }
         .sheet(isPresented: hasPendingImportsBinding) {
             ImportSheetView(services: services)
         }

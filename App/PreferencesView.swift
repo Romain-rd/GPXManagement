@@ -10,6 +10,8 @@ struct PreferencesView: View {
                 .tabItem { Label("Général", systemImage: "gearshape") }
             OrganizationPreferencesView()
                 .tabItem { Label("Organisation iCloud", systemImage: "folder") }
+            MaintenanceView()
+                .tabItem { Label("Maintenance", systemImage: "wrench.and.screwdriver") }
             StravaPreferencesView()
                 .tabItem { Label("Strava", systemImage: "arrow.triangle.2.circlepath") }
             AboutView()
@@ -100,6 +102,47 @@ struct OrganizationPreferencesView: View {
         guard panel.runModal() == .OK, let folder = panel.url else { return }
         try? WatchedFolderBookmark.save(url: folder)
         watchedFolderPath = folder.path
+    }
+}
+
+struct MaintenanceView: View {
+    @Bindable private var services = AppServices.shared
+
+    var body: some View {
+        Form {
+            Section("Nommage d'après le parcours") {
+                Text("Renomme **toutes** les activités de la bibliothèque selon le lieu de départ, le point de passage notable et le lieu d'arrivée (via géocodage inverse).")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        Task { await services.renameAllActivitiesFromRoute() }
+                    } label: {
+                        Label("Renommer toutes les activités", systemImage: "mappin.and.ellipse")
+                    }
+                    .disabled(services.isRenamingAll)
+
+                    if services.isRenamingAll {
+                        ProgressView().controlSize(.small)
+                        Text(services.renameAllProgress ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let summary = services.lastMaintenanceSummary {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Nécessite une connexion réseau. Le débit du géocodage Apple est limité ; sur de gros volumes, certaines activités peuvent être ignorées (leur nom actuel est alors conservé).")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding()
     }
 }
 

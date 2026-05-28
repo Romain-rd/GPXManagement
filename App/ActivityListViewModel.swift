@@ -113,11 +113,6 @@ final class ActivityListViewModel {
         await updateTitle(id: id, title: name)
     }
 
-    func autoRenameVisible() async {
-        for activity in visibleActivities {
-            await autoRename(id: activity.id)
-        }
-    }
 
     private func sorted(_ items: [ActivitySummary], by order: ActivitySortOrder) -> [ActivitySummary] {
         switch order {

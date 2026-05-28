@@ -21,6 +21,10 @@ final class AppServices {
     var isScanningWatchedFolder: Bool = false
     var watchedFolderProgress: String?
     var lastWatchedFolderSummary: String?
+    var isRenamingAll: Bool = false
+    var renameAllProgress: String?
+    var lastMaintenanceSummary: String?
+    var libraryRevision: Int = 0
 
     private init() {
         self.persistence = PersistenceController.shared
@@ -125,6 +129,44 @@ final class AppServices {
 
     func cancelAllImports() {
         pendingImports.removeAll()
+    }
+
+    func renameAllActivitiesFromRoute() async {
+        guard let repo = repository as? CoreDataActivityRepository else { return }
+        isRenamingAll = true
+        lastMaintenanceSummary = nil
+        defer {
+            isRenamingAll = false
+            renameAllProgress = nil
+        }
+
+        let summaries = (try? await repo.fetchAllSummaries()) ?? []
+        guard !summaries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à renommer."
+            return
+        }
+
+        var renamed = 0
+        var skipped = 0
+        for (idx, summary) in summaries.enumerated() {
+            renameAllProgress = "Renommage \(idx + 1)/\(summaries.count)…"
+            guard let data = try? await repo.fetchTrackData(id: summary.id), !data.isEmpty,
+                  let points = try? TrackPointCodec.decode(data),
+                  let name = await RouteNamer.suggestName(points: points) else {
+                skipped += 1
+                continue
+            }
+            do {
+                try await repo.updateTitle(id: summary.id, title: name)
+                renamed += 1
+            } catch {
+                skipped += 1
+            }
+            try? await Task.sleep(nanoseconds: 120_000_000)
+        }
+
+        libraryRevision += 1
+        lastMaintenanceSummary = "\(renamed) renommée(s) · \(skipped) ignorée(s) sur \(summaries.count)."
     }
 
     func scanWatchedFolder(_ folderURL: URL) async {

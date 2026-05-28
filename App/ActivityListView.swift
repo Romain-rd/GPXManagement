@@ -61,14 +61,6 @@ struct ActivityListView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
 
-            Button {
-                Task { await listVM.autoRenameVisible() }
-            } label: {
-                Label("Nommer d'après le parcours", systemImage: "mappin.and.ellipse")
-            }
-            .help("Renomme toutes les activités affichées avec départ → passage → arrivée")
-            .disabled(listVM.visibleActivities.isEmpty || !listVM.renamingIds.isEmpty)
-
             Spacer()
             if services.isScanningHealthExport || services.isScanningWatchedFolder {
                 ProgressView()
