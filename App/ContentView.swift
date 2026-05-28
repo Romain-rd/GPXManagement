@@ -50,9 +50,7 @@ struct ContentView: View {
             }
             if window.isExportingMap {
                 ToolbarItem(placement: .automatic) {
-                    ProgressView(value: window.mapExportFraction)
-                        .progressViewStyle(.circular)
-                        .controlSize(.small)
+                    ExportProgressRing(fraction: window.mapExportFraction)
                         .help("Export de la carte — \(window.mapExportStatus)")
                 }
             }
@@ -129,6 +127,24 @@ struct ContentView: View {
             get: { services.importError != nil },
             set: { if !$0 { services.importError = nil } }
         )
+    }
+}
+
+struct ExportProgressRing: View {
+    let fraction: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: max(0.03, min(fraction, 1)))
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.2), value: fraction)
+        }
+        .frame(width: 16, height: 16)
+        .padding(.horizontal, 2)
     }
 }
 

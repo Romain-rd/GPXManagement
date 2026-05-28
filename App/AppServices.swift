@@ -52,9 +52,10 @@ final class AppServices {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [
             UTType(filenameExtension: "gpx") ?? .xml,
-            UTType(filenameExtension: "fit") ?? .data
+            UTType(filenameExtension: "fit") ?? .data,
+            UTType(filenameExtension: "tcx") ?? .xml
         ]
-        panel.title = "Choisir des fichiers GPX ou FIT"
+        panel.title = "Choisir des fichiers GPX, FIT ou TCX"
         guard panel.runModal() == .OK else { return }
         let urls = panel.urls
         Task { await prepareImports(from: urls) }
@@ -167,11 +168,7 @@ final class AppServices {
         }
 
         if result.extractedFiles.isEmpty {
-            var parts = ["Aucune trace GPX/FIT trouvée dans activities/."]
-            if result.unsupportedCount > 0 {
-                parts.append("\(result.unsupportedCount) fichier(s) .tcx ignoré(s) (format non supporté).")
-            }
-            importError = parts.joined(separator: " ")
+            importError = "Aucune trace GPX/FIT/TCX trouvée dans activities/."
             return
         }
 
@@ -214,7 +211,6 @@ final class AppServices {
         var parts: [String] = ["\(imported) importée(s)"]
         if duplicates > 0 { parts.append("\(duplicates) déjà présente(s)") }
         if fallbackUsed > 0 { parts.append("\(fallbackUsed) type indéterminé → \(fallbackType.displayName)") }
-        if result.unsupportedCount > 0 { parts.append("\(result.unsupportedCount) .tcx ignorée(s)") }
         if failures > 0 { parts.append("\(failures) échec(s)") }
         lastWatchedFolderSummary = parts.joined(separator: " · ")
     }
@@ -330,7 +326,7 @@ final class AppServices {
 
         let supported = candidates.filter { url in
             let ext = url.pathExtension.lowercased()
-            return ext == "gpx" || ext == "fit"
+            return ext == "gpx" || ext == "fit" || ext == "tcx"
         }
 
         if supported.isEmpty {
