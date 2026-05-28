@@ -38,7 +38,9 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                HStack(spacing: 10) {
+                // Un seul item (pas de fond glass autour de l'indicateur) ;
+                // écart fixe pour ne pas coller l'indicateur au sélecteur de mode.
+                HStack(spacing: 0) {
                     Picker("Mode", selection: Binding(
                         get: { navigation.visualizationMode },
                         set: { navigation.visualizationMode = $0 }
@@ -50,6 +52,7 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
 
                     if window.isExportingMap {
+                        Color.clear.frame(width: 28)
                         ProgressView(value: window.mapExportFraction)
                             .progressViewStyle(.circular)
                             .controlSize(.small)
