@@ -9,6 +9,16 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
         self.persistence = persistence
     }
 
+    func findActivity(stravaId: String) async throws -> UUID? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "stravaId == %@", stravaId)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "id") as? UUID
+        }
+    }
+
     func findDuplicate(sha256: String, startDate: Date, distance: Double) async throws -> UUID? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
@@ -35,6 +45,7 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
             activity.setValue(payload.title, forKey: "title")
             activity.setValue(payload.activityType.rawValue, forKey: "activityType")
             activity.setValue(payload.origin.rawValue, forKey: "origin")
+            activity.setValue(payload.stravaId, forKey: "stravaId")
             activity.setValue(payload.sourceFileName, forKey: "sourceFileName")
             activity.setValue(payload.sourceFileFormat.rawValue, forKey: "sourceFileFormat")
             activity.setValue(payload.startDate, forKey: "startDate")

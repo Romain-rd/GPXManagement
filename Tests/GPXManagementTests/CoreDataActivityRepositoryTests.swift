@@ -13,7 +13,7 @@ final class CoreDataActivityRepositoryTests: XCTestCase {
         repository = CoreDataActivityRepository(persistence: persistence)
     }
 
-    private func samplePayload(id: UUID = UUID(), title: String = "Sortie test", startDate: Date = Date(timeIntervalSince1970: 1_700_000_000), distance: Double = 45_000) -> ActivityCreationPayload {
+    private func samplePayload(id: UUID = UUID(), title: String = "Sortie test", startDate: Date = Date(timeIntervalSince1970: 1_700_000_000), distance: Double = 45_000, stravaId: String? = nil) -> ActivityCreationPayload {
         let stats = ActivityStats(
             distance: distance,
             duration: 3600,
@@ -37,8 +37,24 @@ final class CoreDataActivityRepositoryTests: XCTestCase {
             endDate: startDate.addingTimeInterval(3600),
             stats: stats,
             trackData: Data([0x47, 0x50, 0x58, 0x50]),
-            fileSHA256: "abc123"
+            fileSHA256: "abc123",
+            stravaId: stravaId
         )
+    }
+
+    func testFindActivityByStravaId() async throws {
+        let id = UUID()
+        try await repository.createActivity(samplePayload(id: id, stravaId: "123456789"))
+        let found = try await repository.findActivity(stravaId: "123456789")
+        XCTAssertEqual(found, id)
+        let missing = try await repository.findActivity(stravaId: "999")
+        XCTAssertNil(missing)
+    }
+
+    func testStravaActivityIdFromFilename() {
+        XCTAssertEqual(AppServices.stravaActivityId(fromArchiveFile: URL(fileURLWithPath: "/tmp/activities/123456.gpx")), "123456")
+        XCTAssertEqual(AppServices.stravaActivityId(fromArchiveFile: URL(fileURLWithPath: "/tmp/987654.fit")), "987654")
+        XCTAssertNil(AppServices.stravaActivityId(fromArchiveFile: URL(fileURLWithPath: "/tmp/route.gpx")))
     }
 
     func testCreateAndFetch() async throws {

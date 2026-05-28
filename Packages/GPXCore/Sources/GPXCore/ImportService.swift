@@ -18,8 +18,9 @@ public struct ImportProposal: Sendable {
     public let fileSHA256: String
     public let fileFormat: SourceFileFormat
     public let origin: ActivityOrigin
+    public let stravaId: String?
 
-    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport) {
+    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport, stravaId: String? = nil) {
         self.sourceURL = sourceURL
         self.parsed = parsed
         self.stats = stats
@@ -29,6 +30,7 @@ public struct ImportProposal: Sendable {
         self.fileSHA256 = fileSHA256
         self.fileFormat = fileFormat
         self.origin = origin
+        self.stravaId = stravaId
     }
 }
 
@@ -44,8 +46,9 @@ public struct ActivityCreationPayload: Sendable {
     public let stats: ActivityStats
     public let trackData: Data
     public let fileSHA256: String
+    public let stravaId: String?
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil) {
         self.id = id
         self.title = title
         self.activityType = activityType
@@ -57,12 +60,19 @@ public struct ActivityCreationPayload: Sendable {
         self.stats = stats
         self.trackData = trackData
         self.fileSHA256 = fileSHA256
+        self.stravaId = stravaId
     }
 }
 
 public protocol ActivityRepository: Sendable {
     func findDuplicate(sha256: String, startDate: Date, distance: Double) async throws -> UUID?
+    func findActivity(stravaId: String) async throws -> UUID?
     func createActivity(_ payload: ActivityCreationPayload) async throws
+}
+
+public extension ActivityRepository {
+    /// Par défaut, pas de recherche par identifiant Strava (les mocks/tests n'ont pas à l'implémenter).
+    func findActivity(stravaId: String) async throws -> UUID? { nil }
 }
 
 public actor ImportService {
@@ -84,7 +94,7 @@ public actor ImportService {
         try await prepareImport(from: url, hintedActivityType: nil, hintedTitle: nil)
     }
 
-    public func prepareImport(from url: URL, hintedActivityType: ActivityType?, hintedTitle: String?, origin: ActivityOrigin = .manualImport) async throws -> ImportProposal {
+    public func prepareImport(from url: URL, hintedActivityType: ActivityType?, hintedTitle: String?, origin: ActivityOrigin = .manualImport, stravaId: String? = nil) async throws -> ImportProposal {
         let format = try detectFormat(url: url)
         let data: Data
         do {
@@ -110,7 +120,14 @@ public actor ImportService {
         let title = (hintedTitle?.isEmpty == false ? hintedTitle! : parsedTitle)
         let sha = Self.sha256(of: data)
         let startDate = Self.startDate(for: parsed)
-        let duplicate = try await repository.findDuplicate(sha256: sha, startDate: startDate, distance: stats.distance)
+        // Déduplication : par identifiant Strava en priorité (fiable), sinon par date + distance.
+        var duplicate: UUID?
+        if let stravaId {
+            duplicate = try await repository.findActivity(stravaId: stravaId)
+        }
+        if duplicate == nil {
+            duplicate = try await repository.findDuplicate(sha256: sha, startDate: startDate, distance: stats.distance)
+        }
 
         return ImportProposal(
             sourceURL: url,
@@ -121,7 +138,8 @@ public actor ImportService {
             duplicateOfActivityId: duplicate,
             fileSHA256: sha,
             fileFormat: format,
-            origin: origin
+            origin: origin,
+            stravaId: stravaId
         )
     }
 
@@ -154,7 +172,8 @@ public actor ImportService {
             endDate: endDate,
             stats: proposal.stats,
             trackData: trackData,
-            fileSHA256: proposal.fileSHA256
+            fileSHA256: proposal.fileSHA256,
+            stravaId: proposal.stravaId
         )
 
         try await repository.createActivity(payload)

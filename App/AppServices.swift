@@ -212,7 +212,8 @@ final class AppServices {
                     from: fileURL,
                     hintedActivityType: nil,
                     hintedTitle: nil,
-                    origin: .strava
+                    origin: .strava,
+                    stravaId: Self.stravaActivityId(fromArchiveFile: fileURL)
                 )
                 if proposal.duplicateOfActivityId != nil {
                     duplicates += 1
@@ -412,7 +413,7 @@ final class AppServices {
                 let gpxData = try GPXWriter.write(name: act.name, activityType: type, points: points)
                 let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("strava-\(act.id).gpx")
                 try gpxData.write(to: tmp, options: .atomic)
-                let proposal = try await importer.prepareImport(from: tmp, hintedActivityType: type, hintedTitle: act.name, origin: .strava)
+                let proposal = try await importer.prepareImport(from: tmp, hintedActivityType: type, hintedTitle: act.name, origin: .strava, stravaId: String(act.id))
                 if proposal.duplicateOfActivityId != nil {
                     duplicates += 1
                 } else {
@@ -435,6 +436,13 @@ final class AppServices {
 
         if imported > 0 { libraryRevision += 1 }
         lastStravaSyncSummary = "\(imported) importée(s) · \(duplicates) déjà présente(s)" + (failures > 0 ? " · \(failures) échec(s)" : "")
+    }
+
+    /// Extrait l'identifiant d'activité Strava depuis le nom de fichier d'archive (ex. "123456.gpx" → "123456").
+    nonisolated static func stravaActivityId(fromArchiveFile url: URL) -> String? {
+        let name = url.deletingPathExtension().lastPathComponent
+        let digits = name.prefix { $0.isNumber }
+        return digits.isEmpty ? nil : String(digits)
     }
 
     private func advanceStravaLastSync(_ date: Date) {
