@@ -215,9 +215,12 @@ struct StravaPreferencesView: View {
     @Bindable private var strava = AppServices.shared.strava
     @Bindable private var services = AppServices.shared
 
+    // Orange officiel de la marque Strava (#FC4C02).
+    static let stravaOrange = Color(red: 0xFC / 255, green: 0x4C / 255, blue: 0x02 / 255)
+
     var body: some View {
         Form {
-            Section("Compte Strava") {
+            Section {
                 if strava.isConnected {
                     LabeledContent("État") {
                         Label("Connecté", systemImage: "checkmark.circle.fill")
@@ -230,15 +233,20 @@ struct StravaPreferencesView: View {
                         strava.disconnect()
                     }
                 } else {
-                    Text("Connectez votre compte Strava pour préparer la synchronisation des activités.")
+                    Text("Connectez votre compte Strava pour synchroniser vos activités.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack {
                         Button {
                             Task { await strava.connect() }
                         } label: {
-                            Label("Connecter Strava", systemImage: "arrow.triangle.2.circlepath")
+                            Text("Se connecter avec Strava")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14).padding(.vertical, 7)
+                                .background(Self.stravaOrange, in: Capsule())
                         }
+                        .buttonStyle(.plain)
                         .disabled(strava.isConnecting || !strava.isConfigured)
 
                         if strava.isConnecting {
@@ -255,6 +263,17 @@ struct StravaPreferencesView: View {
 
                 if let error = strava.error {
                     Text(error).font(.caption).foregroundStyle(.red)
+                }
+            } header: {
+                Text("Compte Strava")
+            } footer: {
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text("Powered by")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Text("STRAVA")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(Self.stravaOrange)
                 }
             }
 
