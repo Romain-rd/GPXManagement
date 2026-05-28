@@ -24,6 +24,7 @@
 		71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */; };
 		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
+		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
 		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
 		A52A49DCAB0612268A04D686 /* AppNavigationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */; };
 		B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */; };
@@ -70,6 +71,7 @@
 		881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
 		8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceControllerTests.swift; sourceTree = "<group>"; };
 		8F705DA1DD220140BBC3930E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuCommands.swift; sourceTree = "<group>"; };
 		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
 		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,7 +90,7 @@
 		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +140,7 @@
 				0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */,
 				E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */,
 				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
+				8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */,
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
 				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
@@ -186,10 +189,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_E8CB1F9A-C9ED-448F-B5EE-0F7D0BE03571" /* GPXManagement */ = {
+		"TEMP_859D4787-1614-4115-B6A0-E8CF11B45175" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */,
+				"TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -304,6 +307,7 @@
 				C5426088620B57FAAB41E593 /* ActivityRepository+Fetch.swift in Sources */,
 				71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */,
 				344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */,
+				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
 				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
@@ -368,7 +372,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -456,7 +460,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_FC3510C6-522F-42A9-A2B0-56A8C7BF355E" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_5E9FE74F-DEC8-4889-8891-5F9BAD504463" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

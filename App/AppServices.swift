@@ -1,4 +1,6 @@
 import Foundation
+import AppKit
+import UniformTypeIdentifiers
 import GPXCore
 
 @MainActor
@@ -12,6 +14,8 @@ final class AppServices {
     let repository: ActivityRepository
     let importer: ImportService
     let healthImporter: AppleHealthImporter
+    let navigation = AppNavigationModel()
+    let listVM: ActivityListViewModel
 
     var pendingImports: [ImportProposal] = []
     var importError: String?
@@ -25,14 +29,109 @@ final class AppServices {
     var renameAllProgress: String?
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
+    var mapExportToken: Int = 0
+    var mapExportFullRoute: Bool = false
+
+    private var coreDataRepository: CoreDataActivityRepository? {
+        repository as? CoreDataActivityRepository
+    }
 
     private init() {
         self.persistence = PersistenceController.shared
         self.iCloudContainer = ICloudContainer(identifier: AppConfig.iCloudContainerIdentifier)
         self.storage = FileStorageService(container: iCloudContainer, pattern: .default)
-        self.repository = CoreDataActivityRepository(persistence: persistence)
-        self.importer = ImportService(storage: storage, repository: repository)
+        let repo = CoreDataActivityRepository(persistence: persistence)
+        self.repository = repo
+        self.importer = ImportService(storage: storage, repository: repo)
         self.healthImporter = AppleHealthImporter()
+        self.listVM = ActivityListViewModel(repository: repo)
+    }
+
+    // MARK: - Sélection courante
+
+    private var selectedSummaries: [ActivitySummary] {
+        listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }
+    }
+
+    var hasSelection: Bool { !navigation.listSelection.isEmpty }
+    var canExportMap: Bool { navigation.visualizationMode == .mapOverview }
+
+    // MARK: - Commandes (barre de menus)
+
+    func importFilesViaPanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "gpx") ?? .xml,
+            UTType(filenameExtension: "fit") ?? .data
+        ]
+        panel.title = "Choisir des fichiers GPX ou FIT"
+        guard panel.runModal() == .OK else { return }
+        let urls = panel.urls
+        Task { await prepareImports(from: urls) }
+    }
+
+    func importWatchedFolderViaPanel() {
+        if let saved = WatchedFolderBookmark.resolve() {
+            Task { await scanWatchedFolder(saved) }
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choisir un dossier à surveiller"
+        panel.message = "Sélectionnez le dossier iCloud où HealthFit (ou un autre service) dépose vos fichiers GPX/FIT."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        try? WatchedFolderBookmark.save(url: folder)
+        Task { await scanWatchedFolder(folder) }
+    }
+
+    func importAppleHealthViaPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Choisir le dossier d'export Apple Santé"
+        panel.message = "Sélectionnez le dossier qui contient export.xml (et workout-routes/)."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        Task { await importAppleHealthExport(rootURL: folder) }
+    }
+
+    func exportSelectedActivityGPX() {
+        guard let activity = selectedSummaries.first, let repo = coreDataRepository else { return }
+        Task {
+            do {
+                _ = try await ExportService.exportGPX(activity: activity, repository: repo)
+            } catch ExportError.userCancelled {
+            } catch {
+                importError = error.localizedDescription
+            }
+        }
+    }
+
+    func renameSelectedFromRoute() {
+        let ids = navigation.listSelection
+        Task { for id in ids { await listVM.autoRename(id: id) } }
+    }
+
+    func changeTypeOfSelection(_ type: ActivityType) {
+        let ids = navigation.listSelection
+        Task { await listVM.updateType(ids: ids, type: type) }
+    }
+
+    func deleteSelection() {
+        let ids = navigation.listSelection
+        Task {
+            for id in ids { await listVM.delete(id: id) }
+            navigation.listSelection = []
+        }
+    }
+
+    func requestMapExport(fullRoute: Bool) {
+        mapExportFullRoute = fullRoute
+        mapExportToken += 1
     }
 
     func importAppleHealthExport(rootURL: URL) async {

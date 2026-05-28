@@ -2,14 +2,14 @@ import SwiftUI
 import GPXCore
 
 struct ContentView: View {
-    @Bindable var services: AppServices = .shared
-    @State private var navigation = AppNavigationModel()
-    @State private var listVM: ActivityListViewModel
+    @Bindable var services: AppServices
+    @Bindable var navigation: AppNavigationModel
+    @Bindable var listVM: ActivityListViewModel
 
     init(services: AppServices = .shared) {
         self._services = Bindable(wrappedValue: services)
-        let repo = services.repository as! CoreDataActivityRepository
-        self._listVM = State(initialValue: ActivityListViewModel(repository: repo))
+        self._navigation = Bindable(wrappedValue: services.navigation)
+        self._listVM = Bindable(wrappedValue: services.listVM)
     }
 
     private var repository: CoreDataActivityRepository? {

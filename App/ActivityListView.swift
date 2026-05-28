@@ -44,17 +44,17 @@ struct ActivityListView: View {
 
             Menu {
                 Button {
-                    pickFilesForImport()
+                    services.importFilesViaPanel()
                 } label: {
                     Label("Importer des fichiers GPX/FIT…", systemImage: "doc.badge.plus")
                 }
                 Button {
-                    scanWatchedFolder()
+                    services.importWatchedFolderViaPanel()
                 } label: {
                     Label("Importer depuis HealthFit / dossier iCloud…", systemImage: "applewatch.radiowaves.left.and.right")
                 }
                 Button {
-                    pickAppleHealthExport()
+                    services.importAppleHealthViaPanel()
                 } label: {
                     Label("Importer depuis Apple Santé (export ZIP)…", systemImage: "heart.text.square")
                 }
@@ -126,47 +126,6 @@ struct ActivityListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .background(.quaternary.opacity(0.5))
-    }
-
-    private func pickFilesForImport() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [
-            .init(filenameExtension: "gpx") ?? .xml,
-            .init(filenameExtension: "fit") ?? .data
-        ]
-        panel.title = "Choisir des fichiers GPX ou FIT"
-        guard panel.runModal() == .OK else { return }
-        let urls = panel.urls
-        Task { await services.prepareImports(from: urls) }
-    }
-
-    private func scanWatchedFolder() {
-        if let saved = WatchedFolderBookmark.resolve() {
-            Task { await services.scanWatchedFolder(saved) }
-            return
-        }
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.title = "Choisir un dossier à surveiller"
-        panel.message = "Sélectionnez le dossier iCloud où HealthFit (ou un autre service) dépose vos fichiers GPX/FIT."
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        try? WatchedFolderBookmark.save(url: folder)
-        Task { await services.scanWatchedFolder(folder) }
-    }
-
-    private func pickAppleHealthExport() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.title = "Choisir le dossier d'export Apple Santé"
-        panel.message = "Sélectionnez le dossier qui contient export.xml (et workout-routes/)."
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        Task { await services.importAppleHealthExport(rootURL: folder) }
     }
 
     private var list: some View {

@@ -34,6 +34,7 @@ struct MapOverviewView: View {
     let repository: CoreDataActivityRepository
     let onSelect: (UUID) -> Void
 
+    @Bindable private var services = AppServices.shared
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
@@ -106,6 +107,10 @@ struct MapOverviewView: View {
         .task(id: visibleActivitiesIDsKey) { await loadAll() }
         .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
+        .onChange(of: services.mapExportToken) { _, _ in
+            guard !tracks.isEmpty else { return }
+            Task { await exportPNG(fullRoute: services.mapExportFullRoute) }
+        }
         .alert("Export PNG", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
             Button("OK") { exportError = nil }
         } message: {

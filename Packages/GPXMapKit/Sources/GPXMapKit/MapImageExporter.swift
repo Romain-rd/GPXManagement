@@ -11,7 +11,7 @@ public enum MapImageExportError: Error {
 
 public enum MapImageExporter {
     private static let session = URLSession(configuration: .default)
-    private static let maxTiles = 600
+    private static let maxTiles = 1200
 
     /// Rend un PNG WYSIWYG de la zone visible : tuiles WMTS IGN (ou snapshot Apple) + traces dessinées.
     public static func renderPNG(
@@ -36,21 +36,15 @@ public enum MapImageExporter {
         let topLat = topLeft.latitude, leftLon = topLeft.longitude
         let bottomLat = bottomRight.latitude, rightLon = bottomRight.longitude
 
-        var lonSpan = rightLon - leftLon
-        if lonSpan <= 0 { lonSpan = 0.0001 }
-
-        // Zoom : viser ~ largeur visible en points écran traduite en tuiles, borné par la couche.
-        let targetWidthPx = max(640.0, mapRect.size.width / 256.0 * 256.0) // placeholder; recalculé via tuiles
-        _ = targetWidthPx
-        var z = Int((log2(360.0 / lonSpan * 4.0)).rounded())
-        z = min(max(z, 3), layer.maxZoom)
-
-        // Réduire z si trop de tuiles.
         func tileRange(_ z: Int) -> (xMin: Int, xMax: Int, yMin: Int, yMax: Int, originX: Double, originY: Double) {
             let nw = project(lat: topLat, lon: leftLon, z: z)
             let se = project(lat: bottomLat, lon: rightLon, z: z)
             return (Int(floor(nw.x / 256)), Int(floor(se.x / 256)), Int(floor(nw.y / 256)), Int(floor(se.y / 256)), nw.x, nw.y)
         }
+
+        // Définition maximale : on part du zoom le plus détaillé de la couche et on
+        // ne redescend que si le nombre de tuiles dépasse le budget.
+        var z = layer.maxZoom
         while z > 3 {
             let r = tileRange(z)
             let count = (r.xMax - r.xMin + 1) * (r.yMax - r.yMin + 1)

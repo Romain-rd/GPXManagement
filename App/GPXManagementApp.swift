@@ -14,7 +14,7 @@ struct GPXManagementApp: App {
                 .environment(\.managedObjectContext, services.persistence.container.viewContext)
         }
         .commands {
-            CommandGroup(replacing: .newItem) { }
+            AppMenuCommands(services: services)
         }
 
         Settings {
