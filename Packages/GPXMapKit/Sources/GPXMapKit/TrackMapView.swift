@@ -91,11 +91,16 @@ public struct TrackMapView: NSViewRepresentable {
             let existingPolylines = mapView.overlays.compactMap { $0 as? IdentifiedPolyline }
             mapView.removeOverlays(existingPolylines)
 
+            let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
+            let useTypeColor = nonEmpty.count <= 1
+
             var allCoords: [CLLocationCoordinate2D] = []
-            for track in tracks where !track.coordinates.isEmpty {
+            for (index, track) in nonEmpty.enumerated() {
                 let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
                 polyline.activityId = track.activityId
                 polyline.activityType = track.activityType
+                // 1 trace → couleur par type d'activité ; plusieurs → rotation de 4 couleurs pour les distinguer.
+                polyline.color = useTypeColor ? track.activityType.trackColor : MapTrackPalette.color(at: index)
                 mapView.addOverlay(polyline, level: .aboveLabels)
                 allCoords.append(contentsOf: track.coordinates)
             }
@@ -112,7 +117,7 @@ public struct TrackMapView: NSViewRepresentable {
             }
             if let identified = overlay as? IdentifiedPolyline {
                 let renderer = MKPolylineRenderer(polyline: identified)
-                renderer.strokeColor = identified.activityType?.trackColor ?? .systemBlue
+                renderer.strokeColor = identified.color ?? identified.activityType?.trackColor ?? .systemBlue
                 renderer.lineWidth = 4
                 renderer.lineJoin = .round
                 renderer.lineCap = .round
@@ -176,4 +181,5 @@ public struct TrackMapView: NSViewRepresentable {
 final class IdentifiedPolyline: MKPolyline {
     var activityId: UUID?
     var activityType: ActivityType?
+    var color: NSColor?
 }

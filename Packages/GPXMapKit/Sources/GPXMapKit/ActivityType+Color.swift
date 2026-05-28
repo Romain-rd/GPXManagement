@@ -19,7 +19,21 @@ public extension ActivityType {
     }
 }
 
-private extension NSColor {
+/// Palette de 4 couleurs très contrastées pour distinguer des traces superposées.
+public enum MapTrackPalette {
+    public static let colors: [NSColor] = [
+        NSColor(hex: 0x1E88E5), // bleu
+        NSColor(hex: 0xE53935), // rouge
+        NSColor(hex: 0x43A047), // vert
+        NSColor(hex: 0xFB8C00)  // orange
+    ]
+
+    public static func color(at index: Int) -> NSColor {
+        colors[((index % colors.count) + colors.count) % colors.count]
+    }
+}
+
+extension NSColor {
     convenience init(hex: UInt32) {
         let r = CGFloat((hex >> 16) & 0xFF) / 255.0
         let g = CGFloat((hex >> 8) & 0xFF) / 255.0

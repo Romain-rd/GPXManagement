@@ -9,6 +9,7 @@ Importer **l'historique complet** des activités Strava de l'utilisateur dans GP
 - P1 modèle Core Data (`StravaAccount`, `Activity.stravaId`, `Activity.origin = "strava"`).
 - P3 service d'import : on réutilise `ImportService` pour les fichiers GPX issus de Strava.
 - Application Strava créée sur `https://www.strava.com/settings/api` : `client_id`, `client_secret`, URI de redirection (`gpxmanagement://oauth/strava/callback`).
+  - **Provisionnée le 2026-05-28** : `client_id = 252149` (non secret, peut figurer dans le code). `client_secret` → `Secrets.xcconfig` uniquement, jamais commité.
 
 ## Livrables attendus (dans `GPXStrava`)
 
@@ -57,7 +58,11 @@ public struct StravaActivitySummary {
 }
 ```
 
-- Gestion des rate limits Strava (100 req/15min, 1000/jour) : back-off automatique, mise en pause si 429, reprise.
+- Gestion des rate limits Strava — back-off automatique, pause si `429`, reprise. Détail des quotas (compte gratuit, défaut imposé à toute nouvelle app, confirmé 2026-05-28) :
+  - **Lecture** (GET) : 100 req / 15 min · 1 000 / jour.
+  - **Globales** (toutes requêtes) : 200 req / 15 min · 2 000 / jour.
+  - Lire les en-têtes renvoyés à chaque réponse : `X-RateLimit-Limit` et `X-RateLimit-Usage` (deux valeurs : 15 min, jour) → piloter le back-off dessus plutôt qu'en dur.
+  - Minimiser les appels : `perPage = 200`, sync incrémentale via `after`, et **ne jamais re-télécharger** une activité déjà présente (check `stravaId`).
 - Refresh automatique du token si expiré (le `tokenProvider` doit gérer le refresh).
 - Download GPX : Strava expose `/activities/{id}/export_gpx` (avec cookies) — alternative : utiliser `/activities/{id}/streams` (API officielle, JSON, scope `activity:read_all`) puis reconstruire un GPX en interne. **Choix retenu** : utiliser les streams (officiel et stable).
 
@@ -112,6 +117,7 @@ public struct SyncProgress {
 
 - Webhooks Strava temps réel.
 - Publication d'activités vers Strava.
+- **Augmentation des limites / du nombre d'athlètes** : l'app reste en *Single Player Mode* (1 athlète = Romain). C'est volontaire — usage perso mono-utilisateur. Les quotas par défaut suffisent largement (1 000 lectures/jour couvre même un backfill complet en quelques jours). Ne pas remplir le Developer Program form : réservé aux apps publiques en croissance, délai réel 7+ semaines en 2026, et une app perso ne serait pas approuvée.
 
 ## Validation
 
