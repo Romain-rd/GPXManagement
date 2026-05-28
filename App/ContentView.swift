@@ -38,27 +38,18 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                // Un seul item (pas de fond glass autour de l'indicateur) ;
-                // écart fixe pour ne pas coller l'indicateur au sélecteur de mode.
-                HStack(spacing: 0) {
-                    Picker("Mode", selection: Binding(
-                        get: { navigation.visualizationMode },
-                        set: { navigation.visualizationMode = $0 }
-                    )) {
-                        ForEach(VisualizationMode.allCases) { mode in
-                            Label(mode.label, systemImage: mode.systemImage).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if window.isExportingMap {
-                        Color.clear.frame(width: 28)
-                        ProgressView(value: window.mapExportFraction)
-                            .progressViewStyle(.circular)
-                            .controlSize(.small)
-                            .help("Export de la carte — \(window.mapExportStatus)")
+                Picker("Mode", selection: Binding(
+                    get: { navigation.visualizationMode },
+                    set: { navigation.visualizationMode = $0 }
+                )) {
+                    ForEach(VisualizationMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.systemImage).tag(mode)
                     }
                 }
+                .pickerStyle(.segmented)
+            }
+            if window.isExportingMap {
+                exportToolbarItem
             }
         }
         .focusedSceneValue(\.windowModel, window)
@@ -78,6 +69,20 @@ struct ContentView: View {
             Button("OK") { services.importError = nil }
         } message: {
             Text(services.importError ?? "")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var exportToolbarItem: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .automatic) {
+                ExportProgressLabel(fraction: window.mapExportFraction, status: window.mapExportStatus)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .automatic) {
+                ExportProgressLabel(fraction: window.mapExportFraction, status: window.mapExportStatus)
+            }
         }
     }
 
@@ -133,6 +138,23 @@ struct ContentView: View {
             get: { services.importError != nil },
             set: { if !$0 { services.importError = nil } }
         )
+    }
+}
+
+struct ExportProgressLabel: View {
+    let fraction: Double
+    let status: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView(value: fraction)
+                .progressViewStyle(.circular)
+                .controlSize(.small)
+            Text("\(Int((fraction * 100).rounded())) %")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .help("Export de la carte — \(status)")
     }
 }
 
