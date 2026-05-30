@@ -4,18 +4,26 @@ public struct ElevationProfilePoint: Sendable, Equatable {
     public let distanceFromStart: Double
     public let altitude: Double
     public let slope: Double
+    public let timestamp: Date?
+    public let heartRate: Double?
+    public let latitude: Double?
+    public let longitude: Double?
 
-    public init(distanceFromStart: Double, altitude: Double, slope: Double) {
+    public init(distanceFromStart: Double, altitude: Double, slope: Double, timestamp: Date? = nil, heartRate: Double? = nil, latitude: Double? = nil, longitude: Double? = nil) {
         self.distanceFromStart = distanceFromStart
         self.altitude = altitude
         self.slope = slope
+        self.timestamp = timestamp
+        self.heartRate = heartRate
+        self.latitude = latitude
+        self.longitude = longitude
     }
 }
 
 public enum ElevationProfileBuilder {
     private static let earthRadius: Double = 6_371_000
-    private static let slopeHalfWindowMeters: Double = 25
-    private static let smoothingWindow = 5
+    private static let slopeHalfWindowMeters: Double = 75
+    private static let smoothingWindow = 9
 
     public static func build(points: [TrackPoint]) -> [ElevationProfilePoint] {
         let withAlt = points.filter { $0.altitude != nil }
@@ -37,9 +45,42 @@ public enum ElevationProfileBuilder {
 
         for i in 0..<withAlt.count {
             let slope = computeSlope(at: i, distances: distances, smoothedAltitudes: smoothed)
-            profile.append(ElevationProfilePoint(distanceFromStart: distances[i], altitude: smoothed[i], slope: slope))
+            profile.append(ElevationProfilePoint(distanceFromStart: distances[i], altitude: smoothed[i], slope: slope, timestamp: withAlt[i].timestamp, heartRate: withAlt[i].heartRate, latitude: withAlt[i].latitude, longitude: withAlt[i].longitude))
         }
         return profile
+    }
+
+    private static let movingSpeedThreshold: Double = 0.5
+
+    /// Temps cumulé en mouvement vs à l'arrêt, calculé sur le profil non décimé.
+    /// Les intervalles aberrants (gaps > 5 min, généralement enregistrement coupé) sont ignorés.
+    public static func movementTime(_ profile: [ElevationProfilePoint]) -> (moving: TimeInterval, paused: TimeInterval) {
+        guard profile.count >= 2 else { return (0, 0) }
+        var moving: TimeInterval = 0
+        var paused: TimeInterval = 0
+        for i in 0..<(profile.count - 1) {
+            guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0, dt <= 300 else { continue }
+            let dd = profile[i + 1].distanceFromStart - profile[i].distanceFromStart
+            if dd / dt > movingSpeedThreshold { moving += dt } else { paused += dt }
+        }
+        return (moving, paused)
+    }
+
+    /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
+    /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
+    public static func timeByCategory(_ profile: [ElevationProfilePoint]) -> [SlopeCategory: TimeInterval] {
+        guard profile.count >= 2 else { return [:] }
+        var result: [SlopeCategory: TimeInterval] = [:]
+        for i in 0..<(profile.count - 1) {
+            guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0, dt <= 300 else { continue }
+            let category = SlopeCategory.category(for: profile[i].slope)
+            result[category, default: 0] += dt
+        }
+        return result
     }
 
     public static func decimate(_ profile: [ElevationProfilePoint], tolerance: Double = 1.0, maxPoints: Int = 5000) -> [ElevationProfilePoint] {

@@ -12,6 +12,61 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertTrue(ElevationProfileBuilder.build(points: [p]).isEmpty)
     }
 
+    func testTimeByCategoryAccumulatesPerSlope() {
+        let start = Date(timeIntervalSince1970: 0)
+        var pts: [TrackPoint] = []
+        // Montée raide (~10%) sur 100 points espacés de 10s, puis plat.
+        for i in 0..<100 {
+            let d = Double(i)
+            pts.append(TrackPoint(
+                latitude: 45.0 + d * 0.0001, longitude: 6.0,
+                altitude: 1000 + d * 1.0,
+                timestamp: start.addingTimeInterval(d * 10)
+            ))
+        }
+        let profile = ElevationProfileBuilder.build(points: pts)
+        let times = ElevationProfileBuilder.timeByCategory(profile)
+        let total = times.values.reduce(0, +)
+        XCTAssertGreaterThan(total, 0)
+        // L'essentiel du temps doit être dans des catégories de montée, pas en descente.
+        XCTAssertEqual(times[.descent] ?? 0, 0, accuracy: 1)
+    }
+
+    func testTimeByCategoryIgnoresGaps() {
+        let start = Date(timeIntervalSince1970: 0)
+        let pts = [
+            TrackPoint(latitude: 45.0, longitude: 6.0, altitude: 100, timestamp: start),
+            TrackPoint(latitude: 45.001, longitude: 6.0, altitude: 101, timestamp: start.addingTimeInterval(10)),
+            // Gros gap (1h) → ignoré.
+            TrackPoint(latitude: 45.002, longitude: 6.0, altitude: 102, timestamp: start.addingTimeInterval(3610)),
+        ]
+        let profile = ElevationProfileBuilder.build(points: pts)
+        let times = ElevationProfileBuilder.timeByCategory(profile)
+        XCTAssertEqual(times.values.reduce(0, +), 10, accuracy: 1)
+    }
+
+    func testMovementTimeSeparatesMovingAndPaused() {
+        let start = Date(timeIntervalSince1970: 0)
+        var pts: [TrackPoint] = []
+        // 50 points en mouvement (~5 m/s), espacés de 5s.
+        for i in 0..<50 {
+            let d = Double(i)
+            pts.append(TrackPoint(latitude: 45.0 + d * 0.0002, longitude: 6.0, altitude: 100 + d,
+                                  timestamp: start.addingTimeInterval(d * 5)))
+        }
+        // 30 points immobiles (même position), espacés de 5s → pause.
+        let pauseStart = start.addingTimeInterval(50 * 5)
+        for i in 0..<30 {
+            pts.append(TrackPoint(latitude: 45.01, longitude: 6.0, altitude: 150,
+                                  timestamp: pauseStart.addingTimeInterval(Double(i) * 5)))
+        }
+        let profile = ElevationProfileBuilder.build(points: pts)
+        let (moving, paused) = ElevationProfileBuilder.movementTime(profile)
+        XCTAssertGreaterThan(moving, 0)
+        XCTAssertGreaterThan(paused, 0)
+        XCTAssertGreaterThan(paused, 100)
+    }
+
     func testMonotonicAscentProducesPositiveSlope() {
         var pts: [TrackPoint] = []
         for i in 0..<200 {
