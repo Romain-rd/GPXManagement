@@ -23,20 +23,22 @@ public enum MapImageExporter {
         layer: MapLayer,
         mapRect: MKMapRect,
         tracks: [TrackOverlayInput],
+        maxDimension: Int? = nil,
+        trackColor: NSColor? = nil,
         onProgress: (@Sendable (Progress) -> Void)? = nil
     ) async throws -> Data {
         guard mapRect.size.width > 0, mapRect.size.height > 0 else { throw MapImageExportError.emptyRegion }
 
         if layer.isIGN {
-            return try await renderIGN(layer: layer, mapRect: mapRect, tracks: tracks, onProgress: onProgress)
+            return try await renderIGN(layer: layer, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress)
         } else {
-            return try await renderApple(layer: layer, mapRect: mapRect, tracks: tracks, onProgress: onProgress)
+            return try await renderApple(layer: layer, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress)
         }
     }
 
     // MARK: - IGN (composition de tuiles WMTS)
 
-    private static func renderIGN(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
+    private static func renderIGN(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
         let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
         let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
         let topLat = topLeft.latitude, leftLon = topLeft.longitude
@@ -62,6 +64,14 @@ public enum MapImageExporter {
         let widthPx = Int(ceil(project(lat: bottomLat, lon: rightLon, z: z).x - r.originX))
         let heightPx = Int(ceil(project(lat: bottomLat, lon: rightLon, z: z).y - r.originY))
         guard widthPx > 0, heightPx > 0 else { throw MapImageExportError.emptyRegion }
+
+        // Réduction éventuelle (export PDF) : on compose à la résolution des tuiles, puis on réduit.
+        // L'épaisseur du tracé est augmentée d'autant pour rester visible après réduction.
+        let outputScale: Double = {
+            guard let maxDimension, max(widthPx, heightPx) > maxDimension else { return 1 }
+            return Double(maxDimension) / Double(max(widthPx, heightPx))
+        }()
+        let lineWidth = 4.0 / outputScale
 
         guard let ctx = makeContext(width: widthPx, height: heightPx) else { throw MapImageExportError.contextFailure }
         // Fond
@@ -115,20 +125,31 @@ public enum MapImageExporter {
         }
 
         // Dessiner les traces
-        drawTracks(tracks, in: ctx, heightPx: heightPx, originX: r.originX, originY: r.originY, z: z)
+        drawTracks(tracks, in: ctx, heightPx: heightPx, originX: r.originX, originY: r.originY, z: z, lineWidth: lineWidth, override: trackColor)
 
         onProgress?(Progress(fraction: 0.98, label: "Encodage du PNG…"))
         guard let cgImage = ctx.makeImage() else { throw MapImageExportError.contextFailure }
-        return try png(from: cgImage)
+        return try png(from: downscale(cgImage, scale: outputScale))
+    }
+
+    private static func downscale(_ image: CGImage, scale: Double) -> CGImage {
+        guard scale < 1 else { return image }
+        let outW = max(1, Int((Double(image.width) * scale).rounded()))
+        let outH = max(1, Int((Double(image.height) * scale).rounded()))
+        guard let ctx = makeContext(width: outW, height: outH) else { return image }
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: outW, height: outH))
+        return ctx.makeImage() ?? image
     }
 
     // MARK: - Apple (MKMapSnapshotter)
 
-    private static func renderApple(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
+    private static func renderApple(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
         onProgress?(Progress(fraction: 0.2, label: "Capture de la carte…"))
         let options = MKMapSnapshotter.Options()
         options.mapRect = mapRect
-        options.size = CGSize(width: min(2400, max(800, mapRect.size.width / 200)), height: min(2400, max(600, mapRect.size.height / 200)))
+        let cap = Double(maxDimension ?? 2400)
+        options.size = CGSize(width: min(cap, max(800, mapRect.size.width / 200)), height: min(cap, max(600, mapRect.size.height / 200)))
         options.showsBuildings = true
         switch layer {
         case .mapkitSatellite: options.mapType = .hybrid
@@ -144,7 +165,7 @@ public enum MapImageExporter {
             ctx.draw(base, in: CGRect(origin: .zero, size: size))
         }
 
-        drawTracksApple(tracks, in: ctx, snapshot: snapshot, height: size.height)
+        drawTracksApple(tracks, in: ctx, snapshot: snapshot, height: size.height, override: trackColor)
 
         guard let cgImage = ctx.makeImage() else { throw MapImageExportError.contextFailure }
         return try png(from: cgImage)
@@ -152,8 +173,9 @@ public enum MapImageExporter {
 
     // MARK: - Tracé
 
-    private static func resolvedColors(_ tracks: [TrackOverlayInput]) -> [NSColor] {
+    private static func resolvedColors(_ tracks: [TrackOverlayInput], override: NSColor?) -> [NSColor] {
         let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
+        if let override { return nonEmpty.map { _ in override } }
         let distinct = Set(nonEmpty.map(\.activityType))
         let useRotation = nonEmpty.count > 1 && distinct.count == 1
         return nonEmpty.enumerated().map { idx, t in
@@ -161,14 +183,13 @@ public enum MapImageExporter {
         }
     }
 
-    private static func drawTracks(_ tracks: [TrackOverlayInput], in ctx: CGContext, heightPx: Int, originX: Double, originY: Double, z: Int) {
-        let colors = resolvedColors(tracks)
+    private static func drawTracks(_ tracks: [TrackOverlayInput], in ctx: CGContext, heightPx: Int, originX: Double, originY: Double, z: Int, lineWidth: Double = 4, override: NSColor? = nil) {
+        let colors = resolvedColors(tracks, override: override)
         let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
-        ctx.setLineWidth(4)
         ctx.setLineJoin(.round)
         ctx.setLineCap(.round)
-        for (idx, track) in nonEmpty.enumerated() {
-            ctx.setStrokeColor(colors[idx].cgColor)
+
+        func stroke(_ track: TrackOverlayInput) {
             var first = true
             ctx.beginPath()
             for coord in track.coordinates {
@@ -180,16 +201,26 @@ public enum MapImageExporter {
             }
             ctx.strokePath()
         }
-    }
 
-    private static func drawTracksApple(_ tracks: [TrackOverlayInput], in ctx: CGContext, snapshot: MKMapSnapshotter.Snapshot, height: CGFloat) {
-        let colors = resolvedColors(tracks)
-        let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
-        ctx.setLineWidth(4)
-        ctx.setLineJoin(.round)
-        ctx.setLineCap(.round)
+        // Liseré blanc (casing) sous chaque trace → lisible sur tout fond.
+        ctx.setStrokeColor(NSColor.white.cgColor)
+        ctx.setLineWidth(lineWidth * 1.9)
+        for track in nonEmpty { stroke(track) }
+
+        ctx.setLineWidth(lineWidth)
         for (idx, track) in nonEmpty.enumerated() {
             ctx.setStrokeColor(colors[idx].cgColor)
+            stroke(track)
+        }
+    }
+
+    private static func drawTracksApple(_ tracks: [TrackOverlayInput], in ctx: CGContext, snapshot: MKMapSnapshotter.Snapshot, height: CGFloat, override: NSColor? = nil) {
+        let colors = resolvedColors(tracks, override: override)
+        let nonEmpty = tracks.filter { !$0.coordinates.isEmpty }
+        ctx.setLineJoin(.round)
+        ctx.setLineCap(.round)
+
+        func stroke(_ track: TrackOverlayInput) {
             var first = true
             ctx.beginPath()
             for coord in track.coordinates {
@@ -199,6 +230,16 @@ public enum MapImageExporter {
                 else { ctx.addLine(to: flipped) }
             }
             ctx.strokePath()
+        }
+
+        ctx.setStrokeColor(NSColor.white.cgColor)
+        ctx.setLineWidth(4 * 1.9)
+        for track in nonEmpty { stroke(track) }
+
+        ctx.setLineWidth(4)
+        for (idx, track) in nonEmpty.enumerated() {
+            ctx.setStrokeColor(colors[idx].cgColor)
+            stroke(track)
         }
     }
 
