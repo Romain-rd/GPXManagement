@@ -25,7 +25,10 @@ final class TCXParserTests: XCTestCase {
           <Time>2025-07-14T08:20:00Z</Time>
         </Trackpoint>
       </Track></Lap>
-    </Activity></Activities></TrainingCenterDatabase>
+      <Creator xsi:type="Device_t"><Name>Garmin Edge 530</Name></Creator>
+    </Activity></Activities>
+    <Author xsi:type="Application_t"><Name>Strava</Name></Author>
+    </TrainingCenterDatabase>
     """
 
     func testParsesTrackpointsAndSensors() throws {
@@ -34,6 +37,9 @@ final class TCXParserTests: XCTestCase {
         // Le 3e point sans position est ignoré.
         XCTAssertEqual(parsed.points.count, 2)
         XCTAssertEqual(parsed.activityHint, "Biking")
+        // Le <Creator> (appareil) prime sur l'<Author> (application d'export).
+        XCTAssertEqual(parsed.creator, "Garmin Edge 530")
+        XCTAssertEqual(ActivitySource(rawCreator: parsed.creator), .garmin)
 
         let first = parsed.points[0]
         XCTAssertEqual(first.latitude, 43.700, accuracy: 1e-6)

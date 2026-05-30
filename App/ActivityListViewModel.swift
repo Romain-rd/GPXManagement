@@ -60,6 +60,12 @@ final class ActivityListViewModel {
         return counts.map { ($0.key, $0.value) }.sorted { $0.tag < $1.tag }
     }
 
+    var availableSources: [(source: ActivitySource, count: Int)] {
+        var counts: [ActivitySource: Int] = [:]
+        for activity in allActivities { counts[activity.source, default: 0] += 1 }
+        return counts.map { ($0.key, $0.value) }.sorted { $0.source.sortKey < $1.source.sortKey }
+    }
+
     func reload() async {
         isLoading = true
         defer { isLoading = false }

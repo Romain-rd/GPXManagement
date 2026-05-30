@@ -48,6 +48,7 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
             activity.setValue(payload.stravaId, forKey: "stravaId")
             activity.setValue(payload.sourceFileName, forKey: "sourceFileName")
             activity.setValue(payload.sourceFileFormat.rawValue, forKey: "sourceFileFormat")
+            activity.setValue(payload.sourceApp, forKey: "sourceApp")
             activity.setValue(payload.startDate, forKey: "startDate")
             activity.setValue(payload.endDate, forKey: "endDate")
             activity.setValue(payload.stats.distance, forKey: "distance")

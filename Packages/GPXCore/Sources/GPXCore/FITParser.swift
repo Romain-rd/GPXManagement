@@ -18,6 +18,8 @@ public struct FITParser: Sendable {
         var points: [TrackPoint] = []
         var trackName: String?
         var activityHint: String?
+        var manufacturerId: UInt32?
+        var productName: String?
         var definitions: [UInt8: FITDefinition] = [:]
         var pendingSport: UInt8?
         var pendingSubSport: UInt8?
@@ -66,7 +68,11 @@ public struct FITParser: Sendable {
                 case 34:
                     if let sport = fields[4]?.uint8Value, pendingSport == nil { pendingSport = sport }
                 case 0:
-                    if let nameField = fields[8]?.stringValue { trackName = nameField }
+                    if let manufacturer = fields[1]?.uint32Value { manufacturerId = manufacturer }
+                    if let nameField = fields[8]?.stringValue {
+                        trackName = nameField
+                        productName = nameField
+                    }
                 default:
                     break
                 }
@@ -76,6 +82,8 @@ public struct FITParser: Sendable {
         if let sport = pendingSport {
             activityHint = Self.sportName(sport: sport, subSport: pendingSubSport)
         }
+
+        let creator = manufacturerId.flatMap(Self.manufacturerName) ?? productName
 
         let timestamps = points.compactMap(\.timestamp)
         let summary: ParsedTrack.Summary?
@@ -90,8 +98,26 @@ public struct FITParser: Sendable {
             startDate: timestamps.first,
             endDate: timestamps.last,
             points: points,
-            summary: summary
+            summary: summary,
+            creator: creator
         )
+    }
+
+    /// Sous-ensemble des identifiants de fabricant FIT les plus courants. Les autres retombent sur
+    /// le `product_name` du message file_id.
+    private static func manufacturerName(_ id: UInt32) -> String? {
+        switch id {
+        case 1, 15:  return "Garmin"
+        case 23:     return "Suunto"
+        case 32:     return "Wahoo"
+        case 70:     return "Sigma"
+        case 89:     return "TomTom"
+        case 95:     return "Stryd"
+        case 260:    return "Zwift"
+        case 267:    return "Bryton"
+        case 282:    return "Hammerhead"
+        default:     return nil
+        }
     }
 
     public func parse(url: URL) throws -> ParsedTrack {

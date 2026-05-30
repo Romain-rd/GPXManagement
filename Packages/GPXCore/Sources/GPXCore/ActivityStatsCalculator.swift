@@ -84,8 +84,9 @@ public enum ActivityStatsCalculator {
             }
         }
 
+        let stampedTimes = times.compactMap { $0 }
         let duration: Double
-        if let first = points.first?.timestamp, let last = points.last?.timestamp {
+        if let first = stampedTimes.first, let last = stampedTimes.last {
             duration = max(0, last.timeIntervalSince(first))
         } else {
             duration = 0

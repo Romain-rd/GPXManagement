@@ -31,6 +31,10 @@ final class AppServices {
     var isRenamingAll: Bool = false
     var renameAllProgress: String?
     var isDeletingAll: Bool = false
+    var isRecalculatingSources: Bool = false
+    var recalcSourcesProgress: String?
+    var isReprocessing: Bool = false
+    var reprocessProgress: String?
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
     var isReorganizing: Bool = false
@@ -360,6 +364,112 @@ final class AppServices {
 
         libraryRevision += 1
         lastMaintenanceSummary = "\(renamed) renommée(s) · \(skipped) ignorée(s) sur \(summaries.count)."
+    }
+
+    /// Recalcule l'application source de toutes les activités en relisant leurs fichiers stockés.
+    func recalculateSources() async {
+        guard let repo = coreDataRepository else { return }
+        isRecalculatingSources = true
+        lastMaintenanceSummary = nil
+        defer {
+            isRecalculatingSources = false
+            recalcSourcesProgress = nil
+        }
+
+        let entries = (try? await repo.fetchSourceRecomputeEntries()) ?? []
+        guard !entries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à analyser."
+            return
+        }
+
+        var updated = 0
+        var missing = 0
+        var failures = 0
+        var reclassified = 0
+        for (idx, entry) in entries.enumerated() {
+            recalcSourcesProgress = "Analyse \(idx + 1)/\(entries.count)…"
+            do {
+                let url = try await storage.url(forRelativePath: entry.relativePath)
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    missing += 1
+                    continue
+                }
+                let sourceApp = try await importer.detectSourceApp(at: url, origin: entry.origin)
+                try await repo.updateSourceApp(id: entry.id, sourceApp: sourceApp)
+                updated += 1
+
+                // Réaffecte le type déduit de la source (ex. Scenic → Moto) si le type est resté générique.
+                if entry.activityType == .other,
+                   let deducedType = ActivityTypeDetector.detect(source: ActivitySource(rawCreator: sourceApp)) {
+                    try await repo.updateActivityType(id: entry.id, rawValue: deducedType.rawValue)
+                    reclassified += 1
+                }
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: recalc source failed for \(entry.id): \(error)")
+            }
+            if idx % 25 == 24 { libraryRevision += 1 }
+        }
+
+        libraryRevision += 1
+        var parts = ["\(updated) mise(s) à jour"]
+        if reclassified > 0 { parts.append("\(reclassified) reclassée(s) par type") }
+        if missing > 0 { parts.append("\(missing) fichier(s) introuvable(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastMaintenanceSummary = parts.joined(separator: " · ")
+    }
+
+    /// Re-traite tous les fichiers stockés : recalcule tracé + statistiques (corrige les tracés
+    /// pollués, ex. Scenic) et met à jour la source. Réaffecte le type déduit si resté générique.
+    func reprocessAllFromSource() async {
+        guard let repo = coreDataRepository else { return }
+        isReprocessing = true
+        lastMaintenanceSummary = nil
+        defer {
+            isReprocessing = false
+            reprocessProgress = nil
+        }
+
+        let entries = (try? await repo.fetchSourceRecomputeEntries()) ?? []
+        guard !entries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à re-traiter."
+            return
+        }
+
+        var updated = 0
+        var missing = 0
+        var failures = 0
+        var reclassified = 0
+        for (idx, entry) in entries.enumerated() {
+            reprocessProgress = "Re-traitement \(idx + 1)/\(entries.count)…"
+            do {
+                let url = try await storage.url(forRelativePath: entry.relativePath)
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    missing += 1
+                    continue
+                }
+                let result = try await importer.reprocess(fileAt: url, origin: entry.origin)
+                // N'écrase pas un type choisi : ne reclasse que si le type est resté générique.
+                var newType: ActivityType?
+                if entry.activityType == .other, let suggested = result.suggestedType, suggested != .other {
+                    newType = suggested
+                    reclassified += 1
+                }
+                try await repo.applyReprocess(id: entry.id, result: result, newType: newType)
+                updated += 1
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: reprocess failed for \(entry.id): \(error)")
+            }
+            if idx % 25 == 24 { libraryRevision += 1 }
+        }
+
+        libraryRevision += 1
+        var parts = ["\(updated) re-traitée(s)"]
+        if reclassified > 0 { parts.append("\(reclassified) reclassée(s) par type") }
+        if missing > 0 { parts.append("\(missing) fichier(s) introuvable(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastMaintenanceSummary = parts.joined(separator: " · ")
     }
 
     // MARK: - Synchronisation Strava (récupération des activités)

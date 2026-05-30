@@ -2,6 +2,14 @@ import Foundation
 import CoreData
 import GPXCore
 
+struct SourceRecomputeEntry: Sendable {
+    let id: UUID
+    let relativePath: String
+    let format: SourceFileFormat
+    let origin: ActivityOrigin
+    let activityType: ActivityType
+}
+
 extension CoreDataActivityRepository {
     func fetchAllSummaries() async throws -> [ActivitySummary] {
         let context = persistence.container.newBackgroundContext()
@@ -101,6 +109,72 @@ extension CoreDataActivityRepository {
         }
     }
 
+    func updateSourceApp(id: UUID, sourceApp: String?) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(sourceApp, forKey: "sourceApp")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
+    /// Données minimales nécessaires pour recalculer l'application source en relisant les fichiers stockés.
+    func fetchSourceRecomputeEntries() async throws -> [SourceRecomputeEntry] {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            let results = try context.fetch(fetch)
+            return results.compactMap { object -> SourceRecomputeEntry? in
+                guard let id = object.value(forKey: "id") as? UUID,
+                      let path = object.value(forKey: "sourceFileName") as? String, !path.isEmpty,
+                      let formatRaw = object.value(forKey: "sourceFileFormat") as? String,
+                      let format = SourceFileFormat(rawValue: formatRaw)
+                else { return nil }
+                let originRaw = object.value(forKey: "origin") as? String ?? ActivityOrigin.manualImport.rawValue
+                let origin = ActivityOrigin(rawValue: originRaw) ?? .manualImport
+                let typeRaw = object.value(forKey: "activityType") as? String ?? ActivityType.other.rawValue
+                let type = ActivityType(rawValue: typeRaw) ?? .other
+                return SourceRecomputeEntry(id: id, relativePath: path, format: format, origin: origin, activityType: type)
+            }
+        }
+    }
+
+    func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let activity = try context.fetch(fetch).first else { return }
+            let stats = result.stats
+            activity.setValue(result.startDate, forKey: "startDate")
+            activity.setValue(result.endDate, forKey: "endDate")
+            activity.setValue(stats.distance, forKey: "distance")
+            activity.setValue(stats.duration, forKey: "duration")
+            activity.setValue(stats.movingDuration, forKey: "movingDuration")
+            activity.setValue(stats.elevationGain, forKey: "elevationGain")
+            activity.setValue(stats.elevationLoss, forKey: "elevationLoss")
+            activity.setValue(stats.avgSpeed, forKey: "avgSpeed")
+            activity.setValue(stats.maxSpeed, forKey: "maxSpeed")
+            activity.setValue(stats.avgHeartRate, forKey: "avgHeartRate")
+            activity.setValue(stats.maxHeartRate, forKey: "maxHeartRate")
+            activity.setValue(stats.boundingBox.minLatitude, forKey: "minLatitude")
+            activity.setValue(stats.boundingBox.maxLatitude, forKey: "maxLatitude")
+            activity.setValue(stats.boundingBox.minLongitude, forKey: "minLongitude")
+            activity.setValue(stats.boundingBox.maxLongitude, forKey: "maxLongitude")
+            activity.setValue(result.trackData, forKey: "trackData")
+            activity.setValue(result.sourceApp, forKey: "sourceApp")
+            if let newType { activity.setValue(newType.rawValue, forKey: "activityType") }
+            activity.setValue(Date(), forKey: "updatedAt")
+            try context.save()
+        }
+    }
+
     func updateNotes(id: UUID, notes: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
@@ -147,6 +221,7 @@ enum ActivitySummaryMapper {
             maxHeartRate: object.value(forKey: "maxHeartRate") as? Double,
             sourceFileName: object.value(forKey: "sourceFileName") as? String ?? "",
             sourceFileFormat: format,
+            sourceApp: object.value(forKey: "sourceApp") as? String,
             tags: tags,
             notes: object.value(forKey: "notes") as? String
         )

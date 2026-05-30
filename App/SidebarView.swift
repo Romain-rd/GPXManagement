@@ -43,6 +43,21 @@ struct SidebarView: View {
                 }
             }
 
+            if !listVM.availableSources.isEmpty {
+                Section("Source") {
+                    ForEach(listVM.availableSources, id: \.source) { entry in
+                        FacetRow(
+                            label: entry.source.displayName,
+                            systemImage: entry.source.symbolName,
+                            count: entry.count,
+                            isOn: listVM.filters.sources.contains(entry.source)
+                        ) {
+                            listVM.filters.toggleSource(entry.source)
+                        }
+                    }
+                }
+            }
+
             if !listVM.availableTags.isEmpty {
                 Section("Tags") {
                     ForEach(listVM.availableTags, id: \.tag) { entry in
@@ -101,7 +116,7 @@ extension ActivityType {
         case .cyclingMTB:                  return "bicycle.circle"
         case .eBike, .eMountainBike:       return "bicycle.circle.fill"
         case .handcycle:                   return "figure.roll"
-        case .motorcycle:                  return "fuelpump"
+        case .motorcycle:                  return "motorcycle"
         case .walking:                     return "figure.walk"
         case .hiking:                      return "figure.hiking"
         case .running, .virtualRun:        return "figure.run"

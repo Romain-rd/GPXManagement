@@ -173,6 +173,56 @@ struct MaintenanceView: View {
                     .foregroundStyle(.tertiary)
             }
 
+            Section("Origine des fichiers") {
+                Text("Relit chaque fichier GPX/FIT/TCX stocké pour déterminer l'application qui l'a généré (Strava, Garmin, Komoot…). Utile pour les activités importées avant l'ajout de cette information.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        Task { await services.recalculateSources() }
+                    } label: {
+                        Label("Recalculer les sources", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(services.isRecalculatingSources)
+
+                    if services.isRecalculatingSources {
+                        ProgressView().controlSize(.small)
+                        Text(services.recalcSourcesProgress ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let summary = services.lastMaintenanceSummary, !services.isRenamingAll {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Re-traitement des tracés") {
+                Text("Relit chaque fichier et **recalcule le tracé et les statistiques** (distance, durée, dénivelé). Corrige les tracés mal interprétés, comme les fichiers Scenic dont les waypoints départ/arrivée déformaient la carte et annulaient la durée.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        Task { await services.reprocessAllFromSource() }
+                    } label: {
+                        Label("Re-traiter les fichiers", systemImage: "arrow.clockwise.circle")
+                    }
+                    .disabled(services.isReprocessing)
+
+                    if services.isReprocessing {
+                        ProgressView().controlSize(.small)
+                        Text(services.reprocessProgress ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             Section("Zone de danger") {
                 Text("Supprime **toutes** les activités et leurs fichiers, localement et dans iCloud (la suppression se synchronise sur tous vos appareils). Action **irréversible**.")
                     .font(.callout)

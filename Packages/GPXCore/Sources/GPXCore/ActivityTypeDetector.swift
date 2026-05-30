@@ -12,6 +12,15 @@ public enum ActivityTypeDetector {
         }
     }
 
+    /// Type déduit de l'application source, pour les apps mono-usage dont les fichiers ne portent pas
+    /// de type d'activité fiable (ex. Scenic, dédiée moto).
+    public static func detect(source: ActivitySource) -> ActivityType? {
+        switch source {
+        case .scenic: return .motorcycle
+        default:      return nil
+        }
+    }
+
     private static func detectGPX(_ s: String) -> ActivityType? {
         switch s {
         case "cycling", "ride", "road_cycling", "cyclingroad":             return .cyclingRoad

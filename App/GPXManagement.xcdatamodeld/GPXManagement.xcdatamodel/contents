@@ -21,6 +21,7 @@
         <attribute name="movingDuration" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="origin" attributeType="String" defaultValueString="manual_import"/>
+        <attribute name="sourceApp" optional="YES" attributeType="String"/>
         <attribute name="sourceFileFormat" attributeType="String" defaultValueString=""/>
         <attribute name="sourceFileName" attributeType="String" defaultValueString=""/>
         <attribute name="startDate" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>

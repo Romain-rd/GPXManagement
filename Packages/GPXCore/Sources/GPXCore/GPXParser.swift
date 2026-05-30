@@ -7,6 +7,8 @@ public struct ParsedTrack: Sendable, Equatable {
     public let endDate: Date?
     public let points: [TrackPoint]
     public let summary: Summary?
+    /// Chaîne brute de l'application/appareil source (creator GPX, fabricant FIT, Author/Creator TCX).
+    public let creator: String?
 
     public struct Summary: Sendable, Equatable {
         public let startDate: Date?
@@ -20,13 +22,14 @@ public struct ParsedTrack: Sendable, Equatable {
         }
     }
 
-    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], summary: Summary? = nil) {
+    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], summary: Summary? = nil, creator: String? = nil) {
         self.name = name
         self.activityHint = activityHint
         self.startDate = startDate
         self.endDate = endDate
         self.points = points
         self.summary = summary
+        self.creator = creator
     }
 }
 
@@ -65,8 +68,17 @@ public struct GPXParser: Sendable {
 private final class GPXParserDelegate: NSObject, XMLParserDelegate {
     var trackName: String?
     var trackType: String?
-    var points: [TrackPoint] = []
+    var creator: String?
     var pendingError: GPXParseError?
+
+    /// Les waypoints (`wpt`) sont des marqueurs (départ/arrivée, POI) et n'appartiennent pas au tracé.
+    /// On privilégie les points de trace (`trkpt`) ; à défaut, les points de route (`rtept`).
+    private var trackPoints: [TrackPoint] = []
+    private var routePoints: [TrackPoint] = []
+    var points: [TrackPoint] { trackPoints.isEmpty ? routePoints : trackPoints }
+
+    private enum PointKind { case track, route }
+    private var currentKind: PointKind?
 
     private var elementStack: [String] = []
     private var textBuffer: String = ""
@@ -98,7 +110,8 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
             activityHint: trackType,
             startDate: timestamps.first,
             endDate: timestamps.last,
-            points: points
+            points: points,
+            creator: creator
         )
     }
 
@@ -107,13 +120,24 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
         elementStack.append(local)
         textBuffer = ""
 
-        if local == "trkpt" || local == "rtept" || local == "wpt" {
+        if local == "gpx", creator == nil {
+            let raw = attributeDict["creator"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            creator = (raw?.isEmpty == false) ? raw : nil
+        }
+
+        if local == "wpt" {
+            currentKind = nil
+            return
+        }
+
+        if local == "trkpt" || local == "rtept" {
             guard let latStr = attributeDict["lat"], let lonStr = attributeDict["lon"],
                   let lat = Double(latStr), let lon = Double(lonStr) else {
                 pendingError = .malformedCoordinates(attributeDict["lat"].map { "lat=\($0)" } ?? "lat=missing")
                 parser.abortParsing()
                 return
             }
+            currentKind = (local == "trkpt") ? .track : .route
             currentLat = lat
             currentLon = lon
             currentEle = nil
@@ -147,20 +171,21 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
                 trackType = raw.isEmpty ? nil : raw
             }
         case "ele":
-            currentEle = Double(raw)
+            if currentKind != nil { currentEle = Double(raw) }
         case "time":
-            if let date = Self.parseISO8601(raw) {
+            if currentKind != nil, let date = Self.parseISO8601(raw) {
                 currentTime = date
             }
         case "hr":
-            currentHR = Double(raw)
+            if currentKind != nil { currentHR = Double(raw) }
         case "cad":
-            currentCadence = Double(raw)
+            if currentKind != nil { currentCadence = Double(raw) }
         case "power":
-            currentPower = Double(raw)
-        case "trkpt", "rtept", "wpt":
-            guard let lat = currentLat, let lon = currentLon else { return }
-            points.append(TrackPoint(
+            if currentKind != nil { currentPower = Double(raw) }
+        case "trkpt", "rtept":
+            defer { currentKind = nil }
+            guard let lat = currentLat, let lon = currentLon, let kind = currentKind else { return }
+            let point = TrackPoint(
                 latitude: lat,
                 longitude: lon,
                 altitude: currentEle,
@@ -168,7 +193,13 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
                 heartRate: currentHR,
                 cadence: currentCadence,
                 power: currentPower
-            ))
+            )
+            switch kind {
+            case .track: trackPoints.append(point)
+            case .route: routePoints.append(point)
+            }
+        case "wpt":
+            currentKind = nil
         default:
             break
         }

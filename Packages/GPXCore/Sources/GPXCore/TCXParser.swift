@@ -35,6 +35,8 @@ private final class TCXParserDelegate: NSObject, XMLParserDelegate {
     var sport: String?
     var points: [TrackPoint] = []
     var pendingError: TCXParseError?
+    private var authorName: String?
+    private var deviceName: String?
 
     private var elementStack: [String] = []
     private var textBuffer: String = ""
@@ -67,7 +69,8 @@ private final class TCXParserDelegate: NSObject, XMLParserDelegate {
             activityHint: sport,
             startDate: timestamps.first,
             endDate: timestamps.last,
-            points: points
+            points: points,
+            creator: deviceName ?? authorName
         )
     }
 
@@ -104,12 +107,19 @@ private final class TCXParserDelegate: NSObject, XMLParserDelegate {
             textBuffer = ""
         }
 
+        let raw = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // <Creator>/<Author> sont hors trackpoints : capter ici, avant le guard.
+        if local == "Name", !raw.isEmpty {
+            let ancestors = elementStack.dropLast()
+            if ancestors.contains("Creator"), deviceName == nil { deviceName = raw }
+            else if ancestors.contains("Author"), authorName == nil { authorName = raw }
+        }
+
         guard inTrackpoint else {
             if local == "Trackpoint" { inTrackpoint = false }
             return
         }
-
-        let raw = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
 
         switch local {
         case "LatitudeDegrees":

@@ -19,8 +19,9 @@ public struct ImportProposal: Sendable {
     public let fileFormat: SourceFileFormat
     public let origin: ActivityOrigin
     public let stravaId: String?
+    public let sourceApp: String?
 
-    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport, stravaId: String? = nil) {
+    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport, stravaId: String? = nil, sourceApp: String? = nil) {
         self.sourceURL = sourceURL
         self.parsed = parsed
         self.stats = stats
@@ -31,6 +32,7 @@ public struct ImportProposal: Sendable {
         self.fileFormat = fileFormat
         self.origin = origin
         self.stravaId = stravaId
+        self.sourceApp = sourceApp
     }
 }
 
@@ -41,6 +43,7 @@ public struct ActivityCreationPayload: Sendable {
     public let origin: ActivityOrigin
     public let sourceFileName: String
     public let sourceFileFormat: SourceFileFormat
+    public let sourceApp: String?
     public let startDate: Date
     public let endDate: Date
     public let stats: ActivityStats
@@ -48,19 +51,38 @@ public struct ActivityCreationPayload: Sendable {
     public let fileSHA256: String
     public let stravaId: String?
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil) {
         self.id = id
         self.title = title
         self.activityType = activityType
         self.origin = origin
         self.sourceFileName = sourceFileName
         self.sourceFileFormat = sourceFileFormat
+        self.sourceApp = sourceApp
         self.startDate = startDate
         self.endDate = endDate
         self.stats = stats
         self.trackData = trackData
         self.fileSHA256 = fileSHA256
         self.stravaId = stravaId
+    }
+}
+
+public struct ReprocessResult: Sendable {
+    public let stats: ActivityStats
+    public let startDate: Date
+    public let endDate: Date
+    public let trackData: Data
+    public let sourceApp: String?
+    public let suggestedType: ActivityType?
+
+    public init(stats: ActivityStats, startDate: Date, endDate: Date, trackData: Data, sourceApp: String?, suggestedType: ActivityType?) {
+        self.stats = stats
+        self.startDate = startDate
+        self.endDate = endDate
+        self.trackData = trackData
+        self.sourceApp = sourceApp
+        self.suggestedType = suggestedType
     }
 }
 
@@ -115,6 +137,7 @@ public actor ImportService {
 
         let stats = Self.makeStats(for: parsed)
         let detectedType = ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
+            ?? ActivityTypeDetector.detect(source: ActivitySource(rawCreator: parsed.creator))
         let suggestedType = hintedActivityType ?? detectedType
         let parsedTitle = parsed.name?.isEmpty == false ? parsed.name! : url.deletingPathExtension().lastPathComponent
         let title = (hintedTitle?.isEmpty == false ? hintedTitle! : parsedTitle)
@@ -139,8 +162,71 @@ public actor ImportService {
             fileSHA256: sha,
             fileFormat: format,
             origin: origin,
-            stravaId: stravaId
+            stravaId: stravaId,
+            sourceApp: Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin)
         )
+    }
+
+    /// Détermine l'application source à enregistrer. Les fichiers générés en interne (sync API Strava
+    /// via GPXWriter) ne portent pas de creator exploitable : on retombe alors sur l'origine.
+    public static func resolveSourceApp(parsedCreator: String?, origin: ActivityOrigin) -> String? {
+        if let creator = parsedCreator?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !creator.isEmpty,
+           creator.caseInsensitiveCompare("GPXManagement") != .orderedSame {
+            return creator
+        }
+        return origin == .strava ? "Strava" : nil
+    }
+
+    /// Re-parse un fichier déjà stocké et recalcule tracé + stats (corrige les imports antérieurs,
+    /// ex. tracés Scenic pollués par les waypoints départ/arrivée).
+    public func reprocess(fileAt url: URL, origin: ActivityOrigin) async throws -> ReprocessResult {
+        let format = try detectFormat(url: url)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw ImportError.fileNotReadable
+        }
+        let parsed: ParsedTrack
+        switch format {
+        case .gpx: parsed = try gpxParser.parse(data: data)
+        case .fit: parsed = try fitParser.parse(data: data)
+        case .tcx: parsed = try tcxParser.parse(data: data)
+        }
+        let stats = Self.makeStats(for: parsed)
+        let startDate = Self.startDate(for: parsed)
+        let endDate = parsed.endDate
+            ?? parsed.summary?.duration.map { startDate.addingTimeInterval($0) }
+            ?? startDate
+        let trackData = try TrackPointCodec.encode(parsed.points)
+        return ReprocessResult(
+            stats: stats,
+            startDate: startDate,
+            endDate: endDate,
+            trackData: trackData,
+            sourceApp: Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin),
+            suggestedType: ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
+                ?? ActivityTypeDetector.detect(source: ActivitySource(rawCreator: parsed.creator))
+        )
+    }
+
+    /// Relit un fichier source déjà stocké pour en extraire l'application source (recalcul a posteriori).
+    public func detectSourceApp(at url: URL, origin: ActivityOrigin) async throws -> String? {
+        let format = try detectFormat(url: url)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw ImportError.fileNotReadable
+        }
+        let parsed: ParsedTrack
+        switch format {
+        case .gpx: parsed = try gpxParser.parse(data: data)
+        case .fit: parsed = try fitParser.parse(data: data)
+        case .tcx: parsed = try tcxParser.parse(data: data)
+        }
+        return Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin)
     }
 
     public func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String) async throws -> UUID {
@@ -168,6 +254,7 @@ public actor ImportService {
             origin: proposal.origin,
             sourceFileName: relativePath,
             sourceFileFormat: proposal.fileFormat,
+            sourceApp: proposal.sourceApp,
             startDate: startDate,
             endDate: endDate,
             stats: proposal.stats,

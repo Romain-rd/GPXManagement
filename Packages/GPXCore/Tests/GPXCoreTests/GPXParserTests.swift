@@ -19,6 +19,7 @@ final class GPXParserTests: XCTestCase {
         """
         let parsed = try parser.parse(data: xml.data(using: .utf8)!)
         XCTAssertEqual(parsed.name, "Test Track")
+        XCTAssertEqual(parsed.creator, "test")
         XCTAssertNil(parsed.activityHint)
         XCTAssertEqual(parsed.points.count, 2)
         XCTAssertEqual(parsed.points[0].latitude, 45.0)
@@ -52,6 +53,8 @@ final class GPXParserTests: XCTestCase {
         """
         let parsed = try parser.parse(data: xml.data(using: .utf8)!)
         XCTAssertEqual(parsed.name, "Tour des Alpes")
+        XCTAssertEqual(parsed.creator, "Garmin Connect")
+        XCTAssertEqual(ActivitySource(rawCreator: parsed.creator), .garmin)
         XCTAssertEqual(parsed.activityHint, "cycling")
         XCTAssertEqual(parsed.points.count, 1)
         XCTAssertEqual(parsed.points[0].heartRate, 145)
@@ -76,8 +79,50 @@ final class GPXParserTests: XCTestCase {
         """
         let parsed = try parser.parse(data: xml.data(using: .utf8)!)
         XCTAssertEqual(parsed.points.count, 2)
+        XCTAssertNil(parsed.creator)
         XCTAssertEqual(parsed.startDate, ISO8601DateFormatter().date(from: "2025-01-01T10:00:00Z"))
         XCTAssertEqual(parsed.endDate, ISO8601DateFormatter().date(from: "2025-01-01T10:05:00Z"))
+    }
+
+    func testWaypointsExcludedFromTrack() throws {
+        // Cas Scenic : waypoints départ/arrivée (sans time) AVANT la trace réelle.
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="Scenic Motorcycle Navigation App">
+          <wpt lat="44.36" lon="6.62"><name>Start Point</name></wpt>
+          <wpt lat="43.70" lon="7.24"><name>End Point</name></wpt>
+          <trk><name>Track</name><trkseg>
+            <trkpt lat="44.36" lon="6.62"><ele>1000</ele><time>2026-05-25T08:00:00Z</time></trkpt>
+            <trkpt lat="44.30" lon="6.70"><ele>1100</ele><time>2026-05-25T09:00:00Z</time></trkpt>
+            <trkpt lat="43.70" lon="7.24"><ele>10</ele><time>2026-05-25T11:00:00Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        let parsed = try parser.parse(data: xml.data(using: .utf8)!)
+        // Seuls les 3 trkpt sont retenus, pas les 2 wpt.
+        XCTAssertEqual(parsed.points.count, 3)
+        XCTAssertEqual(parsed.creator, "Scenic Motorcycle Navigation App")
+        // Le premier/dernier point portent les vrais horodatages → durée non nulle.
+        XCTAssertEqual(parsed.startDate, ISO8601DateFormatter().date(from: "2026-05-25T08:00:00Z"))
+        XCTAssertEqual(parsed.endDate, ISO8601DateFormatter().date(from: "2026-05-25T11:00:00Z"))
+
+        let stats = ActivityStatsCalculator.compute(points: parsed.points)
+        XCTAssertEqual(stats.duration, 3 * 3600, accuracy: 1)
+    }
+
+    func testRoutePointsUsedWhenNoTrack() throws {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1">
+          <wpt lat="44.0" lon="6.0"><name>POI</name></wpt>
+          <rte><name>R</name>
+            <rtept lat="44.0" lon="6.0"></rtept>
+            <rtept lat="44.1" lon="6.1"></rtept>
+          </rte>
+        </gpx>
+        """
+        let parsed = try parser.parse(data: xml.data(using: .utf8)!)
+        XCTAssertEqual(parsed.points.count, 2)
     }
 
     func testParseRejectsEmpty() {
