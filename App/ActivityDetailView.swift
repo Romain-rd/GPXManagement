@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import MapKit
 import GPXCore
 import GPXMapKit
 
@@ -12,6 +13,8 @@ struct ActivityDetailView: View {
     @State private var isShareSheetPresented = false
     @State private var exportError: String?
     @State private var isExportingPDF = false
+    @State private var profileMode: ProfileMode = .distance
+    @State private var highlightedCoordinate: CLLocationCoordinate2D?
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
@@ -22,6 +25,7 @@ struct ActivityDetailView: View {
                 header
                 metricsGrid
                 profileSection
+                mapSection
                 notesSection
             }
             .padding(20)
@@ -136,12 +140,51 @@ struct ActivityDetailView: View {
 
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Profil altimétrique", systemImage: "chart.xyaxis.line")
-                .font(.headline)
-            ElevationProfileTabView(activityId: activity.id, repository: repository)
+            HStack {
+                Label("Profil altimétrique", systemImage: "chart.xyaxis.line")
+                    .font(.headline)
+                Spacer()
+                Picker("", selection: $profileMode) {
+                    ForEach(ProfileMode.allCases) { m in
+                        Text(m.label).tag(m)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+            ElevationProfileTabView(activityId: activity.id, repository: repository, mode: $profileMode, highlightedCoordinate: $highlightedCoordinate)
                 .frame(height: 280)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
         }
+    }
+
+    private var mapSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Carte", systemImage: "map")
+                    .font(.headline)
+                Spacer()
+                LayerPicker(layer: mapLayerBinding)
+                    .controlSize(.small)
+            }
+            ActivityMapCard(
+                activityId: activity.id,
+                activityType: activity.activityType,
+                repository: repository,
+                layer: mapLayerBinding,
+                highlight: highlightedCoordinate
+            )
+            .frame(height: 340)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    private var mapLayerBinding: Binding<MapLayer> {
+        Binding(
+            get: { MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 },
+            set: { defaultLayerRaw = $0.rawValue }
+        )
     }
 
     private var notesSection: some View {
@@ -159,10 +202,26 @@ struct ActivityDetailView: View {
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
+            Label {
+                Text(sourceLineText)
+            } icon: {
+                Image(systemName: activity.source.symbolName)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
             Text("Fichier source : \(activity.sourceFileFormat.rawValue.uppercased()) · \(activity.sourceFileName)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private var sourceLineText: String {
+        let category = activity.source.displayName
+        if let raw = activity.sourceApp?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty, raw != category {
+            return "Source : \(category) · \(raw)"
+        }
+        return "Source : \(category)"
     }
 
     private var hasExportErrorBinding: Binding<Bool> {
@@ -225,6 +284,43 @@ struct ActivityDetailView: View {
 
     private static func speed(_ mps: Double) -> String {
         String(format: "%.1f km/h", mps * 3.6)
+    }
+}
+
+private struct ActivityMapCard: View {
+    let activityId: UUID
+    let activityType: ActivityType
+    let repository: CoreDataActivityRepository
+    @Binding var layer: MapLayer
+    let highlight: CLLocationCoordinate2D?
+
+    @State private var tracks: [TrackOverlayInput] = []
+    @State private var isLoaded = false
+
+    var body: some View {
+        Group {
+            if !isLoaded {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if tracks.isEmpty {
+                ContentUnavailableView("Pas de tracé", systemImage: "map", description: Text("La trace ne contient pas de coordonnées."))
+            } else {
+                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight)
+            }
+        }
+        .task(id: activityId) { await load() }
+    }
+
+    private func load() async {
+        isLoaded = false
+        guard let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
+              let input = try? TrackOverlayInput.fromTrackData(data, activityId: activityId, activityType: activityType),
+              !input.coordinates.isEmpty else {
+            tracks = []
+            isLoaded = true
+            return
+        }
+        tracks = [input]
+        isLoaded = true
     }
 }
 

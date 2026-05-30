@@ -35,11 +35,13 @@ public struct TrackMapView: NSViewRepresentable {
     @Binding public var layer: MapLayer
     public var onSelectActivity: ((UUID) -> Void)?
     public var proxy: MapViewProxy?
+    public var highlight: CLLocationCoordinate2D?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, onSelectActivity: ((UUID) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, onSelectActivity: ((UUID) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
+        self.highlight = highlight
         self.onSelectActivity = onSelectActivity
     }
 
@@ -72,6 +74,7 @@ public struct TrackMapView: NSViewRepresentable {
         }
         context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: context.coordinator.lastTrackIds != Set(tracks.map(\.activityId)))
         context.coordinator.lastTrackIds = Set(tracks.map(\.activityId))
+        context.coordinator.applyHighlight(highlight, to: mapView)
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -94,9 +97,29 @@ public struct TrackMapView: NSViewRepresentable {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
         private let onSelectActivity: ((UUID) -> Void)?
+        private var highlightAnnotation: HighlightAnnotation?
 
         init(onSelectActivity: ((UUID) -> Void)?) {
             self.onSelectActivity = onSelectActivity
+        }
+
+        /// Marqueur synchronisé avec le survol du profil altimétrique. Mis à jour sans recentrer la carte.
+        func applyHighlight(_ coordinate: CLLocationCoordinate2D?, to mapView: MKMapView) {
+            guard let coordinate else {
+                if let existing = highlightAnnotation {
+                    mapView.removeAnnotation(existing)
+                    highlightAnnotation = nil
+                }
+                return
+            }
+            if let existing = highlightAnnotation {
+                existing.coordinate = coordinate
+            } else {
+                let annotation = HighlightAnnotation()
+                annotation.coordinate = coordinate
+                highlightAnnotation = annotation
+                mapView.addAnnotation(annotation)
+            }
         }
 
         func applyTracks(_ tracks: [TrackOverlayInput], to mapView: MKMapView, fitOnChange: Bool) {
@@ -138,6 +161,30 @@ public struct TrackMapView: NSViewRepresentable {
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
+        }
+
+        private static let highlightImage: NSImage = {
+            let size = NSSize(width: 16, height: 16)
+            let image = NSImage(size: size)
+            image.lockFocus()
+            NSColor.white.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 1, y: 1, width: 14, height: 14)).fill()
+            NSColor.systemRed.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 3, y: 3, width: 10, height: 10)).fill()
+            image.unlockFocus()
+            return image
+        }()
+
+        public func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
+            guard annotation is HighlightAnnotation else { return nil }
+            let identifier = "highlight"
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            view.annotation = annotation
+            view.image = Self.highlightImage
+            view.centerOffset = .zero
+            view.canShowCallout = false
+            return view
         }
 
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
@@ -198,3 +245,5 @@ final class IdentifiedPolyline: MKPolyline {
     var activityType: ActivityType?
     var color: NSColor?
 }
+
+final class HighlightAnnotation: MKPointAnnotation {}
