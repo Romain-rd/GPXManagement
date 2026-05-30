@@ -5,6 +5,7 @@ struct GPXManagementApp: App {
     @State private var services = AppServices.shared
 
     init() {
+        NSWindow.allowsAutomaticWindowTabbing = false
         registerUbiquityContainer()
     }
 

@@ -6,7 +6,7 @@ struct AppMenuCommands: Commands {
     @FocusedValue(\.windowModel) private var window: WindowModel?
 
     var body: some Commands {
-        // Menu Fichier : on garde "Nouvelle fenêtre" (fourni par WindowGroup) et on ajoute imports/exports juste après.
+        // Menu Fichier : on garde "Nouvelle fenêtre" (fournie par WindowGroup) et on ajoute imports/exports juste après.
         CommandGroup(after: .newItem) {
             Divider()
             Button("Importer des fichiers GPX/FIT…") {
@@ -48,8 +48,9 @@ struct AppMenuCommands: Commands {
             .disabled(!(window?.canExportMap ?? false))
         }
 
-        // Menu Présentation : bascule des 3 modes (fenêtre active).
-        CommandMenu("Présentation") {
+        // Menu Présentation natif : on insère les 3 modes après la section "barre latérale" / toolbar.
+        CommandGroup(after: .sidebar) {
+            Divider()
             Button("Activités") { window?.navigation.visualizationMode = .activities }
                 .keyboardShortcut("1", modifiers: .command)
             Button("Statistiques") { window?.navigation.visualizationMode = .statistics }

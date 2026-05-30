@@ -21,6 +21,8 @@ final class AppServices {
     var pendingImports: [ImportProposal] = []
     var importError: String?
     var importedCount: Int = 0
+    var isPreparingImports: Bool = false
+    var preparingImportProgress: String?
     var isScanningHealthExport: Bool = false
     var healthScanProgress: String?
     var isScanningWatchedFolder: Bool = false
@@ -263,8 +265,16 @@ final class AppServices {
 
     func prepareImports(from urls: [URL]) async {
         importError = nil
+        isPreparingImports = true
+        defer {
+            isPreparingImports = false
+            preparingImportProgress = nil
+        }
         var proposals: [ImportProposal] = []
-        for url in urls {
+        for (idx, url) in urls.enumerated() {
+            preparingImportProgress = urls.count > 1
+                ? "Analyse \(idx + 1)/\(urls.count) — \(url.lastPathComponent)"
+                : "Analyse de \(url.lastPathComponent)…"
             do {
                 let proposal = try await importer.prepareImport(from: url)
                 proposals.append(proposal)

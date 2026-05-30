@@ -43,7 +43,13 @@ struct ActivityListView: View {
             .frame(maxWidth: 240)
 
             Spacer()
-            if services.isScanningHealthExport || services.isScanningWatchedFolder {
+            if services.isPreparingImports {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text(services.preparingImportProgress ?? "Analyse du fichier…")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            } else if services.isScanningHealthExport || services.isScanningWatchedFolder {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text(services.healthScanProgress ?? services.watchedFolderProgress ?? "Analyse…")
