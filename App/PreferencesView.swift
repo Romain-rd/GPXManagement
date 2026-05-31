@@ -223,6 +223,32 @@ struct MaintenanceView: View {
                 }
             }
 
+            Section("Synchronisation iCloud") {
+                Text("Force la republication de **toutes** les activités vers CloudKit. À utiliser si une machine présente moins d'activités que les autres (par exemple, l'historique local n'a jamais été poussé par le mirroring).")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        Task { await services.forceCloudKitResync() }
+                    } label: {
+                        Label("Forcer la resync CloudKit", systemImage: "icloud.and.arrow.up")
+                    }
+                    .disabled(services.isForcingCloudKitResync)
+
+                    if services.isForcingCloudKitResync {
+                        ProgressView().controlSize(.small)
+                        Text(services.cloudKitResyncProgress ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("Action sans danger : marque chaque activité comme modifiée. La sync vers les autres Macs peut prendre plusieurs minutes selon le volume.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
             Section("Zone de danger") {
                 Text("Supprime **toutes** les activités et leurs fichiers, localement et dans iCloud (la suppression se synchronise sur tous vos appareils). Action **irréversible**.")
                     .font(.callout)

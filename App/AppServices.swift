@@ -35,6 +35,8 @@ final class AppServices {
     var recalcSourcesProgress: String?
     var isReprocessing: Bool = false
     var reprocessProgress: String?
+    var isForcingCloudKitResync: Bool = false
+    var cloudKitResyncProgress: String?
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
     var isReorganizing: Bool = false
@@ -470,6 +472,33 @@ final class AppServices {
         if missing > 0 { parts.append("\(missing) fichier(s) introuvable(s)") }
         if failures > 0 { parts.append("\(failures) échec(s)") }
         lastMaintenanceSummary = parts.joined(separator: " · ")
+    }
+
+    // MARK: - Resync CloudKit (rattrapage des activités non poussées)
+
+    /// Touche `updatedAt` sur chaque Activity pour relancer un export CloudKit complet.
+    /// Utile quand une machine a un historique local que NSPersistentCloudKitContainer n'a jamais pushé.
+    func forceCloudKitResync() async {
+        guard let repo = coreDataRepository else { return }
+        guard !isForcingCloudKitResync else { return }
+        isForcingCloudKitResync = true
+        lastMaintenanceSummary = nil
+        defer {
+            isForcingCloudKitResync = false
+            cloudKitResyncProgress = nil
+        }
+        do {
+            let total = try await repo.touchAllActivitiesForResync { done, total in
+                self.cloudKitResyncProgress = "Touche \(done)/\(total)…"
+            }
+            libraryRevision += 1
+            lastMaintenanceSummary = total > 0
+                ? "\(total) activité(s) marquée(s) pour resync CloudKit. La synchronisation peut prendre quelques minutes."
+                : "Aucune activité à resynchroniser."
+        } catch {
+            NSLog("GPXManagement: forceCloudKitResync failed: \(error)")
+            lastMaintenanceSummary = "Échec de la resync : \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Synchronisation Strava (récupération des activités)

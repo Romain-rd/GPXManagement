@@ -109,6 +109,40 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Touche `updatedAt` sur chaque Activity par lots — sert à forcer NSPersistentCloudKitContainer
+    /// à republier tous les enregistrements (ex. machine où le mirroring n'a jamais poussé l'historique).
+    func touchAllActivitiesForResync(batchSize: Int = 100, onBatch: @MainActor @Sendable (Int, Int) -> Void) async throws -> Int {
+        let context = persistence.container.newBackgroundContext()
+        let total: Int = try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            return try context.count(for: fetch)
+        }
+        guard total > 0 else { return 0 }
+
+        var processed = 0
+        while processed < total {
+            let offset = processed
+            let limit = min(batchSize, total - offset)
+            try await context.perform {
+                let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+                fetch.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+                fetch.fetchOffset = offset
+                fetch.fetchLimit = limit
+                let rows = try context.fetch(fetch)
+                let now = Date()
+                for row in rows {
+                    row.setValue(now, forKey: "updatedAt")
+                }
+                if context.hasChanges { try context.save() }
+                context.reset()
+            }
+            processed += limit
+            let snapshot = processed
+            await MainActor.run { onBatch(snapshot, total) }
+        }
+        return total
+    }
+
     func updateSourceApp(id: UUID, sourceApp: String?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
