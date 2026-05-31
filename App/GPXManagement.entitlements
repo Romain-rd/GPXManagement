@@ -6,8 +6,6 @@
 	<array>
 		<string>iCloud.com.demoustier.GPXManagement</string>
 	</array>
-	<key>com.apple.developer.icloud-container-environment</key>
-	<string>Development</string>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudDocuments</string>
