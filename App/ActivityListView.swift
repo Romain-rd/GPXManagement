@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import GPXCore
+import GPXMapKit
 
 struct ActivityListView: View {
     @Bindable var listVM: ActivityListViewModel
@@ -256,40 +257,51 @@ struct ActivityRow: View {
     let activity: ActivitySummary
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: activity.activityType.symbolName)
-                .frame(width: 28, height: 28)
-                .foregroundStyle(.tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(activity.title)
-                    .font(.headline)
-                Text(Self.subtitle(for: activity))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Self.formatDistance(activity.distance))
-                    .font(.callout.monospacedDigit())
-                Text("\(Int(activity.elevationGain.rounded())) m D+")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 11) {
+            avatar
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(activity.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(Self.dateFormatter.string(from: activity.startDate))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                HStack(spacing: 6) {
+                    Text(activity.activityType.displayName)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(Self.formatDistance(activity.distance))
+                        .fontWeight(.medium)
+                    Text("\(Int(activity.elevationGain.rounded())) m D+")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.subheadline)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
+    }
+
+    private var avatar: some View {
+        ZStack {
+            Circle().fill(Color(nsColor: activity.activityType.trackColor))
+            Image(systemName: activity.activityType.symbolName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 36, height: 36)
     }
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "fr_FR")
-        f.dateFormat = "EEE d MMM yyyy"
+        f.dateFormat = "d MMM yyyy"
         return f
     }()
-
-    private static func subtitle(for activity: ActivitySummary) -> String {
-        let date = dateFormatter.string(from: activity.startDate)
-        return "\(activity.activityType.displayName) · \(date)"
-    }
 
     private static func formatDistance(_ m: Double) -> String {
         if m >= 1000 { return String(format: "%.1f km", m / 1000) }
