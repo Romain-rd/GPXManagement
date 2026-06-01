@@ -190,7 +190,6 @@ enum TrackVideoExporter {
     private static let fps: Int32 = 30
     private static let trackSeconds = 30.0
     private static let photoSeconds = 4.0
-    private static let maxVideoSeconds = 4.0
     private static let introSeconds = 3.0
     private static let outroSeconds = 5.0
 
@@ -431,7 +430,6 @@ enum TrackVideoExporter {
 
         let rect = mediaRect ?? .zero
         var emitted = 0
-        let maxFrames = Int(maxVideoSeconds * Double(fps))
         let frameStep = CMTime(value: 1, timescale: fps)
         var nextEmitTime = CMTime.zero
         var lastImage: CGImage?
@@ -440,12 +438,13 @@ enum TrackVideoExporter {
             append(renderFrame(background: background, point: point, hud: hud, encartCG: image, width: width, height: height, scale: scale, profile: profile, hudBottom: hudBottom, mediaRect: mediaRect, appearance: app))
         }
 
-        while emitted < maxFrames {
+        // Lecture du clip en entier (rééchantillonné à 30 fps), avec animation d'entrée sur le début.
+        while true {
             guard let sample = output.copyNextSampleBuffer(), let buffer = CMSampleBufferGetImageBuffer(sample) else { break }
             let presentation = CMSampleBufferGetPresentationTimeStamp(sample)
             let ci = CIImage(cvPixelBuffer: buffer).transformed(by: transform)
             lastImage = ciContext.createCGImage(ci, from: ci.extent)
-            while CMTimeCompare(presentation, nextEmitTime) >= 0, emitted < maxFrames {
+            while CMTimeCompare(presentation, nextEmitTime) >= 0 {
                 if let image = lastImage {
                     let p: CGFloat = emitted < animFrames ? CGFloat(emitted) / CGFloat(animFrames) : 1
                     frame(image, appearance(transition, progress: p, mediaRect: rect))
