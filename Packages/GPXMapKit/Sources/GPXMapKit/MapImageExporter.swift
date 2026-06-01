@@ -176,8 +176,13 @@ public enum MapImageExporter {
         onProgress?(Progress(fraction: 0.2, label: "Capture de la carte…"))
         let options = MKMapSnapshotter.Options()
         options.mapRect = mapRect
-        let cap = Double(maxDimension ?? 2400)
-        options.size = CGSize(width: min(cap, max(800, mapRect.size.width / 200)), height: min(cap, max(600, mapRect.size.height / 200)))
+        // La taille DOIT conserver le ratio du mapRect : sinon MKMapSnapshotter élargit la région
+        // pour remplir l'image, ce qui décale la trace projetée par l'appelant (cadrage faux).
+        let longSide = max(1200.0, min(Double(maxDimension ?? 2400), 2400.0))
+        let aspect = mapRect.size.width / mapRect.size.height
+        options.size = aspect >= 1
+            ? CGSize(width: longSide, height: longSide / aspect)
+            : CGSize(width: longSide * aspect, height: longSide)
         options.showsBuildings = true
         switch layer {
         case .mapkitSatellite: options.mapType = .hybrid
