@@ -43,7 +43,12 @@ struct ActivityListView: View {
             Button("Créer") {
                 if let ids = creatingRaidIds {
                     let name = newRaidName.trimmingCharacters(in: .whitespaces)
-                    Task { await listVM.createRaid(name: name.isEmpty ? "Nouveau raid" : name, activityIds: ids) }
+                    Task {
+                        if let raidId = await listVM.createRaid(name: name.isEmpty ? "Nouveau raid" : name, activityIds: ids) {
+                            navigation.listSelection = []
+                            navigation.sidebarSelection = .raid(raidId)
+                        }
+                    }
                 }
                 creatingRaidIds = nil
             }
@@ -61,6 +66,8 @@ struct ActivityListView: View {
             }
             .pickerStyle(.menu)
             .frame(maxWidth: 240)
+
+            filterMenu
 
             Spacer()
             if services.isPreparingImports {
@@ -86,6 +93,57 @@ struct ActivityListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            if !listVM.filters.isEmpty {
+                Button("Réinitialiser les filtres") { listVM.filters.reset() }
+                Divider()
+            }
+            Menu("Type") {
+                ForEach(listVM.availableActivityTypes, id: \.type) { entry in
+                    Toggle(isOn: Binding(
+                        get: { listVM.filters.activityTypes.contains(entry.type) },
+                        set: { _ in listVM.filters.toggleType(entry.type) }
+                    )) { Text("\(entry.type.displayName) (\(entry.count))") }
+                }
+            }
+            if !listVM.availableYears.isEmpty {
+                Menu("Année") {
+                    ForEach(listVM.availableYears, id: \.year) { entry in
+                        Toggle(isOn: Binding(
+                            get: { listVM.filters.years.contains(entry.year) },
+                            set: { _ in listVM.filters.toggleYear(entry.year) }
+                        )) { Text("\(String(entry.year)) (\(entry.count))") }
+                    }
+                }
+            }
+            if !listVM.availableSources.isEmpty {
+                Menu("Source") {
+                    ForEach(listVM.availableSources, id: \.source) { entry in
+                        Toggle(isOn: Binding(
+                            get: { listVM.filters.sources.contains(entry.source) },
+                            set: { _ in listVM.filters.toggleSource(entry.source) }
+                        )) { Text("\(entry.source.displayName) (\(entry.count))") }
+                    }
+                }
+            }
+            if !listVM.availableTags.isEmpty {
+                Menu("Tags") {
+                    ForEach(listVM.availableTags, id: \.tag) { entry in
+                        Toggle(isOn: Binding(
+                            get: { listVM.filters.tags.contains(entry.tag) },
+                            set: { _ in listVM.filters.toggleTag(entry.tag) }
+                        )) { Text("\(entry.tag) (\(entry.count))") }
+                    }
+                }
+            }
+        } label: {
+            Label("Filtrer", systemImage: listVM.filters.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     private var selectionBar: some View {

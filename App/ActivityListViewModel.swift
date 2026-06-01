@@ -97,17 +97,18 @@ final class ActivityListViewModel {
         return "Raid " + f.string(from: earliest)
     }
 
-    func createRaid(name: String, activityIds: Set<UUID>) async {
+    @discardableResult
+    func createRaid(name: String, activityIds: Set<UUID>) async -> UUID? {
         let raid = Raid(name: name)
         do {
             try await repository.createRaid(raid)
             try await repository.setRaid(activityIds: Array(activityIds), raidId: raid.id)
             await reload()
             await refreshRaidDates(raid.id)
-            filters.reset()
-            filters.raids.insert(raid.id)
+            return raid.id
         } catch {
             self.error = "Échec de la création du raid : \(error.localizedDescription)"
+            return nil
         }
     }
 
@@ -158,7 +159,6 @@ final class ActivityListViewModel {
     func deleteRaid(_ raidId: UUID) async {
         do {
             try await repository.deleteRaid(id: raidId)
-            filters.raids.remove(raidId)
             await reload()
         } catch {
             self.error = "Échec de la suppression du raid : \(error.localizedDescription)"

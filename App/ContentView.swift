@@ -18,12 +18,17 @@ struct ContentView: View {
         services.repository as? CoreDataActivityRepository
     }
 
-    /// Activités ciblées par le mode courant : la sélection si elle existe, sinon tout l'ensemble filtré.
+    private var raidMembers: [ActivitySummary] {
+        guard let id = navigation.selectedRaidId else { return [] }
+        return listVM.allActivities.filter { $0.raidId == id }.sorted { $0.startDate < $1.startDate }
+    }
+
+    /// Activités ciblées par le mode courant : la sélection si elle existe, sinon l'ensemble
+    /// courant (étapes du raid sélectionné, sinon toutes les activités filtrées).
     private var targetActivities: [ActivitySummary] {
-        if navigation.listSelection.isEmpty {
-            return listVM.visibleActivities
-        }
-        return listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }
+        let base = navigation.selectedRaidId != nil ? raidMembers : listVM.visibleActivities
+        if navigation.listSelection.isEmpty { return base }
+        return base.filter { navigation.listSelection.contains($0.id) }
     }
 
     var body: some View {
@@ -31,8 +36,16 @@ struct ContentView: View {
             SidebarView(navigation: navigation, listVM: listVM)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } content: {
-            ActivityListView(listVM: listVM, navigation: navigation, services: services)
-                .navigationSplitViewColumnWidth(min: 280, ideal: 340)
+            if let raidId = navigation.selectedRaidId,
+               let raid = listVM.raids.first(where: { $0.id == raidId }),
+               let repository {
+                RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation)
+                    .id(raid.id)
+                    .navigationSplitViewColumnWidth(min: 340, ideal: 400)
+            } else {
+                ActivityListView(listVM: listVM, navigation: navigation, services: services)
+                    .navigationSplitViewColumnWidth(min: 280, ideal: 340)
+            }
         } detail: {
             modeContent
         }
@@ -55,6 +68,9 @@ struct ContentView: View {
         .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()
+        }
+        .onChange(of: navigation.sidebarSelection) { _, _ in
+            navigation.listSelection = []
         }
         .onChange(of: services.importedCount) { _, _ in
             Task { await listVM.reload() }
@@ -114,16 +130,15 @@ struct ContentView: View {
     @ViewBuilder
     private var activitiesDetail: some View {
         if let selectedId = navigation.listSelection.first,
-           let activity = listVM.visibleActivities.first(where: { $0.id == selectedId }),
+           let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
             ActivityDetailView(activity: activity, listVM: listVM, repository: repository)
-        } else if navigation.listSelection.isEmpty,
-                  listVM.filters.raids.count == 1,
-                  let raidId = listVM.filters.raids.first,
-                  let raid = listVM.raids.first(where: { $0.id == raidId }),
-                  let repository {
-            RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation)
-                .id(raid.id)
+        } else if navigation.selectedRaidId != nil {
+            ContentUnavailableView(
+                "Sélectionnez une étape",
+                systemImage: "flag.2.crossed",
+                description: Text("Choisissez une étape du raid à gauche pour voir son détail. L'aperçu du raid reste affiché.")
+            )
         } else {
             ContentUnavailableView(
                 "Aucune activité sélectionnée",

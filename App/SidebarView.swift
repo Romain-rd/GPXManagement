@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import GPXCore
 
 struct SidebarView: View {
@@ -8,99 +9,36 @@ struct SidebarView: View {
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
 
+    private var selectionBinding: Binding<SidebarDestination?> {
+        Binding(get: { navigation.sidebarSelection }, set: { navigation.sidebarSelection = $0 ?? .allActivities })
+    }
+
     var body: some View {
-        List {
-            Section("Activités") {
-                FacetRow(
-                    label: "Toutes",
-                    systemImage: "tray.full",
-                    count: listVM.allActivities.count,
-                    isOn: listVM.filters.isEmpty
-                ) {
-                    listVM.filters.reset()
-                }
-                ForEach(listVM.availableActivityTypes, id: \.type) { entry in
-                    FacetRow(
-                        label: entry.type.displayName,
-                        systemImage: entry.type.symbolName,
-                        count: entry.count,
-                        isOn: listVM.filters.activityTypes.contains(entry.type)
-                    ) {
-                        listVM.filters.toggleType(entry.type)
-                    }
-                }
-            }
-
-            if !listVM.availableYears.isEmpty {
-                Section("Années") {
-                    ForEach(listVM.availableYears, id: \.year) { entry in
-                        FacetRow(
-                            label: String(entry.year),
-                            systemImage: "calendar",
-                            count: entry.count,
-                            isOn: listVM.filters.years.contains(entry.year)
-                        ) {
-                            listVM.filters.toggleYear(entry.year)
-                        }
-                    }
-                }
-            }
-
-            if !listVM.availableSources.isEmpty {
-                Section("Source") {
-                    ForEach(listVM.availableSources, id: \.source) { entry in
-                        FacetRow(
-                            label: entry.source.displayName,
-                            systemImage: entry.source.symbolName,
-                            count: entry.count,
-                            isOn: listVM.filters.sources.contains(entry.source)
-                        ) {
-                            listVM.filters.toggleSource(entry.source)
-                        }
-                    }
-                }
-            }
-
-            if !listVM.availableTags.isEmpty {
-                Section("Tags") {
-                    ForEach(listVM.availableTags, id: \.tag) { entry in
-                        FacetRow(
-                            label: entry.tag,
-                            systemImage: "tag",
-                            count: entry.count,
-                            isOn: listVM.filters.tags.contains(entry.tag)
-                        ) {
-                            listVM.filters.toggleTag(entry.tag)
-                        }
-                    }
-                }
-            }
+        List(selection: selectionBinding) {
+            Label("Toutes les activités", systemImage: "tray.full")
+                .badge(listVM.allActivities.count)
+                .tag(SidebarDestination.allActivities)
 
             if !listVM.availableRaids.isEmpty {
                 Section("Raids") {
                     ForEach(listVM.availableRaids, id: \.raid.id) { entry in
-                        FacetRow(
-                            label: entry.raid.name,
-                            systemImage: "flag.2.crossed",
-                            count: entry.count,
-                            isOn: listVM.filters.raids.contains(entry.raid.id)
-                        ) {
-                            listVM.filters.toggleRaid(entry.raid.id)
-                        }
-                        .contextMenu {
-                            Button("Renommer…") {
-                                renameText = entry.raid.name
-                                renamingRaid = entry.raid
+                        raidRow(entry.raid, count: entry.count)
+                            .tag(SidebarDestination.raid(entry.raid.id))
+                            .contextMenu {
+                                Button("Renommer…") {
+                                    renameText = entry.raid.name
+                                    renamingRaid = entry.raid
+                                }
+                                Button("Supprimer le raid", role: .destructive) {
+                                    Task { await listVM.deleteRaid(entry.raid.id) }
+                                    if navigation.selectedRaidId == entry.raid.id { navigation.sidebarSelection = .allActivities }
+                                }
                             }
-                            Button("Supprimer le raid", role: .destructive) {
-                                Task { await listVM.deleteRaid(entry.raid.id) }
-                            }
-                        }
                     }
                 }
             }
         }
-        .navigationTitle("Filtres")
+        .navigationTitle("Bibliothèque")
         .listStyle(.sidebar)
         .alert("Renommer le raid", isPresented: Binding(get: { renamingRaid != nil }, set: { if !$0 { renamingRaid = nil } })) {
             TextField("Nom du raid", text: $renameText)
@@ -114,9 +52,24 @@ struct SidebarView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func raidRow(_ raid: Raid, count: Int) -> some View {
+        Label {
+            Text(raid.name)
+        } icon: {
+            if let data = raid.coverImageData, let image = NSImage(data: data) {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                    .frame(width: 20, height: 20).clipShape(RoundedRectangle(cornerRadius: 4))
+            } else {
+                Image(systemName: "flag.2.crossed")
+            }
+        }
+        .badge(count)
+    }
 }
 
-private struct FacetRow: View {
+struct FacetRow: View {
     let label: String
     let systemImage: String
     let count: Int

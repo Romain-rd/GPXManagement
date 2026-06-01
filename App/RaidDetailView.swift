@@ -310,6 +310,7 @@ struct RaidDetailView: View {
                         .frame(minHeight: 320)
                 } else {
                     TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, onSelectActivity: { id in
+                        navigation.visualizationMode = .activities
                         navigation.listSelection = [id]
                     })
                     .frame(height: 360)
@@ -343,6 +344,7 @@ struct RaidDetailView: View {
     private func stepRow(index: Int, activity: ActivitySummary) -> some View {
         HStack(spacing: 12) {
             Button {
+                navigation.visualizationMode = .activities
                 navigation.listSelection = [activity.id]
             } label: {
                 HStack(spacing: 12) {

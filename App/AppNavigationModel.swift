@@ -25,10 +25,21 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum SidebarDestination: Hashable {
+    case allActivities
+    case raid(UUID)
+}
+
 @MainActor
 @Observable
 final class AppNavigationModel {
     var listSelection: Set<UUID> = []
     var visualizationMode: VisualizationMode = .activities
     var newRaidToken: Int = 0
+    var sidebarSelection: SidebarDestination = .allActivities
+
+    var selectedRaidId: UUID? {
+        if case .raid(let id) = sidebarSelection { return id }
+        return nil
+    }
 }

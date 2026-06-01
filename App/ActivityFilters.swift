@@ -6,10 +6,9 @@ struct ActivityFilters: Equatable {
     var years: Set<Int> = []
     var tags: Set<String> = []
     var sources: Set<ActivitySource> = []
-    var raids: Set<UUID> = []
 
     var isEmpty: Bool {
-        activityTypes.isEmpty && years.isEmpty && tags.isEmpty && sources.isEmpty && raids.isEmpty
+        activityTypes.isEmpty && years.isEmpty && tags.isEmpty && sources.isEmpty
     }
 
     /// Intersection (ET) entre facettes ; union (OU) à l'intérieur d'une facette.
@@ -24,9 +23,6 @@ struct ActivityFilters: Equatable {
             if summaryTags.intersection(tags).isEmpty { return false }
         }
         if !sources.isEmpty, !sources.contains(summary.source) { return false }
-        if !raids.isEmpty {
-            guard let raidId = summary.raidId, raids.contains(raidId) else { return false }
-        }
         return true
     }
 
@@ -44,10 +40,6 @@ struct ActivityFilters: Equatable {
 
     mutating func toggleSource(_ source: ActivitySource) {
         if sources.contains(source) { sources.remove(source) } else { sources.insert(source) }
-    }
-
-    mutating func toggleRaid(_ raidId: UUID) {
-        if raids.contains(raidId) { raids.remove(raidId) } else { raids.insert(raidId) }
     }
 
     mutating func reset() {
