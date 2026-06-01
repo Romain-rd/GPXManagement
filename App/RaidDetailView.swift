@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 import PhotosUI
+import Photos
+import CoreLocation
 import GPXCore
 import GPXMapKit
 
@@ -19,6 +21,18 @@ struct RaidDetailView: View {
     @State private var coverPickerItem: PhotosPickerItem?
     @State private var editingParticipant: RaidParticipant?
     @State private var isAddingParticipant = false
+    @State private var showFilmOptions = false
+    @State private var isExportingFilm = false
+    @State private var filmProgress: Double = 0
+    @State private var filmStatus = ""
+    @State private var exportError: String?
+
+    @AppStorage("raidVideoQuality") private var raidVideoQualityRaw = VideoQuality.hd720.rawValue
+    @AppStorage("raidVideoFormat") private var raidVideoFormatRaw = VideoFormat.landscape.rawValue
+    @AppStorage("raidVideoTransition") private var raidVideoTransitionRaw = MediaTransition.fade.rawValue
+    @AppStorage("raidVideoMapLayer") private var raidVideoMapLayerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("raidVideoHeartRate") private var raidVideoHeartRateOn = true
+    @AppStorage("raidVideoStageCards") private var raidVideoStageCardsOn = true
 
     init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel) {
         self.raid = raid
@@ -46,6 +60,7 @@ struct RaidDetailView: View {
                 coverBanner
                 header
                 statsGrid
+                actionBar
                 participantsSection
                 mapCard
                 stepsSection
@@ -87,6 +102,44 @@ struct RaidDetailView: View {
                 persist()
             })
         }
+        .sheet(isPresented: $showFilmOptions) {
+            raidFilmOptions
+        }
+        .alert("Export du raid", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+            Button("OK") { exportError = nil }
+        } message: {
+            Text(exportError ?? "")
+        }
+    }
+
+    // MARK: Barre d'actions
+
+    private var actionBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                showFilmOptions = true
+            } label: {
+                Label("Film du raid…", systemImage: "film")
+            }
+            .disabled(members.isEmpty || isExportingFilm)
+
+            Button {
+                exportGroupedGPX()
+            } label: {
+                Label("Exporter les GPX…", systemImage: "square.and.arrow.up.on.square")
+            }
+            .disabled(members.isEmpty || isExportingFilm)
+
+            Spacer()
+            if isExportingFilm {
+                ProgressView(value: filmProgress)
+                    .frame(width: 120)
+                Text(filmStatus.isEmpty ? "\(Int((filmProgress * 100).rounded())) %" : filmStatus)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.bordered)
     }
 
     // MARK: Couverture
@@ -320,6 +373,187 @@ struct RaidDetailView: View {
     }
 
     // MARK: Actions
+
+    // MARK: Film & export groupé
+
+    private var raidFilmOptions: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Film du raid").font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Qualité")
+                    Picker("", selection: $raidVideoQualityRaw) {
+                        ForEach(VideoQuality.allCases) { Text($0.label).tag($0.rawValue) }
+                    }.labelsHidden()
+                }
+                GridRow {
+                    Text("Format")
+                    Picker("", selection: $raidVideoFormatRaw) {
+                        ForEach(VideoFormat.allCases) { Text($0.label).tag($0.rawValue) }
+                    }.labelsHidden()
+                }
+                GridRow {
+                    Text("Animation")
+                    Picker("", selection: $raidVideoTransitionRaw) {
+                        ForEach(MediaTransition.allCases) { Text($0.label).tag($0.rawValue) }
+                    }.labelsHidden()
+                }
+                GridRow {
+                    Text("Fond de carte")
+                    LayerPicker(layer: Binding(
+                        get: { MapLayer(rawValue: raidVideoMapLayerRaw) ?? .ignScan25 },
+                        set: { raidVideoMapLayerRaw = $0.rawValue }
+                    ))
+                }
+            }
+            Toggle("Profil + fréquence cardiaque", isOn: $raidVideoHeartRateOn)
+            Toggle("Carton de titre par étape", isOn: $raidVideoStageCardsOn)
+            Text("Les photos et vidéos géolocalisées proches de chaque étape sont ajoutées automatiquement. L'intro et la fin reprennent la couverture et les participants.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Annuler") { showFilmOptions = false }
+                Button("Générer") { showFilmOptions = false; generateRaidFilm() }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+
+    private func cumulativeSummary() -> [(label: String, value: String)] {
+        let totalDistance = members.reduce(0) { $0 + $1.distance }
+        let totalGain = members.reduce(0) { $0 + $1.elevationGain }
+        let totalMoving = members.reduce(0) { $0 + $1.movingDuration }
+        return [
+            ("Étapes", "\(members.count)"),
+            ("Distance", Self.formatDistance(totalDistance)),
+            ("Dénivelé +", "\(Int(totalGain.rounded())) m"),
+            ("Temps", Self.formatDuration(totalMoving))
+        ]
+    }
+
+    private func generateRaidFilm() {
+        let quality = VideoQuality(rawValue: raidVideoQualityRaw) ?? .hd720
+        let format = VideoFormat(rawValue: raidVideoFormatRaw) ?? .landscape
+        let dims = format.dimensions(base: quality.base)
+        let layout = VideoLayout.defaultLayout(for: format)
+        let mapLayer = MapLayer(rawValue: raidVideoMapLayerRaw) ?? .ignScan25
+        let transition = MediaTransition(rawValue: raidVideoTransitionRaw) ?? .fade
+
+        let panel = NSSavePanel()
+        panel.title = "Enregistrer le film du raid"
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.nameFieldStringValue = raid.name.replacingOccurrences(of: "/", with: "-") + ".mp4"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let memberList = members
+        let cover = draft.coverImageData.flatMap { NSImage(data: $0) }
+        let participants = draft.participants.map { (name: $0.name, avatar: $0.avatarImageData.flatMap { NSImage(data: $0) }) }
+        let summary = cumulativeSummary()
+        let dateText = dateRangeText ?? ""
+        let place = draft.place
+
+        Task {
+            isExportingFilm = true
+            filmProgress = 0
+            filmStatus = "Préparation…"
+            defer { isExportingFilm = false; filmStatus = "" }
+
+            let status = await PhotoLibraryService.requestAccess()
+            var stages: [RaidVideoStage] = []
+            for (i, member) in memberList.enumerated() {
+                filmStatus = "Étape \(i + 1)/\(memberList.count)…"
+                guard let data = try? await repository.fetchTrackData(id: member.id), !data.isEmpty,
+                      let points = try? TrackPointCodec.decode(data), points.count >= 2 else { continue }
+                var media: [TrackVideoMedia] = []
+                if status == .authorized || status == .limited {
+                    let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                    let assets = PhotoLibraryService.photos(
+                        start: member.startDate.addingTimeInterval(-900),
+                        end: member.endDate.addingTimeInterval(900),
+                        near: coords, maxDistance: 300
+                    )
+                    for asset in assets {
+                        guard let location = asset.location else { continue }
+                        let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
+                        if asset.mediaType == .video {
+                            if let av = await PhotoLibraryService.avAsset(for: asset) {
+                                media.append(.video(asset: av, thumbnail: thumb, coordinate: location.coordinate))
+                            }
+                        } else if let image = await PhotoLibraryService.fullImage(for: asset) {
+                            media.append(.photo(image: image, thumbnail: thumb, coordinate: location.coordinate))
+                        }
+                    }
+                }
+                stages.append(RaidVideoStage(
+                    title: member.title,
+                    dateText: Self.dayFormatter.string(from: member.startDate),
+                    points: points, media: media
+                ))
+            }
+
+            let config = RaidVideoConfig(
+                width: dims.width, height: dims.height, layout: layout, transition: transition,
+                showHeartRate: raidVideoHeartRateOn && layout.profile != nil, showStageCards: raidVideoStageCardsOn,
+                mapLayer: mapLayer, title: raid.name, dateText: dateText, place: place,
+                summary: summary, coverImage: cover, participants: participants
+            )
+            filmStatus = "Rendu de la vidéo…"
+            do {
+                try await RaidVideoExporter.export(stages: stages, config: config, to: url) { f in
+                    Task { @MainActor in filmProgress = f }
+                }
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                exportError = error.localizedDescription
+            }
+        }
+    }
+
+    private func exportGroupedGPX() {
+        let panel = NSOpenPanel()
+        panel.title = "Choisir un dossier d'export"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Exporter ici"
+        guard panel.runModal() == .OK, let dir = panel.url else { return }
+
+        let memberList = members
+        let folderName = raid.name.replacingOccurrences(of: "/", with: "-")
+        Task {
+            isExportingFilm = true
+            filmProgress = 0
+            filmStatus = "Export des GPX…"
+            defer { isExportingFilm = false; filmStatus = "" }
+
+            let target = dir.appendingPathComponent(folderName, isDirectory: true)
+            try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+            var done = 0
+            for member in memberList {
+                if let data = try? await repository.fetchTrackData(id: member.id), !data.isEmpty,
+                   let points = try? TrackPointCodec.decode(data),
+                   let gpx = try? GPXWriter.write(name: member.title, activityType: member.activityType, points: points) {
+                    let safe = member.title.replacingOccurrences(of: "/", with: "-")
+                    try? gpx.write(to: uniqueURL(in: target, name: safe, ext: "gpx"), options: .atomic)
+                }
+                done += 1
+                filmProgress = Double(done) / Double(max(1, memberList.count))
+            }
+            NSWorkspace.shared.activateFileViewerSelecting([target])
+        }
+    }
+
+    private func uniqueURL(in dir: URL, name: String, ext: String) -> URL {
+        var candidate = dir.appendingPathComponent("\(name).\(ext)")
+        var i = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = dir.appendingPathComponent("\(name) (\(i)).\(ext)")
+            i += 1
+        }
+        return candidate
+    }
 
     private func save() {
         guard isDirty else { return }
