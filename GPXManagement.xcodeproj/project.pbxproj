@@ -25,6 +25,7 @@
 		71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */; };
 		736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */; };
 		A1B2C3D4E5F600000000B001 /* TrackVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */; };
+		A1B2C3D4E5F600000000C001 /* RaidDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */; };
 		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
 		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
@@ -99,6 +100,7 @@
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
 		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackVideoExporter.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailView.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		"TEMP_2464F1DB-6372-4A0B-925A-91B34C5802F0" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -164,6 +166,7 @@
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
 				FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */,
 				A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */,
+				A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */,
@@ -336,6 +339,7 @@
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
 				736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */,
 				A1B2C3D4E5F600000000B001 /* TrackVideoExporter.swift in Sources */,
+				A1B2C3D4E5F600000000C001 /* RaidDetailView.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */,

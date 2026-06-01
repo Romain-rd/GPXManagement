@@ -117,6 +117,13 @@ struct ContentView: View {
            let activity = listVM.visibleActivities.first(where: { $0.id == selectedId }),
            let repository {
             ActivityDetailView(activity: activity, listVM: listVM, repository: repository)
+        } else if navigation.listSelection.isEmpty,
+                  listVM.filters.raids.count == 1,
+                  let raidId = listVM.filters.raids.first,
+                  let raid = listVM.raids.first(where: { $0.id == raidId }),
+                  let repository {
+            RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation)
+                .id(raid.id)
         } else {
             ContentUnavailableView(
                 "Aucune activité sélectionnée",

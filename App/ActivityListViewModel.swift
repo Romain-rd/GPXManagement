@@ -132,6 +132,17 @@ final class ActivityListViewModel {
         }
     }
 
+    func saveRaid(_ raid: Raid) async {
+        var updated = raid
+        updated.updatedAt = Date()
+        do {
+            try await repository.updateRaid(updated)
+            if let idx = raids.firstIndex(where: { $0.id == updated.id }) { raids[idx] = updated }
+        } catch {
+            self.error = "Échec de l'enregistrement du raid : \(error.localizedDescription)"
+        }
+    }
+
     func renameRaid(_ raidId: UUID, name: String) async {
         guard var raid = raids.first(where: { $0.id == raidId }) else { return }
         raid.name = name
