@@ -3,12 +3,12 @@ import Foundation
 public struct RaidParticipant: Codable, Sendable, Hashable, Identifiable {
     public var id: UUID
     public var name: String
-    public var avatarAssetId: String?
+    public var avatarImageData: Data?
 
-    public init(id: UUID = UUID(), name: String, avatarAssetId: String? = nil) {
+    public init(id: UUID = UUID(), name: String, avatarImageData: Data? = nil) {
         self.id = id
         self.name = name
-        self.avatarAssetId = avatarAssetId
+        self.avatarImageData = avatarImageData
     }
 }
 
@@ -20,7 +20,7 @@ public struct Raid: Identifiable, Sendable, Hashable {
     public var notes: String?
     public var startDate: Date?
     public var endDate: Date?
-    public var coverAssetId: String?
+    public var coverImageData: Data?
     public var participants: [RaidParticipant]
     public var createdAt: Date
     public var updatedAt: Date
@@ -33,7 +33,7 @@ public struct Raid: Identifiable, Sendable, Hashable {
         notes: String? = nil,
         startDate: Date? = nil,
         endDate: Date? = nil,
-        coverAssetId: String? = nil,
+        coverImageData: Data? = nil,
         participants: [RaidParticipant] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -45,7 +45,7 @@ public struct Raid: Identifiable, Sendable, Hashable {
         self.notes = notes
         self.startDate = startDate
         self.endDate = endDate
-        self.coverAssetId = coverAssetId
+        self.coverImageData = coverImageData
         self.participants = participants
         self.createdAt = createdAt
         self.updatedAt = updatedAt

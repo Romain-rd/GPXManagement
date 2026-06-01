@@ -33,7 +33,7 @@
         <attribute name="updatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
     </entity>
     <entity name="Raid" representedClassName="NSManagedObject" syncable="YES" codeGenerationType="none">
-        <attribute name="coverAssetId" optional="YES" attributeType="String"/>
+        <attribute name="coverImageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
         <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>

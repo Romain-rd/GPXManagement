@@ -346,7 +346,7 @@ enum RaidMapper {
             notes: object.value(forKey: "notes") as? String,
             startDate: object.value(forKey: "startDate") as? Date,
             endDate: object.value(forKey: "endDate") as? Date,
-            coverAssetId: object.value(forKey: "coverAssetId") as? String,
+            coverImageData: object.value(forKey: "coverImageData") as? Data,
             participants: participants,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
             updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
@@ -361,7 +361,7 @@ enum RaidMapper {
         object.setValue(raid.notes, forKey: "notes")
         object.setValue(raid.startDate, forKey: "startDate")
         object.setValue(raid.endDate, forKey: "endDate")
-        object.setValue(raid.coverAssetId, forKey: "coverAssetId")
+        object.setValue(raid.coverImageData, forKey: "coverImageData")
         object.setValue(try? JSONEncoder().encode(raid.participants), forKey: "participantsData")
         object.setValue(raid.createdAt, forKey: "createdAt")
         object.setValue(raid.updatedAt, forKey: "updatedAt")
