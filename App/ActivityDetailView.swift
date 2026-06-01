@@ -1172,7 +1172,7 @@ private struct PhotoCropEditor: View {
     let onSave: (Data) -> Void
 
     @State private var image: NSImage?
-    @State private var ratio: CropRatio = .r16x9
+    @State private var ratio: CropRatio = .original
     @State private var crop = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.5) // normalisé, origine haut-gauche
 
     private var imageAspect: CGFloat {
@@ -1254,30 +1254,62 @@ private struct PhotoCropEditor: View {
     }
 }
 
-/// Recadrage + extrait (trim) d'une vidéo, puis enregistrement d'une nouvelle vidéo dans la photothèque.
+@MainActor @Observable private final class VideoPlayerModel {
+    let player: AVPlayer
+    var time: Double = 0
+    var isPlaying = false
+    var start = 0.0
+    var end = 0.0
+    @ObservationIgnored private var token: Any?
+
+    init(asset: AVAsset) {
+        player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+        token = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.05, preferredTimescale: 600), queue: .main) { [weak self] t in
+            guard let self else { return }
+            self.time = t.seconds
+            if self.isPlaying, t.seconds >= self.end { self.seek(self.start) }
+        }
+    }
+    func play(from s: Double) { seek(s); player.play(); isPlaying = true }
+    func pause() { player.pause(); isPlaying = false }
+    func seek(_ s: Double) { player.seek(to: CMTime(seconds: s, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) }
+    func stop() { player.pause(); if let token { player.removeTimeObserver(token); self.token = nil } }
+}
+
+private struct VideoPlayerSurface: NSViewRepresentable {
+    let player: AVPlayer
+    func makeNSView(context: Context) -> PlayerLayerView { let v = PlayerLayerView(); v.playerLayer.player = player; return v }
+    func updateNSView(_ nsView: PlayerLayerView, context: Context) { nsView.playerLayer.player = player }
+    final class PlayerLayerView: NSView {
+        let playerLayer = AVPlayerLayer()
+        override init(frame: NSRect) { super.init(frame: frame); wantsLayer = true; layer = playerLayer; playerLayer.videoGravity = .resizeAspect }
+        required init?(coder: NSCoder) { fatalError() }
+    }
+}
+
+/// Recadrage + extrait (trim) d'une vidéo, avec lecture, puis enregistrement dans la photothèque.
 private struct VideoEditor: View {
     let asset: PHAsset
     let onCancel: () -> Void
     let onExported: (URL) -> Void
 
     @State private var avAsset: AVAsset?
-    @State private var generator: AVAssetImageGenerator?
+    @State private var playback: VideoPlayerModel?
+    @State private var displaySize: CGSize = .zero
     @State private var duration: Double = 0
     @State private var startT: Double = 0
     @State private var endT: Double = 0
-    @State private var scrub: Double = 0
-    @State private var frame: NSImage?
-    @State private var ratio: CropRatio = .r9x16
+    @State private var ratio: CropRatio = .original
     @State private var crop = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.5)
     @State private var isExporting = false
 
-    private var imageAspect: CGFloat {
-        guard let s = frame?.size, s.height > 0 else { return 16.0 / 9.0 }
-        return s.width / s.height
-    }
+    private var imageAspect: CGFloat { displaySize.height > 0 ? displaySize.width / displaySize.height : 16.0 / 9.0 }
     private var normalizedAspect: CGFloat? {
         guard let r = ratio.pixelAspect(imageAspect: imageAspect) else { return nil }
         return r / imageAspect
+    }
+    private var playheadBinding: Binding<Double> {
+        Binding(get: { playback?.time ?? 0 }, set: { playback?.seek($0) })
     }
 
     var body: some View {
@@ -1290,10 +1322,10 @@ private struct VideoEditor: View {
             .onChange(of: ratio) { _, _ in resetCrop() }
 
             GeometryReader { geo in
-                if let frame {
-                    let iv = PhotoCropEditor.fit(frame.size, in: geo.size)
+                if let playback, displaySize != .zero {
+                    let iv = PhotoCropEditor.fit(displaySize, in: geo.size)
                     ZStack(alignment: .topLeading) {
-                        Image(nsImage: frame).resizable()
+                        VideoPlayerSurface(player: playback.player)
                             .frame(width: iv.width, height: iv.height)
                             .position(x: iv.midX, y: iv.midY)
                         CropDim(crop: crop, imageRect: iv).fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
@@ -1307,15 +1339,21 @@ private struct VideoEditor: View {
             }
             .frame(height: 320)
 
-            TrimBar(duration: duration, start: $startT, end: $endT, playhead: $scrub)
-                .frame(height: 34)
+            HStack(spacing: 12) {
+                Button { togglePlay() } label: {
+                    Image(systemName: (playback?.isPlaying ?? false) ? "pause.fill" : "play.fill").frame(width: 16)
+                }
+                .disabled(playback == nil)
+                TrimBar(duration: duration, start: $startT, end: $endT, playhead: playheadBinding)
+                    .frame(height: 34)
+            }
             Text("Extrait : \(Self.time(startT)) → \(Self.time(endT))  ·  \(Self.time(endT - startT))")
                 .font(.caption).foregroundStyle(.secondary)
 
             HStack {
                 if isExporting { ProgressView().controlSize(.small); Text("Export…").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
-                Button("Annuler") { onCancel() }.disabled(isExporting)
+                Button("Annuler") { playback?.stop(); onCancel() }.disabled(isExporting)
                 Button("Enregistrer") { Task { await export() } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(avAsset == nil || isExporting || endT - startT < 0.3)
@@ -1326,17 +1364,27 @@ private struct VideoEditor: View {
         .task {
             let a = await PhotoLibraryService.avAsset(for: asset)
             avAsset = a
-            guard let a else { return }
-            let d = (try? await a.load(.duration).seconds) ?? 0
-            duration = d; endT = d; scrub = 0
-            let gen = AVAssetImageGenerator(asset: a)
-            gen.appliesPreferredTrackTransform = true
-            gen.requestedTimeToleranceBefore = .zero; gen.requestedTimeToleranceAfter = CMTime(seconds: 0.3, preferredTimescale: 600)
-            generator = gen
-            await updateFrame()
+            guard let a, let track = try? await a.loadTracks(withMediaType: .video).first else { return }
+            let natural = (try? await track.load(.naturalSize)) ?? .zero
+            let pref = (try? await track.load(.preferredTransform)) ?? .identity
+            let oriented = natural.applying(pref)
+            displaySize = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+            duration = (try? await a.load(.duration).seconds) ?? 0
+            startT = 0; endT = duration
+            let model = VideoPlayerModel(asset: a)
+            model.start = 0; model.end = duration
+            playback = model
             resetCrop()
         }
-        .onChange(of: Int(scrub * 4)) { _, _ in Task { await updateFrame() } }
+        .onChange(of: startT) { _, v in playback?.start = v }
+        .onChange(of: endT) { _, v in playback?.end = v }
+        .onDisappear { playback?.stop() }
+    }
+
+    private func togglePlay() {
+        guard let p = playback else { return }
+        if p.isPlaying { p.pause() }
+        else { p.play(from: p.time >= endT - 0.05 ? startT : max(startT, p.time)) }
     }
 
     private func resetCrop() {
@@ -1346,20 +1394,14 @@ private struct VideoEditor: View {
         crop = CGRect(x: (1 - w) / 2, y: (1 - h) / 2, width: w, height: h)
     }
 
-    private func updateFrame() async {
-        guard let gen = generator else { return }
-        let t = CMTime(seconds: scrub, preferredTimescale: 600)
-        if let result = try? await gen.image(at: t) {
-            frame = NSImage(cgImage: result.image, size: NSSize(width: result.image.width, height: result.image.height))
-        }
-    }
-
     private func export() async {
         guard let a = avAsset else { return }
+        playback?.pause()
         isExporting = true
         defer { isExporting = false }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("edit-\(UUID().uuidString).mp4")
         if await PhotoLibraryService.exportEditedVideo(asset: a, start: startT, end: endT, crop: crop, to: url) {
+            playback?.stop()
             onExported(url)
         }
     }
