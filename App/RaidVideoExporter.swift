@@ -9,12 +9,12 @@ struct RaidVideoStage {
     let dateText: String
     let points: [TrackPoint]
     let media: [TrackVideoMedia]
+    let layout: VideoLayout
 }
 
 struct RaidVideoConfig {
     let width: Int
     let height: Int
-    let layout: VideoLayout
     let transition: MediaTransition
     let showHeartRate: Bool
     let showStageCards: Bool
@@ -62,8 +62,8 @@ enum RaidVideoExporter {
         for (i, stage) in playable.enumerated() {
             let stageURL = tmp.appendingPathComponent("raid-stage-\(i)-\(UUID().uuidString).mp4")
             let stageConfig = VideoConfig(
-                width: width, height: height, layout: config.layout, transition: config.transition,
-                showHeartRate: config.showHeartRate, showIntro: config.showStageCards, showOutro: false,
+                width: width, height: height, layout: stage.layout, transition: config.transition,
+                showHeartRate: config.showHeartRate && stage.layout.profile != nil, showIntro: config.showStageCards, showOutro: false,
                 mapLayer: config.mapLayer, title: stage.title, dateText: stage.dateText, summary: []
             )
             try await TrackVideoExporter.export(points: stage.points, media: stage.media, config: stageConfig, to: stageURL) { f in

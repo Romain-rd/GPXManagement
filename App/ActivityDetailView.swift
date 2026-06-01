@@ -429,6 +429,11 @@ struct ActivityDetailView: View {
         applyTemplate(VideoTemplate.builtins[0])
     }
 
+    private func persistCurrentLayout() {
+        let data = try? JSONEncoder().encode(currentLayout)
+        Task { try? await repository.updateVideoLayoutData(id: activity.id, data: data) }
+    }
+
     private func loadTracePreview() async {
         guard let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
               let points = try? TrackPointCodec.decode(data), points.count >= 2 else { tracePreview = []; return }
@@ -487,6 +492,7 @@ struct ActivityDetailView: View {
                 Button("Annuler") { showVideoOptions = false }
                 Button("Créer la vidéo") {
                     showVideoOptions = false
+                    persistCurrentLayout()
                     exportVideo()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -497,6 +503,10 @@ struct ActivityDetailView: View {
         .task {
             if let t = selectedTemplate { applyTemplate(t) } else { applyTemplate(VideoTemplate.builtins[0]) }
             await loadTracePreview()
+            if let data = try? await repository.fetchVideoLayoutData(id: activity.id),
+               let layout = try? JSONDecoder().decode(VideoLayout.self, from: data) {
+                currentLayout = layout
+            }
         }
         .alert(savingNewTemplate ? "Nouveau modèle" : "Renommer le modèle", isPresented: $showTemplateNameAlert) {
             TextField("Nom du modèle", text: $templateNameInput)
@@ -1572,7 +1582,7 @@ private struct CropRectView: View {
 
 // MARK: - Éditeur de disposition vidéo
 
-private struct VideoLayoutEditor: View {
+struct VideoLayoutEditor: View {
     static let space = "videoEditor"
     let aspect: Double
     @Binding var layout: VideoLayout

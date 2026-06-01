@@ -3,6 +3,7 @@ import AppKit
 import PhotosUI
 import Photos
 import CoreLocation
+import MapKit
 import GPXCore
 import GPXMapKit
 
@@ -33,6 +34,17 @@ struct RaidDetailView: View {
     @AppStorage("raidVideoMapLayer") private var raidVideoMapLayerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("raidVideoHeartRate") private var raidVideoHeartRateOn = true
     @AppStorage("raidVideoStageCards") private var raidVideoStageCardsOn = true
+
+    @State private var stageLayouts: [UUID: VideoLayout] = [:]
+    @State private var editingLayoutStageId: UUID?
+    @State private var editingLayout = VideoLayout.defaultLayout(for: .landscape)
+    @State private var editingTracePoints: [CGPoint] = []
+
+    private var filmFormat: VideoFormat { VideoFormat(rawValue: raidVideoFormatRaw) ?? .landscape }
+
+    private func layoutFor(_ id: UUID) -> VideoLayout {
+        stageLayouts[id] ?? VideoLayout.defaultLayout(for: filmFormat)
+    }
 
     init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel) {
         self.raid = raid
@@ -72,6 +84,7 @@ struct RaidDetailView: View {
         }
         .navigationTitle(raid.name)
         .task(id: raid.id) { await loadMap() }
+        .task(id: raid.id) { await loadStageLayouts() }
         .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
         .onChange(of: coverPickerItem) { _, item in
@@ -104,6 +117,9 @@ struct RaidDetailView: View {
         }
         .sheet(isPresented: $showFilmOptions) {
             raidFilmOptions
+        }
+        .sheet(isPresented: Binding(get: { editingLayoutStageId != nil }, set: { if !$0 { editingLayoutStageId = nil } })) {
+            layoutEditorSheet
         }
         .alert("Export du raid", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
             Button("OK") { exportError = nil }
@@ -309,13 +325,10 @@ struct RaidDetailView: View {
                 Text("Aucune activité dans ce raid.")
                     .foregroundStyle(.secondary).font(.callout)
             } else {
+                Text("La disposition (profil / photos) de chaque étape sert au film du raid et de modèle par défaut pour le film de cette trace.")
+                    .font(.caption).foregroundStyle(.secondary)
                 ForEach(Array(members.enumerated()), id: \.element.id) { index, activity in
-                    Button {
-                        navigation.listSelection = [activity.id]
-                    } label: {
-                        stepRow(index: index + 1, activity: activity)
-                    }
-                    .buttonStyle(.plain)
+                    stepRow(index: index + 1, activity: activity)
                 }
             }
         }
@@ -323,29 +336,72 @@ struct RaidDetailView: View {
 
     private func stepRow(index: Int, activity: ActivitySummary) -> some View {
         HStack(spacing: 12) {
-            Text("J\(index)")
-                .font(.caption.bold().monospacedDigit())
-                .frame(width: 34, height: 34)
-                .background(.tint.opacity(0.15), in: Circle())
-            Image(systemName: activity.activityType.symbolName)
-                .frame(width: 24)
-                .foregroundStyle(.tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(activity.title).font(.body)
-                Text(Self.dayFormatter.string(from: activity.startDate))
-                    .font(.caption).foregroundStyle(.secondary)
+            Button {
+                navigation.listSelection = [activity.id]
+            } label: {
+                HStack(spacing: 12) {
+                    Text("J\(index)")
+                        .font(.caption.bold().monospacedDigit())
+                        .frame(width: 34, height: 34)
+                        .background(.tint.opacity(0.15), in: Circle())
+                    Image(systemName: activity.activityType.symbolName)
+                        .frame(width: 24)
+                        .foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(activity.title).font(.body)
+                        Text("\(Self.dayFormatter.string(from: activity.startDate)) · \(Self.formatDistance(activity.distance)) · \(Int(activity.elevationGain.rounded())) m D+")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Self.formatDistance(activity.distance)).font(.callout.monospacedDigit())
-                Text("\(Int(activity.elevationGain.rounded())) m D+")
-                    .font(.caption).foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+
+            Button {
+                editLayout(for: activity)
+            } label: {
+                RaidLayoutThumbnail(layout: layoutFor(activity.id), aspect: filmFormat.aspect)
+                    .frame(width: 116)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.body)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .tint)
+                            .padding(3)
+                    }
             }
+            .buttonStyle(.plain)
+            .help("Modifier la disposition (profil / photos) de cette étape")
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .contentShape(Rectangle())
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var layoutEditorSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Disposition de l'étape").font(.headline)
+            Toggle("Afficher le profil altimétrique", isOn: Binding(
+                get: { editingLayout.profile != nil },
+                set: { on in
+                    if on { editingLayout.profile = VideoLayout.defaultLayout(for: filmFormat).profile ?? LayoutZone(x: 0.6, y: 0.74, w: 0.38, h: 0.22) }
+                    else { editingLayout.profile = nil }
+                }
+            ))
+            Text("Glissez les zones pour les déplacer, la poignée (coin) pour les redimensionner. Format : \(filmFormat.label).")
+                .font(.caption).foregroundStyle(.secondary)
+            VideoLayoutEditor(aspect: filmFormat.aspect, layout: $editingLayout, tracePoints: editingTracePoints)
+            HStack {
+                Button("Réinitialiser") { editingLayout = VideoLayout.defaultLayout(for: filmFormat) }
+                Spacer()
+                Button("Annuler") { editingLayoutStageId = nil }
+                Button("Enregistrer") { saveEditingLayout() }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
     }
 
     // MARK: Informations / notes
@@ -437,7 +493,6 @@ struct RaidDetailView: View {
         let quality = VideoQuality(rawValue: raidVideoQualityRaw) ?? .hd720
         let format = VideoFormat(rawValue: raidVideoFormatRaw) ?? .landscape
         let dims = format.dimensions(base: quality.base)
-        let layout = VideoLayout.defaultLayout(for: format)
         let mapLayer = MapLayer(rawValue: raidVideoMapLayerRaw) ?? .ignScan25
         let transition = MediaTransition(rawValue: raidVideoTransitionRaw) ?? .fade
 
@@ -489,13 +544,13 @@ struct RaidDetailView: View {
                 stages.append(RaidVideoStage(
                     title: member.title,
                     dateText: Self.dayFormatter.string(from: member.startDate),
-                    points: points, media: media
+                    points: points, media: media, layout: layoutFor(member.id)
                 ))
             }
 
             let config = RaidVideoConfig(
-                width: dims.width, height: dims.height, layout: layout, transition: transition,
-                showHeartRate: raidVideoHeartRateOn && layout.profile != nil, showStageCards: raidVideoStageCardsOn,
+                width: dims.width, height: dims.height, transition: transition,
+                showHeartRate: raidVideoHeartRateOn, showStageCards: raidVideoStageCardsOn,
                 mapLayer: mapLayer, title: raid.name, dateText: dateText, place: place,
                 summary: summary, coverImage: cover, participants: participants
             )
@@ -542,6 +597,45 @@ struct RaidDetailView: View {
                 filmProgress = Double(done) / Double(max(1, memberList.count))
             }
             NSWorkspace.shared.activateFileViewerSelecting([target])
+        }
+    }
+
+    private func loadStageLayouts() async {
+        var dict: [UUID: VideoLayout] = [:]
+        for member in members {
+            if let data = try? await repository.fetchVideoLayoutData(id: member.id),
+               let layout = try? JSONDecoder().decode(VideoLayout.self, from: data) {
+                dict[member.id] = layout
+            }
+        }
+        stageLayouts = dict
+    }
+
+    private func editLayout(for member: ActivitySummary) {
+        editingLayout = layoutFor(member.id)
+        editingTracePoints = []
+        editingLayoutStageId = member.id
+        Task { editingTracePoints = await tracePreviewPoints(for: member.id) }
+    }
+
+    private func saveEditingLayout() {
+        guard let id = editingLayoutStageId else { return }
+        stageLayouts[id] = editingLayout
+        let data = try? JSONEncoder().encode(editingLayout)
+        Task { try? await repository.updateVideoLayoutData(id: id, data: data) }
+        editingLayoutStageId = nil
+    }
+
+    private func tracePreviewPoints(for id: UUID) async -> [CGPoint] {
+        guard let data = try? await repository.fetchTrackData(id: id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data), points.count > 1 else { return [] }
+        let mps = points.map { MKMapPoint(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }
+        let minX = mps.map(\.x).min() ?? 0, maxX = mps.map(\.x).max() ?? 1
+        let minY = mps.map(\.y).min() ?? 0, maxY = mps.map(\.y).max() ?? 1
+        let scale = Swift.max(1, Swift.max(maxX - minX, maxY - minY))
+        let step = Swift.max(1, mps.count / 400)
+        return stride(from: 0, to: mps.count, by: step).map { i in
+            CGPoint(x: (mps[i].x - minX) / scale, y: (mps[i].y - minY) / scale)
         }
     }
 
@@ -629,6 +723,35 @@ struct RaidDetailView: View {
         let m = (total % 3600) / 60
         if h > 0 { return "\(h) h \(String(format: "%02d", m))" }
         return "\(m) min"
+    }
+}
+
+struct RaidLayoutThumbnail: View {
+    let layout: VideoLayout
+    let aspect: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                Rectangle().fill(Color(white: 0.18))
+                zone(layout.trace, in: geo.size, color: .blue)
+                if let profile = layout.profile {
+                    zone(profile, in: geo.size, color: .teal)
+                }
+                zone(layout.media, in: geo.size, color: .orange)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .aspectRatio(aspect, contentMode: .fit)
+    }
+
+    private func zone(_ z: LayoutZone, in size: CGSize, color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(color.opacity(0.18))
+            .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(color, lineWidth: 1.2))
+            .frame(width: max(1, z.w * size.width), height: max(1, z.h * size.height))
+            .offset(x: z.x * size.width, y: z.y * size.height)
     }
 }
 
