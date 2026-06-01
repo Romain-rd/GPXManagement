@@ -27,6 +27,7 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 
 enum SidebarDestination: Hashable {
     case allActivities
+    case activityType(ActivityType)
     case raid(UUID)
     case smartFilter(UUID)
 }
@@ -47,6 +48,11 @@ final class AppNavigationModel {
 
     var selectedSmartFilterId: UUID? {
         if case .smartFilter(let id) = sidebarSelection { return id }
+        return nil
+    }
+
+    var selectedActivityType: ActivityType? {
+        if case .activityType(let type) = sidebarSelection { return type }
         return nil
     }
 }

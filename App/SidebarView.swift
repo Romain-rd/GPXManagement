@@ -8,16 +8,45 @@ struct SidebarView: View {
 
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
+    @AppStorage("sidebarTypesExpanded") private var typesExpanded = false
 
     private var selectionBinding: Binding<SidebarDestination?> {
         Binding(get: { navigation.sidebarSelection }, set: { navigation.sidebarSelection = $0 ?? .allActivities })
     }
 
+    private var allActivitiesRow: some View {
+        HStack(spacing: 2) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { typesExpanded.toggle() }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(typesExpanded ? 90 : 0))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(listVM.availableActivityTypes.isEmpty ? 0 : 1)
+            .disabled(listVM.availableActivityTypes.isEmpty)
+            Label("Toutes les activités", systemImage: "tray.full")
+        }
+        .badge(listVM.allActivities.count)
+        .tag(SidebarDestination.allActivities)
+    }
+
     var body: some View {
         List(selection: selectionBinding) {
-            Label("Toutes les activités", systemImage: "tray.full")
-                .badge(listVM.allActivities.count)
-                .tag(SidebarDestination.allActivities)
+            allActivitiesRow
+
+            if typesExpanded {
+                ForEach(listVM.availableActivityTypes, id: \.type) { entry in
+                    Label(entry.type.displayName, systemImage: entry.type.symbolName)
+                        .badge(entry.count)
+                        .padding(.leading, 18)
+                        .tag(SidebarDestination.activityType(entry.type))
+                }
+            }
 
             if !listVM.availableRaids.isEmpty {
                 Section("Raids") {

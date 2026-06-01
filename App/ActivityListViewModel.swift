@@ -8,6 +8,7 @@ final class ActivityListViewModel {
     var raids: [Raid] = []
     var smartFilters: [SmartFilter] = []
     var activeSmartFilter: SmartFilter?
+    var activeType: ActivityType?
     var filters: ActivityFilters = .init()
     var sortOrder: ActivitySortOrder = .dateDescending
     var searchText: String = ""
@@ -23,6 +24,7 @@ final class ActivityListViewModel {
 
     var visibleActivities: [ActivitySummary] {
         let filtered = allActivities.filter { activity in
+            if let type = activeType, activity.activityType != type { return false }
             if let smart = activeSmartFilter, !smart.matches(activity) { return false }
             if !filters.matches(activity) { return false }
             if !searchText.isEmpty {

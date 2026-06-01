@@ -163,6 +163,7 @@ struct ContentView: View {
         listVM.activeSmartFilter = navigation.selectedSmartFilterId.flatMap { id in
             listVM.smartFilters.first { $0.id == id }
         }
+        listVM.activeType = navigation.selectedActivityType
     }
 
     private var editingSmartFilterBinding: Binding<SmartFilter?> {
