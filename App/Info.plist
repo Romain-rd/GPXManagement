@@ -57,6 +57,8 @@
 	<string>public.app-category.healthcare-fitness</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pour afficher les photos prises pendant vos activités, à proximité de la trace enregistrée.</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>iCloud.com.demoustier.GPXManagement</key>

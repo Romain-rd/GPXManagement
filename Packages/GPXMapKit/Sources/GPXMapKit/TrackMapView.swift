@@ -21,6 +21,20 @@ public struct TrackOverlayInput: Sendable {
     }
 }
 
+public struct PhotoMapItem: Identifiable {
+    public let id: String
+    public let coordinate: CLLocationCoordinate2D
+    public let image: NSImage?
+    public let isVideo: Bool
+
+    public init(id: String, coordinate: CLLocationCoordinate2D, image: NSImage?, isVideo: Bool = false) {
+        self.id = id
+        self.coordinate = coordinate
+        self.image = image
+        self.isVideo = isVideo
+    }
+}
+
 @MainActor
 public final class MapViewProxy {
     public weak var mapView: MKMapView?
@@ -36,17 +50,21 @@ public struct TrackMapView: NSViewRepresentable {
     public var onSelectActivity: ((UUID) -> Void)?
     public var proxy: MapViewProxy?
     public var highlight: CLLocationCoordinate2D?
+    public var photos: [PhotoMapItem]
+    public var onSelectPhoto: ((String) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, onSelectActivity: ((UUID) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, photos: [PhotoMapItem] = [], onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
         self.highlight = highlight
+        self.photos = photos
         self.onSelectActivity = onSelectActivity
+        self.onSelectPhoto = onSelectPhoto
     }
 
     public func makeCoordinator() -> Coordinator {
-        Coordinator(onSelectActivity: onSelectActivity)
+        Coordinator(onSelectActivity: onSelectActivity, onSelectPhoto: onSelectPhoto)
     }
 
     public func makeNSView(context: Context) -> MKMapView {
@@ -75,6 +93,7 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: context.coordinator.lastTrackIds != Set(tracks.map(\.activityId)))
         context.coordinator.lastTrackIds = Set(tracks.map(\.activityId))
         context.coordinator.applyHighlight(highlight, to: mapView)
+        context.coordinator.applyPhotos(photos, to: mapView)
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -97,10 +116,75 @@ public struct TrackMapView: NSViewRepresentable {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
         private let onSelectActivity: ((UUID) -> Void)?
+        private let onSelectPhoto: ((String) -> Void)?
         private var highlightAnnotation: HighlightAnnotation?
+        private var photoAnnotations: [String: PhotoAnnotation] = [:]
 
-        init(onSelectActivity: ((UUID) -> Void)?) {
+        init(onSelectActivity: ((UUID) -> Void)?, onSelectPhoto: ((String) -> Void)? = nil) {
             self.onSelectActivity = onSelectActivity
+            self.onSelectPhoto = onSelectPhoto
+        }
+
+        /// Vignettes des photos prises le long du parcours, placées à leur position GPS.
+        func applyPhotos(_ items: [PhotoMapItem], to mapView: MKMapView) {
+            let incoming = Set(items.map(\.id))
+            for (id, annotation) in photoAnnotations where !incoming.contains(id) {
+                mapView.removeAnnotation(annotation)
+                photoAnnotations[id] = nil
+            }
+            for item in items {
+                if let annotation = photoAnnotations[item.id] {
+                    annotation.coordinate = item.coordinate
+                    annotation.image = item.image
+                    annotation.isVideo = item.isVideo
+                    if let view = mapView.view(for: annotation) {
+                        view.image = Self.framedThumbnail(item.image, isVideo: item.isVideo)
+                    }
+                } else {
+                    let annotation = PhotoAnnotation()
+                    annotation.id = item.id
+                    annotation.coordinate = item.coordinate
+                    annotation.image = item.image
+                    annotation.isVideo = item.isVideo
+                    photoAnnotations[item.id] = annotation
+                    mapView.addAnnotation(annotation)
+                }
+            }
+        }
+
+        private static func framedThumbnail(_ image: NSImage?, isVideo: Bool) -> NSImage {
+            let side: CGFloat = 46
+            let result = NSImage(size: NSSize(width: side, height: side))
+            result.lockFocus()
+            let rect = NSRect(x: 0, y: 0, width: side, height: side)
+            NSColor.white.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8).fill()
+            let inner = rect.insetBy(dx: 2, dy: 2)
+            let clip = NSBezierPath(roundedRect: inner, xRadius: 6, yRadius: 6)
+            clip.addClip()
+            if let image, image.size.width > 0, image.size.height > 0 {
+                let scale = max(inner.width / image.size.width, inner.height / image.size.height)
+                let dw = image.size.width * scale, dh = image.size.height * scale
+                image.draw(in: NSRect(x: inner.midX - dw / 2, y: inner.midY - dh / 2, width: dw, height: dh))
+            } else {
+                NSColor.systemGray.setFill()
+                clip.fill()
+            }
+            if isVideo {
+                let d: CGFloat = 16
+                let circle = NSRect(x: rect.midX - d / 2, y: rect.midY - d / 2, width: d, height: d)
+                NSColor.black.withAlphaComponent(0.55).setFill()
+                NSBezierPath(ovalIn: circle).fill()
+                let triangle = NSBezierPath()
+                triangle.move(to: NSPoint(x: circle.midX - 3, y: circle.midY - 4))
+                triangle.line(to: NSPoint(x: circle.midX - 3, y: circle.midY + 4))
+                triangle.line(to: NSPoint(x: circle.midX + 4, y: circle.midY))
+                triangle.close()
+                NSColor.white.setFill()
+                triangle.fill()
+            }
+            result.unlockFocus()
+            return result
         }
 
         /// Marqueur synchronisé avec le survol du profil altimétrique. Mis à jour sans recentrer la carte.
@@ -176,15 +260,34 @@ public struct TrackMapView: NSViewRepresentable {
         }()
 
         public func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
-            guard annotation is HighlightAnnotation else { return nil }
-            let identifier = "highlight"
-            let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-            view.annotation = annotation
-            view.image = Self.highlightImage
-            view.centerOffset = .zero
-            view.canShowCallout = false
-            return view
+            if let photo = annotation as? PhotoAnnotation {
+                let identifier = "photo"
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+                    ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                view.annotation = annotation
+                view.image = Self.framedThumbnail(photo.image, isVideo: photo.isVideo)
+                view.centerOffset = .zero
+                view.canShowCallout = false
+                return view
+            }
+            if annotation is HighlightAnnotation {
+                let identifier = "highlight"
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+                    ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                view.annotation = annotation
+                view.image = Self.highlightImage
+                view.centerOffset = .zero
+                view.canShowCallout = false
+                return view
+            }
+            return nil
+        }
+
+        public func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let photo = view.annotation as? PhotoAnnotation {
+                mapView.deselectAnnotation(view.annotation, animated: false)
+                onSelectPhoto?(photo.id)
+            }
         }
 
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
@@ -247,3 +350,9 @@ final class IdentifiedPolyline: MKPolyline {
 }
 
 final class HighlightAnnotation: MKPointAnnotation {}
+
+final class PhotoAnnotation: MKPointAnnotation {
+    var id: String = ""
+    var image: NSImage?
+    var isVideo = false
+}

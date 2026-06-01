@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 import MapKit
+import Photos
+import QuickLook
+import AVFoundation
+import UniformTypeIdentifiers
 import GPXCore
 import GPXMapKit
 
@@ -15,7 +19,28 @@ struct ActivityDetailView: View {
     @State private var isExportingPDF = false
     @State private var profileMode: ProfileMode = .distance
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
+    @State private var photoAssets: [PHAsset] = []
+    @State private var photoMapItems: [PhotoMapItem] = []
+    @State private var previewURL: URL?
+    @State private var hiddenPhotoIDs: Set<String> = []
+    @State private var isExportingVideo = false
+    @State private var videoProgress: Double = 0
+    @State private var showVideoOptions = false
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
+    @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
+    @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
+    @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
+    @AppStorage("videoSelectedTemplate") private var selectedTemplateID = "builtin.sidebyside"
+    @AppStorage("videoTransition") private var videoTransitionRaw = MediaTransition.fade.rawValue
+    @AppStorage("videoHeartRate") private var videoHeartRateOn = true
+    @AppStorage("videoIntro") private var videoIntroOn = true
+    @AppStorage("videoOutro") private var videoOutroOn = true
+    @State private var currentLayout = VideoLayout.defaultLayout(for: .landscape)
+    @State private var tracePreview: [CGPoint] = []
+    @State private var showTemplateNameAlert = false
+    @State private var templateNameInput = ""
+    @State private var savingNewTemplate = false
+    @AppStorage("photosOnMapEnabled") private var photosOnMapEnabled = true
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -26,12 +51,16 @@ struct ActivityDetailView: View {
                 metricsGrid
                 profileSection
                 mapSection
+                photosSection
                 notesSection
             }
             .padding(20)
         }
         .navigationTitle(activity.title)
-        .onAppear { notesDraft = activity.notes ?? "" }
+        .onAppear {
+            notesDraft = activity.notes ?? ""
+            hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
+        }
         .onChange(of: activity.id) { _, _ in notesDraft = activity.notes ?? "" }
         .toolbar {
             ToolbarItemGroup {
@@ -63,12 +92,39 @@ struct ActivityDetailView: View {
                 }
                 .disabled(isExportingPDF)
                 Button {
+                    showVideoOptions = true
+                } label: {
+                    if isExportingVideo {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Créer une vidéo", systemImage: "film")
+                    }
+                }
+                .disabled(isExportingVideo)
+                .help("Crée un film du parcours (point animé) avec les photos/vidéos sélectionnées")
+
+                Button {
                     Task { await prepareShare() }
                 } label: {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
             }
         }
+        .overlay {
+            if isExportingVideo {
+                VStack(spacing: 10) {
+                    ProgressView(value: videoProgress)
+                        .frame(width: 220)
+                    Text("Génération de la vidéo… \(Int(videoProgress * 100)) %")
+                        .font(.callout)
+                }
+                .padding(24)
+                .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+                .shadow(radius: 8)
+            }
+        }
+        .sheet(isPresented: $showVideoOptions) { videoOptionsSheet }
+        .quickLookPreview($previewURL)
         .background(ShareSheetPresenter(isPresented: $isShareSheetPresented, url: shareURL))
         .alert("Export", isPresented: hasExportErrorBinding) {
             Button("OK") { exportError = nil }
@@ -173,7 +229,9 @@ struct ActivityDetailView: View {
                 activityType: activity.activityType,
                 repository: repository,
                 layer: mapLayerBinding,
-                highlight: highlightedCoordinate
+                highlight: highlightedCoordinate,
+                photos: mapPhotos,
+                onSelectPhoto: openPhoto
             )
             .frame(height: 340)
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -185,6 +243,329 @@ struct ActivityDetailView: View {
             get: { MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 },
             set: { defaultLayerRaw = $0.rawValue }
         )
+    }
+
+    private static let hiddenPhotosKey = "photosHiddenOnMap"
+
+    private var mapPhotos: [PhotoMapItem] {
+        guard photosOnMapEnabled else { return [] }
+        return photoMapItems.filter { !hiddenPhotoIDs.contains($0.id) }
+    }
+
+    private var photosSection: some View {
+        ActivityPhotosSection(
+            activityId: activity.id,
+            repository: repository,
+            start: activity.startDate,
+            end: activity.endDate,
+            assets: $photoAssets,
+            showOnMap: $photosOnMapEnabled,
+            isShownOnMap: { !hiddenPhotoIDs.contains($0) },
+            onToggleMap: togglePhotoOnMap,
+            onSelect: previewPhoto
+        )
+        .onChange(of: photoAssets) { _, newAssets in
+            Task { await buildPhotoMapItems(newAssets) }
+        }
+    }
+
+    private func togglePhotoOnMap(_ id: String) {
+        if hiddenPhotoIDs.contains(id) { hiddenPhotoIDs.remove(id) } else { hiddenPhotoIDs.insert(id) }
+        UserDefaults.standard.set(Array(hiddenPhotoIDs), forKey: Self.hiddenPhotosKey)
+    }
+
+    private func previewPhoto(_ asset: PHAsset) {
+        Task { previewURL = await PhotoLibraryService.exportForPreview(asset) }
+    }
+
+    private var videoFormat: VideoFormat { VideoFormat(rawValue: videoFormatRaw) ?? .landscape }
+    private var videoTransitionBinding: Binding<MediaTransition> {
+        Binding(get: { MediaTransition(rawValue: videoTransitionRaw) ?? .fade }, set: { videoTransitionRaw = $0.rawValue })
+    }
+    private var videoQualityBinding: Binding<VideoQuality> {
+        Binding(get: { VideoQuality(rawValue: videoQualityRaw) ?? .hd720 }, set: { videoQualityRaw = $0.rawValue })
+    }
+    private var videoFormatBinding: Binding<VideoFormat> {
+        Binding(get: { videoFormat }, set: { newFormat in
+            videoFormatRaw = newFormat.rawValue
+            currentLayout = VideoLayout.defaultLayout(for: newFormat)
+        })
+    }
+    private var profileOnBinding: Binding<Bool> {
+        Binding(get: { currentLayout.profile != nil }, set: { on in
+            if on {
+                if currentLayout.profile == nil {
+                    currentLayout.profile = VideoLayout.defaultLayout(for: videoFormat).profile ?? LayoutZone(x: 0.6, y: 0.74, w: 0.38, h: 0.22)
+                }
+            } else {
+                currentLayout.profile = nil
+            }
+        })
+    }
+
+    // MARK: - Modèles (templates)
+
+    private var userTemplates: [VideoTemplate] {
+        guard let d = userTemplatesJSON.data(using: .utf8),
+              let arr = try? JSONDecoder().decode([VideoTemplate].self, from: d) else { return [] }
+        return arr
+    }
+    private func setUserTemplates(_ arr: [VideoTemplate]) {
+        if let d = try? JSONEncoder().encode(arr), let s = String(data: d, encoding: .utf8) { userTemplatesJSON = s }
+    }
+    private var allTemplates: [VideoTemplate] { VideoTemplate.builtins + userTemplates }
+    private var selectedTemplate: VideoTemplate? { allTemplates.first { $0.id == selectedTemplateID } }
+    private var currentMatchesTemplate: Bool {
+        guard let t = selectedTemplate else { return false }
+        return t.quality.rawValue == videoQualityRaw && t.format.rawValue == videoFormatRaw && t.layout == currentLayout
+            && t.transition.rawValue == videoTransitionRaw && t.showHeartRate == videoHeartRateOn
+            && t.showIntro == videoIntroOn && t.showOutro == videoOutroOn
+    }
+    private func currentTemplate(id: String, name: String, builtin: Bool) -> VideoTemplate {
+        VideoTemplate(id: id, name: name, quality: VideoQuality(rawValue: videoQualityRaw) ?? .hd720,
+                      format: videoFormat, layout: currentLayout, builtin: builtin,
+                      transition: MediaTransition(rawValue: videoTransitionRaw) ?? .fade,
+                      showHeartRate: videoHeartRateOn, showIntro: videoIntroOn, showOutro: videoOutroOn)
+    }
+    private func applyTemplate(_ t: VideoTemplate) {
+        videoQualityRaw = t.quality.rawValue
+        videoFormatRaw = t.format.rawValue
+        currentLayout = t.layout
+        videoTransitionRaw = t.transition.rawValue
+        videoHeartRateOn = t.showHeartRate
+        videoIntroOn = t.showIntro
+        videoOutroOn = t.showOutro
+        selectedTemplateID = t.id
+    }
+    private func saveAsNewTemplate(name: String) {
+        let t = currentTemplate(id: "user.\(UUID().uuidString)", name: name, builtin: false)
+        setUserTemplates(userTemplates + [t])
+        selectedTemplateID = t.id
+    }
+    private func updateSelectedTemplate() {
+        guard let sel = selectedTemplate, !sel.builtin else { return }
+        let t = currentTemplate(id: sel.id, name: sel.name, builtin: false)
+        setUserTemplates(userTemplates.map { $0.id == t.id ? t : $0 })
+    }
+    private func renameSelectedTemplate(_ name: String) {
+        guard var t = selectedTemplate, !t.builtin else { return }
+        t.name = name
+        setUserTemplates(userTemplates.map { $0.id == t.id ? t : $0 })
+    }
+    private func deleteSelectedTemplate() {
+        guard let t = selectedTemplate, !t.builtin else { return }
+        setUserTemplates(userTemplates.filter { $0.id != t.id })
+        applyTemplate(VideoTemplate.builtins[0])
+    }
+
+    private func loadTracePreview() async {
+        guard let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data), points.count >= 2 else { tracePreview = []; return }
+        let mps = points.map { MKMapPoint(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }
+        let minX = mps.map(\.x).min()!, maxX = mps.map(\.x).max()!
+        let minY = mps.map(\.y).min()!, maxY = mps.map(\.y).max()!
+        let sc = Swift.max(1, Swift.max(maxX - minX, maxY - minY)) // échelle unique → forme conservée
+        let step = Swift.max(1, mps.count / 400)
+        tracePreview = stride(from: 0, to: mps.count, by: step).map { i in
+            CGPoint(x: (mps[i].x - minX) / sc, y: (mps[i].y - minY) / sc) // origine haut-gauche
+        }
+    }
+
+    private var videoOptionsSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Créer la vidéo du parcours").font(.title3.bold())
+            VStack(alignment: .leading, spacing: 6) {
+                Text("MODÈLE").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                templateBar
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.secondary.opacity(0.15)))
+            Divider()
+            HStack(spacing: 16) {
+                Picker("Qualité", selection: videoQualityBinding) {
+                    ForEach(VideoQuality.allCases) { Text($0.label).tag($0) }
+                }.fixedSize()
+                Picker("Format", selection: videoFormatBinding) {
+                    ForEach(VideoFormat.allCases) { Text($0.label).tag($0) }
+                }.fixedSize()
+                Picker("Animation", selection: videoTransitionBinding) {
+                    ForEach(MediaTransition.allCases) { Text($0.label).tag($0) }
+                }.fixedSize()
+                Spacer()
+            }
+            HStack(spacing: 18) {
+                Toggle("Profil altimétrique", isOn: profileOnBinding)
+                Toggle("Fréquence cardiaque", isOn: $videoHeartRateOn)
+                    .disabled(currentLayout.profile == nil)
+                Toggle("Carton de début", isOn: $videoIntroOn)
+                Toggle("Carton de fin", isOn: $videoOutroOn)
+                Spacer()
+            }
+            Text("Glissez les zones pour les déplacer, la poignée (coin) pour les redimensionner. Carton titre+date au début, résumé à la fin.")
+                .font(.caption).foregroundStyle(.secondary)
+            VideoLayoutEditor(aspect: videoFormat.aspect, layout: $currentLayout, tracePoints: tracePreview)
+            HStack {
+                Button("Réinitialiser") { currentLayout = VideoLayout.defaultLayout(for: videoFormat) }
+                Spacer()
+                Button("Annuler") { showVideoOptions = false }
+                Button("Créer la vidéo") {
+                    showVideoOptions = false
+                    exportVideo()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 760)
+        .task {
+            if let t = selectedTemplate { applyTemplate(t) } else { applyTemplate(VideoTemplate.builtins[0]) }
+            await loadTracePreview()
+        }
+        .alert(savingNewTemplate ? "Nouveau modèle" : "Renommer le modèle", isPresented: $showTemplateNameAlert) {
+            TextField("Nom du modèle", text: $templateNameInput)
+            Button(savingNewTemplate ? "Enregistrer" : "Renommer") {
+                let name = templateNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                if savingNewTemplate { saveAsNewTemplate(name: name) } else { renameSelectedTemplate(name) }
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+    }
+
+    private var templateBar: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Section("Prédéfinis") {
+                    ForEach(VideoTemplate.builtins) { t in
+                        Button { applyTemplate(t) } label: { Label(t.name, systemImage: t.id == selectedTemplateID ? "checkmark" : "") }
+                    }
+                }
+                if !userTemplates.isEmpty {
+                    Section("Mes modèles") {
+                        ForEach(userTemplates) { t in
+                            Button { applyTemplate(t) } label: { Label(t.name, systemImage: t.id == selectedTemplateID ? "checkmark" : "") }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "rectangle.on.rectangle.angled")
+                    Text(selectedTemplate?.name ?? "Modèle")
+                    if !currentMatchesTemplate { Text("• modifié").font(.caption2).foregroundStyle(.secondary) }
+                }
+            }
+            .fixedSize()
+
+            Spacer()
+
+            Button("Enregistrer sous…") {
+                savingNewTemplate = true
+                templateNameInput = (selectedTemplate?.name).map { "\($0) copie" } ?? "Mon modèle"
+                showTemplateNameAlert = true
+            }
+            if let t = selectedTemplate, !t.builtin {
+                Button("Mettre à jour") { updateSelectedTemplate() }
+                    .disabled(currentMatchesTemplate)
+                Menu {
+                    Button("Renommer…") { savingNewTemplate = false; templateNameInput = t.name; showTemplateNameAlert = true }
+                    Button("Supprimer", role: .destructive) { deleteSelectedTemplate() }
+                } label: { Image(systemName: "ellipsis.circle") }
+                .fixedSize()
+            }
+        }
+    }
+
+    private func videoSummaryLines() -> [(label: String, value: String)] {
+        var lines: [(String, String)] = [
+            ("Distance", Self.distance(activity.distance)),
+            ("Durée", Self.duration(activity.duration)),
+            ("En mouvement", Self.duration(activity.movingDuration)),
+            ("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
+            ("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
+            ("Vitesse moy.", Self.speed(activity.avgSpeed)),
+            ("Vitesse max", Self.speed(activity.maxSpeed))
+        ]
+        if let hr = activity.avgHeartRate { lines.append(("FC moyenne", "\(Int(hr.rounded())) bpm")) }
+        if let hr = activity.maxHeartRate { lines.append(("FC max", "\(Int(hr.rounded())) bpm")) }
+        return lines
+    }
+
+    private func exportVideo() {
+        let quality = VideoQuality(rawValue: videoQualityRaw) ?? .hd720
+        let dims = videoFormat.dimensions(base: quality.base)
+        let layout = currentLayout
+
+        let panel = NSSavePanel()
+        panel.title = "Enregistrer la vidéo du parcours"
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.nameFieldStringValue = activity.title.replacingOccurrences(of: "/", with: "-") + ".mp4"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let config = VideoConfig(
+            width: dims.width,
+            height: dims.height,
+            layout: layout,
+            transition: MediaTransition(rawValue: videoTransitionRaw) ?? .fade,
+            showHeartRate: videoHeartRateOn && layout.profile != nil,
+            showIntro: videoIntroOn,
+            showOutro: videoOutroOn,
+            title: activity.title,
+            dateText: Self.formatDate(activity.startDate),
+            summary: videoSummaryLines()
+        )
+
+        Task {
+            isExportingVideo = true
+            videoProgress = 0
+            defer { isExportingVideo = false }
+
+            guard let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+                  let points = try? TrackPointCodec.decode(data) else {
+                exportError = "Cette activité n'a pas de tracé exploitable."
+                return
+            }
+
+            // Médias sélectionnés (épingle active) et géolocalisés.
+            var media: [TrackVideoMedia] = []
+            for asset in photoAssets where !hiddenPhotoIDs.contains(asset.localIdentifier) {
+                guard let location = asset.location else { continue }
+                let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
+                if asset.mediaType == .video {
+                    if let av = await PhotoLibraryService.avAsset(for: asset) {
+                        media.append(.video(asset: av, thumbnail: thumb, coordinate: location.coordinate))
+                    }
+                } else if let image = await PhotoLibraryService.fullImage(for: asset) {
+                    media.append(.photo(image: image, thumbnail: thumb, coordinate: location.coordinate))
+                }
+            }
+
+            do {
+                try await TrackVideoExporter.export(points: points, media: media, config: config, to: url) { fraction in
+                    Task { @MainActor in videoProgress = fraction }
+                }
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                exportError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Construit les vignettes à placer sur la carte (coordonnée GPS + miniature) depuis les photos trouvées.
+    private func buildPhotoMapItems(_ assets: [PHAsset]) async {
+        var items: [PhotoMapItem] = []
+        for asset in assets {
+            guard let location = asset.location else { continue }
+            let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 120, height: 120))
+            items.append(PhotoMapItem(id: asset.localIdentifier, coordinate: location.coordinate, image: thumb, isVideo: asset.mediaType == .video))
+        }
+        photoMapItems = items
+    }
+
+    private func openPhoto(id: String) {
+        if let asset = photoAssets.first(where: { $0.localIdentifier == id }) {
+            previewPhoto(asset)
+        }
     }
 
     private var notesSection: some View {
@@ -293,6 +674,8 @@ private struct ActivityMapCard: View {
     let repository: CoreDataActivityRepository
     @Binding var layer: MapLayer
     let highlight: CLLocationCoordinate2D?
+    let photos: [PhotoMapItem]
+    let onSelectPhoto: (String) -> Void
 
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoaded = false
@@ -304,7 +687,7 @@ private struct ActivityMapCard: View {
             } else if tracks.isEmpty {
                 ContentUnavailableView("Pas de tracé", systemImage: "map", description: Text("La trace ne contient pas de coordonnées."))
             } else {
-                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight)
+                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, photos: photos, onSelectPhoto: onSelectPhoto)
             }
         }
         .task(id: activityId) { await load() }
@@ -321,6 +704,348 @@ private struct ActivityMapCard: View {
         }
         tracks = [input]
         isLoaded = true
+    }
+}
+
+// MARK: - Photos prises pendant la trace
+
+enum PhotoLibraryService {
+    static func requestAccess() async -> PHAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { continuation.resume(returning: $0) }
+        }
+    }
+
+    /// Photos de la photothèque prises dans la fenêtre temporelle ET géolocalisées à proximité du tracé.
+    static func photos(start: Date, end: Date, near coordinates: [CLLocationCoordinate2D], maxDistance: CLLocationDistance) -> [PHAsset] {
+        guard start <= end, !coordinates.isEmpty else { return [] }
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(
+            format: "creationDate >= %@ AND creationDate <= %@ AND (mediaType == %d OR mediaType == %d)",
+            start as NSDate, end as NSDate, PHAssetMediaType.image.rawValue, PHAssetMediaType.video.rawValue
+        )
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+
+        let samples = sampled(coordinates, max: 2000).map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
+        let result = PHAsset.fetchAssets(with: options)
+        var out: [PHAsset] = []
+        result.enumerateObjects { asset, _, _ in
+            guard let location = asset.location else { return }
+            if samples.contains(where: { $0.distance(from: location) <= maxDistance }) {
+                out.append(asset)
+            }
+        }
+        return out
+    }
+
+    static func fullImage(for asset: PHAsset) async -> NSImage? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.resizeMode = .exact
+            PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 1280, height: 1280), contentMode: .aspectFit, options: options) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    static func avAsset(for asset: PHAsset) async -> AVAsset? {
+        await withCheckedContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.isNetworkAccessAllowed = true
+            options.deliveryMode = .highQualityFormat
+            PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+                continuation.resume(returning: avAsset)
+            }
+        }
+    }
+
+    static func thumbnail(for asset: PHAsset, size: CGSize) async -> NSImage? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.resizeMode = .fast
+            PHImageManager.default().requestImage(for: asset, targetSize: size, contentMode: .aspectFill, options: options) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    /// Exporte l'original dans un fichier temporaire (réutilisé s'il existe) pour l'aperçu Quick Look in-app.
+    static func exportForPreview(_ asset: PHAsset) async -> URL? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        let wanted: PHAssetResourceType = asset.mediaType == .video ? .video : .photo
+        guard let resource = resources.first(where: { $0.type == wanted }) ?? resources.first else { return nil }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("GPXPhotos", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(resource.originalFilename)
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+        return await withCheckedContinuation { continuation in
+            PHAssetResourceManager.default().writeData(for: resource, toFile: url, options: options) { error in
+                continuation.resume(returning: error == nil ? url : nil)
+            }
+        }
+    }
+
+    private static func sampled(_ coords: [CLLocationCoordinate2D], max: Int) -> [CLLocationCoordinate2D] {
+        guard coords.count > max else { return coords }
+        let step = Double(coords.count) / Double(max)
+        return (0..<max).map { coords[Int(Double($0) * step)] }
+    }
+}
+
+private struct ActivityPhotosSection: View {
+    let activityId: UUID
+    let repository: CoreDataActivityRepository
+    let start: Date
+    let end: Date
+    @Binding var assets: [PHAsset]
+    @Binding var showOnMap: Bool
+    let isShownOnMap: (String) -> Bool
+    let onToggleMap: (String) -> Void
+    let onSelect: (PHAsset) -> Void
+
+    @State private var status: PHAuthorizationStatus = .notDetermined
+    @State private var isLoading = true
+
+    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Label("Photos & vidéos", systemImage: "photo.on.rectangle.angled").font(.headline)
+                if !assets.isEmpty { Text("(\(assets.count))").foregroundStyle(.secondary) }
+                Spacer()
+                if !assets.isEmpty {
+                    Toggle("Sur la carte", isOn: $showOnMap)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .font(.caption)
+                }
+            }
+            content
+        }
+        .task(id: activityId) { await load() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isLoading {
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity, alignment: .center)
+        } else if status == .denied || status == .restricted {
+            HStack(spacing: 8) {
+                Text("Accès à la photothèque refusé.").font(.callout).foregroundStyle(.secondary)
+                Button("Ouvrir les réglages…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        } else if assets.isEmpty {
+            Text("Aucune photo trouvée à proximité du parcours pendant cette activité.")
+                .font(.callout).foregroundStyle(.secondary)
+        } else {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(assets, id: \.localIdentifier) { asset in
+                    PhotoThumbnail(
+                        asset: asset,
+                        shownOnMap: isShownOnMap(asset.localIdentifier),
+                        mapToggleEnabled: showOnMap,
+                        onToggleMap: { onToggleMap(asset.localIdentifier) },
+                        onSelect: { onSelect(asset) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        status = await PhotoLibraryService.requestAccess()
+        guard status == .authorized || status == .limited else { assets = []; return }
+
+        var coordinates: [CLLocationCoordinate2D] = []
+        if let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
+           let points = try? TrackPointCodec.decode(data) {
+            coordinates = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        }
+        // Petite marge temporelle (clocs appareil photo ≠ GPS) ; la proximité géographique cadre le résultat.
+        assets = PhotoLibraryService.photos(
+            start: start.addingTimeInterval(-900),
+            end: end.addingTimeInterval(900),
+            near: coordinates,
+            maxDistance: 300
+        )
+    }
+}
+
+private struct PhotoThumbnail: View {
+    let asset: PHAsset
+    let shownOnMap: Bool
+    let mapToggleEnabled: Bool
+    let onToggleMap: () -> Void
+    let onSelect: () -> Void
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+                if let image {
+                    Image(nsImage: image).resizable().scaledToFill()
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .frame(width: 96, height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onTapGesture { onSelect() }
+            .help(asset.mediaType == .video ? "Lire la vidéo" : "Ouvrir la photo")
+            .overlay(alignment: .bottomLeading) {
+                if asset.mediaType == .video {
+                    HStack(spacing: 2) {
+                        Image(systemName: "play.fill").font(.system(size: 8))
+                        Text(Self.durationText(asset.duration)).font(.system(size: 9).monospacedDigit())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4).padding(.vertical, 2)
+                    .background(Capsule().fill(.black.opacity(0.55)))
+                    .padding(3)
+                }
+            }
+
+            Button(action: onToggleMap) {
+                Image(systemName: shownOnMap ? "mappin.circle.fill" : "mappin.slash.circle.fill")
+                    .font(.system(size: 16))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, shownOnMap ? Color.accentColor : Color.secondary)
+                    .background(Circle().fill(.black.opacity(0.25)))
+            }
+            .buttonStyle(.plain)
+            .padding(3)
+            .opacity(mapToggleEnabled ? 1 : 0.45)
+            .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
+        }
+        .task(id: asset.localIdentifier) {
+            image = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 200, height: 200))
+        }
+    }
+
+    private static func durationText(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+// MARK: - Éditeur de disposition vidéo
+
+private struct VideoLayoutEditor: View {
+    static let space = "videoEditor"
+    let aspect: Double
+    @Binding var layout: VideoLayout
+    let tracePoints: [CGPoint]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                Rectangle().fill(Color(white: 0.16))
+                ZoneBox(zone: $layout.trace, canvas: geo.size, color: .blue, label: "Trace") {
+                    TracePreview(points: tracePoints).padding(5)
+                }
+                ZoneBox(zone: $layout.media, canvas: geo.size, color: .orange, label: "Photo / Vidéo") {
+                    Image(systemName: "photo").foregroundStyle(.orange.opacity(0.7))
+                }
+                if layout.profile != nil {
+                    ZoneBox(zone: Binding(get: { layout.profile ?? LayoutZone(x: 0.6, y: 0.74, w: 0.38, h: 0.22) },
+                                          set: { layout.profile = $0 }),
+                            canvas: geo.size, color: .teal, label: "Profil") {
+                        Image(systemName: "chart.xyaxis.line").foregroundStyle(.teal.opacity(0.7))
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.4)))
+            .coordinateSpace(name: Self.space)
+        }
+        .aspectRatio(aspect, contentMode: .fit)
+        .frame(maxWidth: 480, maxHeight: 360)
+    }
+}
+
+private struct ZoneBox<Content: View>: View {
+    @Binding var zone: LayoutZone
+    let canvas: CGSize
+    let color: Color
+    let label: String
+    @ViewBuilder var content: Content
+    @State private var startZone: LayoutZone?
+
+    var body: some View {
+        let rw = zone.w * canvas.width
+        let rh = zone.h * canvas.height
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 6).fill(color.opacity(0.14))
+            content.frame(width: rw, height: rh).clipped()
+            RoundedRectangle(cornerRadius: 6).strokeBorder(color, lineWidth: 2)
+            Text(label)
+                .font(.system(size: 9, weight: .semibold))
+                .padding(.horizontal, 4).padding(.vertical, 1)
+                .background(color.opacity(0.85)).foregroundStyle(.white).clipShape(Capsule())
+                .padding(3)
+        }
+        .frame(width: rw, height: rh)
+        .overlay(alignment: .bottomTrailing) {
+            Circle().fill(color)
+                .frame(width: 18, height: 18)
+                .overlay(Image(systemName: "arrow.down.right").font(.system(size: 8, weight: .bold)).foregroundStyle(.white))
+                .offset(x: 7, y: 7)
+                .highPriorityGesture(
+                    // Le coin suit la position absolue du curseur (repère du canevas) → pas de rétroaction.
+                    DragGesture(coordinateSpace: .named(VideoLayoutEditor.space))
+                        .onChanged { v in
+                            let nw = Swift.min(Swift.max(0.12, Double(v.location.x) / Double(canvas.width) - zone.x), 1 - zone.x)
+                            let nh = Swift.min(Swift.max(0.10, Double(v.location.y) / Double(canvas.height) - zone.y), 1 - zone.y)
+                            zone.w = nw; zone.h = nh
+                        }
+                )
+        }
+        .offset(x: zone.x * canvas.width, y: zone.y * canvas.height)
+        .gesture(
+            DragGesture()
+                .onChanged { v in
+                    let s = startZone ?? zone; if startZone == nil { startZone = s }
+                    let nx = Swift.min(Swift.max(0, s.x + Double(v.translation.width) / Double(canvas.width)), 1 - zone.w)
+                    let ny = Swift.min(Swift.max(0, s.y + Double(v.translation.height) / Double(canvas.height)), 1 - zone.h)
+                    zone.x = nx; zone.y = ny
+                }
+                .onEnded { _ in startZone = nil }
+        )
+    }
+}
+
+private struct TracePreview: View {
+    let points: [CGPoint]
+    var body: some View {
+        GeometryReader { geo in
+            Path { path in
+                guard points.count > 1 else { return }
+                let maxX = points.map(\.x).max() ?? 1, maxY = points.map(\.y).max() ?? 1
+                let sc = Swift.min(geo.size.width / Swift.max(0.01, maxX), geo.size.height / Swift.max(0.01, maxY))
+                let ox = (geo.size.width - maxX * sc) / 2, oy = (geo.size.height - maxY * sc) / 2
+                func pt(_ q: CGPoint) -> CGPoint { CGPoint(x: ox + q.x * sc, y: oy + q.y * sc) }
+                path.move(to: pt(points[0]))
+                for q in points.dropFirst() { path.addLine(to: pt(q)) }
+            }
+            .stroke(Color.red, lineWidth: 2)
+        }
     }
 }
 
