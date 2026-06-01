@@ -135,6 +135,18 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Nombre de tuiles téléchargées simultanément. Faible pour les couches OSM/OpenTopoMap
+    /// (politique d'usage stricte, bannissement des rafales), plus élevé pour les serveurs robustes.
+    public var maxConcurrentTileRequests: Int {
+        switch self {
+        case .openTopoMap:                  return 2
+        case .osm, .cyclOSM:                return 3
+        case .ignScan25, .ignPlanV2, .ignTopoModern, .ignSlopes, .ignOrthophotos: return 5
+        case .ignEsTopo, .ignEsOrtho, .ngiTopo: return 4
+        default:                            return 6
+        }
+    }
+
     public var maxZoom: Int {
         switch self {
         case .ignScan25:        return 16

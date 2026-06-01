@@ -10,7 +10,19 @@ public enum MapImageExportError: Error {
 }
 
 public enum MapImageExporter {
-    private static let session = URLSession(configuration: .default)
+    // Les fournisseurs de tuiles (OpenStreetMap/OpenTopoMap, IGN) exigent un User-Agent identifiant
+    // et limitent le débit : sans cela OpenTopoMap renvoie 403, et le téléchargement massif déclenche des 429.
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.httpAdditionalHeaders = [
+            "User-Agent": "GPXManagement/1.0 (macOS; com.demoustier.GPXManagement)"
+        ]
+        config.httpMaximumConnectionsPerHost = 4
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        config.urlCache = URLCache(memoryCapacity: 32 * 1024 * 1024, diskCapacity: 256 * 1024 * 1024)
+        config.timeoutIntervalForRequest = 30
+        return URLSession(configuration: config)
+    }()
     private static let maxTiles = 1200
 
     public struct Progress: Sendable {
@@ -30,11 +42,11 @@ public enum MapImageExporter {
         guard mapRect.size.width > 0, mapRect.size.height > 0 else { throw MapImageExportError.emptyRegion }
 
         if let template = layer.tileURLTemplate {
-            return try await renderTiledMap(maxZoom: layer.maxZoom, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
+            return try await renderTiledMap(maxZoom: layer.maxZoom, maxConcurrent: layer.maxConcurrentTileRequests, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
                 templateURL(template, z: z, x: x, y: y)
             }
         } else if layer.isIGN {
-            return try await renderTiledMap(maxZoom: layer.maxZoom, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
+            return try await renderTiledMap(maxZoom: layer.maxZoom, maxConcurrent: layer.maxConcurrentTileRequests, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
                 IGNTileOverlay.buildURL(layerIdentifier: layer.wmtsLayerIdentifier!, format: layer.wmtsFormat,
                                         tileMatrixSet: layer.wmtsTileMatrixSet, apiKey: layer.discoveryAPIKey, z: z, x: x, y: y)
             }
@@ -52,7 +64,7 @@ public enum MapImageExporter {
 
     // MARK: - Composition de tuiles XYZ/WMTS
 
-    private static func renderTiledMap(maxZoom: Int, attribution: String?, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?, urlFor: @Sendable @escaping (Int, Int, Int) -> URL?) async throws -> Data {
+    private static func renderTiledMap(maxZoom: Int, maxConcurrent: Int, attribution: String?, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?, urlFor: @Sendable @escaping (Int, Int, Int) -> URL?) async throws -> Data {
         let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
         let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
         let topLat = topLeft.latitude, leftLon = topLeft.longitude
@@ -64,13 +76,18 @@ public enum MapImageExporter {
             return (Int(floor(nw.x / 256)), Int(floor(se.x / 256)), Int(floor(nw.y / 256)), Int(floor(se.y / 256)), nw.x, nw.y)
         }
 
-        // Définition maximale : on part du zoom le plus détaillé de la couche et on
-        // ne redescend que si le nombre de tuiles dépasse le budget.
+        // On part du zoom le plus détaillé puis on redescend tant que (a) le nombre de tuiles dépasse
+        // le budget, ou (b) l'image dépasserait nettement la résolution de sortie demandée. Le point (b)
+        // est crucial pour la vidéo : inutile (et nuisible vis-à-vis du rate limit) de télécharger des
+        // milliers de tuiles pour produire une image de ~1280 px ensuite réduite.
         var z = maxZoom
         while z > 3 {
             let r = tileRange(z)
             let count = (r.xMax - r.xMin + 1) * (r.yMax - r.yMin + 1)
-            if count <= maxTiles { break }
+            let se = project(lat: bottomLat, lon: rightLon, z: z)
+            let wPx = se.x - r.originX, hPx = se.y - r.originY
+            let pixelOK = maxDimension == nil || Swift.max(wPx, hPx) <= Double(maxDimension!) * 1.4
+            if count <= maxTiles && pixelOK { break }
             z -= 1
         }
 
@@ -104,21 +121,28 @@ public enum MapImageExporter {
         let total = positions.count
         onProgress?(Progress(fraction: 0, label: "Téléchargement des tuiles 0/\(total)…"))
 
-        let images: [(TilePos, CGImage?)] = await withTaskGroup(of: (TilePos, CGImage?).self) { group in
-            for pos in positions {
+        // Concurrence bornée : on ne lance qu'un nombre limité de requêtes simultanées (faible pour
+        // les couches OSM/OpenTopoMap qui bannissent les rafales), avec retry/backoff sur 429.
+        let limit = Swift.max(1, Swift.min(maxConcurrent, total))
+        var images: [(TilePos, CGImage?)] = []
+        images.reserveCapacity(total)
+        await withTaskGroup(of: (TilePos, CGImage?).self) { group in
+            var next = 0
+            func submit() {
+                guard next < positions.count else { return }
+                let pos = positions[next]; next += 1
                 let url = urlFor(z, pos.x, pos.y)
                 group.addTask {
                     guard let url else { return (pos, nil) }
                     return (pos, await fetchImage(url: url))
                 }
             }
-            var out: [(TilePos, CGImage?)] = []
-            for await result in group {
-                out.append(result)
-                let done = out.count
-                onProgress?(Progress(fraction: Double(done) / Double(total) * 0.9, label: "Téléchargement des tuiles \(done)/\(total)…"))
+            for _ in 0..<limit { submit() }
+            while let result = await group.next() {
+                images.append(result)
+                onProgress?(Progress(fraction: Double(images.count) / Double(total) * 0.9, label: "Téléchargement des tuiles \(images.count)/\(total)…"))
+                submit()
             }
-            return out
         }
 
         onProgress?(Progress(fraction: 0.93, label: "Composition de l'image…"))
@@ -299,14 +323,28 @@ public enum MapImageExporter {
         )
     }
 
-    private static func fetchImage(url: URL) async -> CGImage? {
-        do {
-            let (data, response) = try await session.data(from: url)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-            return NSImage(data: data)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        } catch {
-            return nil
+    private static func fetchImage(url: URL, retries: Int = 3) async -> CGImage? {
+        for attempt in 0...retries {
+            do {
+                let (data, response) = try await session.data(from: url)
+                let http = response as? HTTPURLResponse
+                switch http?.statusCode ?? 0 {
+                case 200:
+                    return NSImage(data: data)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                case 429, 500, 502, 503, 504:
+                    guard attempt < retries else { return nil }
+                    let retryAfter = http?.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
+                    let delay = retryAfter ?? Double(1 << attempt) * 0.4
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                default:
+                    return nil
+                }
+            } catch {
+                guard attempt < retries else { return nil }
+                try? await Task.sleep(nanoseconds: UInt64(Double(1 << attempt) * 0.3 * 1_000_000_000))
+            }
         }
+        return nil
     }
 
     private static func png(from cgImage: CGImage) throws -> Data {
