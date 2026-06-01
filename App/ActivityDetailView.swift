@@ -275,11 +275,19 @@ struct ActivityDetailView: View {
             Task { await buildPhotoMapItems(newAssets) }
         }
         .sheet(item: $editingMedia) { media in
-            PhotoCropEditor(
-                asset: media.asset,
-                onCancel: { editingMedia = nil },
-                onSave: { jpeg in saveCroppedPhoto(from: media.asset, jpeg: jpeg) }
-            )
+            if media.asset.mediaType == .video {
+                VideoEditor(
+                    asset: media.asset,
+                    onCancel: { editingMedia = nil },
+                    onExported: { url in saveEditedVideo(from: media.asset, url: url) }
+                )
+            } else {
+                PhotoCropEditor(
+                    asset: media.asset,
+                    onCancel: { editingMedia = nil },
+                    onSave: { jpeg in saveCroppedPhoto(from: media.asset, jpeg: jpeg) }
+                )
+            }
         }
     }
 
@@ -310,6 +318,17 @@ struct ActivityDetailView: View {
             photosReload += 1
         }
     }
+    private func saveEditedVideo(from asset: PHAsset, url: URL) {
+        editingMedia = nil
+        Task {
+            if let id = await PhotoLibraryService.createVideoAsset(fileURL: url, creationDate: asset.creationDate, location: asset.location) {
+                setAppCreatedAssets(appCreatedAssets.union([id]))
+            }
+            try? FileManager.default.removeItem(at: url)
+            photosReload += 1
+        }
+    }
+
     private func deleteMedia(_ asset: PHAsset) {
         let id = asset.localIdentifier
         Task {
@@ -843,6 +862,39 @@ enum PhotoLibraryService {
         }
     }
 
+    /// Exporte un extrait recadré (trim + crop) d'une vidéo vers un fichier temporaire.
+    /// `crop` est normalisé (0..1, origine haut-gauche) dans l'espace d'affichage orienté de la vidéo.
+    static func exportEditedVideo(asset: AVAsset, start: Double, end: Double, crop: CGRect, to outputURL: URL) async -> Bool {
+        guard let track = try? await asset.loadTracks(withMediaType: .video).first else { return false }
+        let natural = (try? await track.load(.naturalSize)) ?? .zero
+        let pref = (try? await track.load(.preferredTransform)) ?? .identity
+        let oriented = natural.applying(pref)
+        let displaySize = CGSize(width: abs(oriented.width), height: abs(oriented.height))
+        guard displaySize.width > 0, displaySize.height > 0 else { return false }
+
+        let cropRect = CGRect(x: crop.minX * displaySize.width, y: crop.minY * displaySize.height,
+                              width: crop.width * displaySize.width, height: crop.height * displaySize.height).integral
+        guard cropRect.width >= 16, cropRect.height >= 16 else { return false }
+
+        let composition = AVMutableVideoComposition()
+        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        composition.renderSize = cropRect.size
+        let instruction = AVMutableVideoCompositionInstruction()
+        let duration = (try? await asset.load(.duration)) ?? .zero
+        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+        layer.setTransform(pref.concatenating(CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY)), at: .zero)
+        instruction.layerInstructions = [layer]
+        composition.instructions = [instruction]
+
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return false }
+        session.videoComposition = composition
+        session.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),
+                                        end: CMTime(seconds: end, preferredTimescale: 600))
+        try? FileManager.default.removeItem(at: outputURL)
+        do { try await session.export(to: outputURL, as: .mp4); return true } catch { return false }
+    }
+
     /// Supprime des assets (confirmation système requise pour la photothèque de l'utilisateur).
     static func deleteAssets(_ localIdentifiers: [String]) async -> Bool {
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: localIdentifiers, options: nil)
@@ -1009,7 +1061,7 @@ private struct PhotoThumbnail: View {
     @State private var image: NSImage?
     @State private var hovering = false
 
-    private var canEdit: Bool { asset.mediaType == .image }
+    private var canEdit: Bool { asset.mediaType == .image || asset.mediaType == .video }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -1199,6 +1251,165 @@ private struct PhotoCropEditor: View {
         let s = min(container.width / size.width, container.height / size.height)
         let w = size.width * s, h = size.height * s
         return CGRect(x: (container.width - w) / 2, y: (container.height - h) / 2, width: w, height: h)
+    }
+}
+
+/// Recadrage + extrait (trim) d'une vidéo, puis enregistrement d'une nouvelle vidéo dans la photothèque.
+private struct VideoEditor: View {
+    let asset: PHAsset
+    let onCancel: () -> Void
+    let onExported: (URL) -> Void
+
+    @State private var avAsset: AVAsset?
+    @State private var generator: AVAssetImageGenerator?
+    @State private var duration: Double = 0
+    @State private var startT: Double = 0
+    @State private var endT: Double = 0
+    @State private var scrub: Double = 0
+    @State private var frame: NSImage?
+    @State private var ratio: CropRatio = .r9x16
+    @State private var crop = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.5)
+    @State private var isExporting = false
+
+    private var imageAspect: CGFloat {
+        guard let s = frame?.size, s.height > 0 else { return 16.0 / 9.0 }
+        return s.width / s.height
+    }
+    private var normalizedAspect: CGFloat? {
+        guard let r = ratio.pixelAspect(imageAspect: imageAspect) else { return nil }
+        return r / imageAspect
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recadrer / extraire la vidéo").font(.title3.bold())
+            Picker("Format", selection: $ratio) {
+                ForEach(CropRatio.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented).fixedSize()
+            .onChange(of: ratio) { _, _ in resetCrop() }
+
+            GeometryReader { geo in
+                if let frame {
+                    let iv = PhotoCropEditor.fit(frame.size, in: geo.size)
+                    ZStack(alignment: .topLeading) {
+                        Image(nsImage: frame).resizable()
+                            .frame(width: iv.width, height: iv.height)
+                            .position(x: iv.midX, y: iv.midY)
+                        CropDim(crop: crop, imageRect: iv).fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
+                        CropRectView(crop: $crop, imageRect: iv, normalizedAspect: normalizedAspect)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .coordinateSpace(name: "crop")
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(height: 320)
+
+            TrimBar(duration: duration, start: $startT, end: $endT, playhead: $scrub)
+                .frame(height: 34)
+            Text("Extrait : \(Self.time(startT)) → \(Self.time(endT))  ·  \(Self.time(endT - startT))")
+                .font(.caption).foregroundStyle(.secondary)
+
+            HStack {
+                if isExporting { ProgressView().controlSize(.small); Text("Export…").font(.caption).foregroundStyle(.secondary) }
+                Spacer()
+                Button("Annuler") { onCancel() }.disabled(isExporting)
+                Button("Enregistrer") { Task { await export() } }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(avAsset == nil || isExporting || endT - startT < 0.3)
+            }
+        }
+        .padding(20)
+        .frame(width: 660)
+        .task {
+            let a = await PhotoLibraryService.avAsset(for: asset)
+            avAsset = a
+            guard let a else { return }
+            let d = (try? await a.load(.duration).seconds) ?? 0
+            duration = d; endT = d; scrub = 0
+            let gen = AVAssetImageGenerator(asset: a)
+            gen.appliesPreferredTrackTransform = true
+            gen.requestedTimeToleranceBefore = .zero; gen.requestedTimeToleranceAfter = CMTime(seconds: 0.3, preferredTimescale: 600)
+            generator = gen
+            await updateFrame()
+            resetCrop()
+        }
+        .onChange(of: Int(scrub * 4)) { _, _ in Task { await updateFrame() } }
+    }
+
+    private func resetCrop() {
+        let an = normalizedAspect ?? 1
+        var w: CGFloat = 1, h: CGFloat = 1
+        if ratio == .free { w = 0.9; h = 0.9 } else if an >= 1 { w = 1; h = 1 / an } else { h = 1; w = an }
+        crop = CGRect(x: (1 - w) / 2, y: (1 - h) / 2, width: w, height: h)
+    }
+
+    private func updateFrame() async {
+        guard let gen = generator else { return }
+        let t = CMTime(seconds: scrub, preferredTimescale: 600)
+        if let result = try? await gen.image(at: t) {
+            frame = NSImage(cgImage: result.image, size: NSSize(width: result.image.width, height: result.image.height))
+        }
+    }
+
+    private func export() async {
+        guard let a = avAsset else { return }
+        isExporting = true
+        defer { isExporting = false }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("edit-\(UUID().uuidString).mp4")
+        if await PhotoLibraryService.exportEditedVideo(asset: a, start: startT, end: endT, crop: crop, to: url) {
+            onExported(url)
+        }
+    }
+
+    static func time(_ s: Double) -> String {
+        let total = Int(max(0, s).rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+private struct TrimBar: View {
+    let duration: Double
+    @Binding var start: Double
+    @Binding var end: Double
+    @Binding var playhead: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let x: (Double) -> CGFloat = { t in duration > 0 ? CGFloat(t / duration) * w : 0 }
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.25))
+                // zone retenue
+                Rectangle().fill(Color.accentColor.opacity(0.3))
+                    .frame(width: max(0, x(end) - x(start)))
+                    .offset(x: x(start))
+                // playhead
+                Rectangle().fill(.white).frame(width: 2).offset(x: x(playhead))
+                handle(color: .accentColor, at: x(start)) { nx in
+                    start = min(max(0, nx / w * duration), end - 0.3)
+                    playhead = start
+                }
+                handle(color: .accentColor, at: x(end)) { nx in
+                    end = max(min(duration, nx / w * duration), start + 0.3)
+                    playhead = end
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { v in
+                playhead = min(max(0, Double(v.location.x / w) * duration), duration)
+            })
+        }
+    }
+
+    private func handle(color: Color, at px: CGFloat, onMove: @escaping (CGFloat) -> Void) -> some View {
+        RoundedRectangle(cornerRadius: 3).fill(color)
+            .frame(width: 10)
+            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.white, lineWidth: 1))
+            .offset(x: px - 5)
+            .highPriorityGesture(DragGesture(coordinateSpace: .local).onChanged { v in onMove(v.location.x) })
     }
 }
 
