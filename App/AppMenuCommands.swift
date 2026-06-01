@@ -9,6 +9,13 @@ struct AppMenuCommands: Commands {
         // Menu Fichier : on garde "Nouvelle fenêtre" (fournie par WindowGroup) et on ajoute imports/exports juste après.
         CommandGroup(after: .newItem) {
             Divider()
+            Button("Nouveau raid…") {
+                window?.requestNewRaid()
+            }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(!(window?.hasSelection ?? false))
+
+            Divider()
             Button("Importer des fichiers GPX/FIT…") {
                 services.importFilesViaPanel()
             }

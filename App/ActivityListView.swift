@@ -32,6 +32,11 @@ struct ActivityListView: View {
             return true
         } isTargeted: { isDropTargeted = $0 }
         .navigationTitle("Activités")
+        .onChange(of: navigation.newRaidToken) { _, _ in
+            guard !navigation.listSelection.isEmpty else { return }
+            newRaidName = listVM.suggestedRaidName(for: navigation.listSelection)
+            creatingRaidIds = navigation.listSelection
+        }
         .alert("Nouveau raid", isPresented: Binding(get: { creatingRaidIds != nil }, set: { if !$0 { creatingRaidIds = nil } })) {
             TextField("Nom du raid", text: $newRaidName)
             Button("Annuler", role: .cancel) { creatingRaidIds = nil }

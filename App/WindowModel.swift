@@ -84,6 +84,11 @@ final class WindowModel {
         mapExportFullRoute = fullRoute
         mapExportToken += 1
     }
+
+    func requestNewRaid() {
+        guard hasSelection else { return }
+        navigation.newRaidToken += 1
+    }
 }
 
 private struct WindowModelKey: FocusedValueKey {

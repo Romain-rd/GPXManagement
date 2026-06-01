@@ -30,4 +30,5 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 final class AppNavigationModel {
     var listSelection: Set<UUID> = []
     var visualizationMode: VisualizationMode = .activities
+    var newRaidToken: Int = 0
 }
