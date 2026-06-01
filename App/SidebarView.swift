@@ -10,6 +10,8 @@ struct SidebarView: View {
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
     @AppStorage("sidebarTypesExpanded") private var typesExpanded = false
+    @AppStorage("sidebarRaidsExpanded") private var raidsExpanded = true
+    @AppStorage("sidebarSmartExpanded") private var smartExpanded = true
 
     private var selectionBinding: Binding<SidebarDestination?> {
         Binding(get: { navigation.sidebarSelection }, set: { navigation.sidebarSelection = $0 ?? .allActivities })
@@ -59,7 +61,7 @@ struct SidebarView: View {
             }
 
             if !listVM.availableRaids.isEmpty {
-                Section("Raids") {
+                Section(isExpanded: $raidsExpanded) {
                     ForEach(listVM.availableRaids, id: \.raid.id) { entry in
                         raidRow(entry.raid, count: entry.count)
                             .tag(SidebarDestination.raid(entry.raid.id))
@@ -74,10 +76,12 @@ struct SidebarView: View {
                                 }
                             }
                     }
+                } header: {
+                    Text("Raids")
                 }
             }
 
-            Section("Filtres intelligents") {
+            Section(isExpanded: $smartExpanded) {
                 ForEach(listVM.smartFilters) { filter in
                     Label {
                         Text(filter.name)
@@ -101,6 +105,8 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+            } header: {
+                Text("Filtres intelligents")
             }
         }
         .navigationTitle("Bibliothèque")
