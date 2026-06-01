@@ -14,7 +14,7 @@ struct ActivityListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            sortBar
+            listHeader
             if !navigation.listSelection.isEmpty {
                 selectionBar
             }
@@ -32,7 +32,6 @@ struct ActivityListView: View {
             Task { await services.prepareImports(from: urls) }
             return true
         } isTargeted: { isDropTargeted = $0 }
-        .navigationTitle("Activités")
         .onChange(of: navigation.newRaidToken) { _, _ in
             guard !navigation.listSelection.isEmpty else { return }
             newRaidName = listVM.suggestedRaidName(for: navigation.listSelection)
@@ -58,42 +57,70 @@ struct ActivityListView: View {
         }
     }
 
-    private var sortBar: some View {
-        HStack {
-            Picker("Tri", selection: $listVM.sortOrder) {
-                ForEach(ActivitySortOrder.allCases) { order in
-                    Text(order.label).tag(order)
+    private var listHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(headerTitle).font(.title2.bold()).lineLimit(1)
+                    Text(headerSubtitle).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    sortMenu
+                    filterMenu
                 }
             }
-            .pickerStyle(.menu)
-            .frame(maxWidth: 240)
-
-            filterMenu
-
-            Spacer()
-            if services.isPreparingImports {
-                ProgressView()
-                    .scaleEffect(0.7)
-                Text(services.preparingImportProgress ?? "Analyse du fichier…")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-            } else if services.isScanningHealthExport || services.isScanningWatchedFolder {
-                ProgressView()
-                    .scaleEffect(0.7)
-                Text(services.healthScanProgress ?? services.watchedFolderProgress ?? "Analyse…")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-            } else if let summary = services.lastWatchedFolderSummary {
-                Text(summary)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
+            if let status = statusText {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
-            Text("\(listVM.visibleActivities.count) résultat(s)")
-                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .background(.bar)
+    }
+
+    private var headerTitle: String {
+        switch navigation.sidebarSelection {
+        case .allActivities:        return "Toutes les activités"
+        case .activityType(let t):  return t.displayName
+        case .smartFilter(let id):  return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
+        case .raid:                 return "Activités"
+        }
+    }
+
+    private var headerSubtitle: String {
+        let visible = listVM.visibleActivities.count
+        let total = listVM.allActivities.count
+        if visible == total { return "\(total) activité(s)" }
+        return "\(visible) sur \(total)"
+    }
+
+    private var statusText: String? {
+        if services.isPreparingImports { return services.preparingImportProgress ?? "Analyse du fichier…" }
+        if services.isScanningHealthExport || services.isScanningWatchedFolder {
+            return services.healthScanProgress ?? services.watchedFolderProgress ?? "Analyse…"
+        }
+        return nil
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            ForEach(ActivitySortOrder.allCases) { order in
+                Button { listVM.sortOrder = order } label: {
+                    Label(order.label, systemImage: listVM.sortOrder == order ? "checkmark" : "")
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Trier")
     }
 
     private var filterMenu: some View {
@@ -180,9 +207,12 @@ struct ActivityListView: View {
             ForEach(listVM.visibleActivities) { activity in
                 ActivityRow(activity: activity)
                     .tag(activity.id)
+                    .listRowSeparatorTint(.secondary.opacity(0.18))
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 58 }
             }
             .onDelete(perform: deleteActivities)
         }
+        .environment(\.defaultMinListRowHeight, 54)
         .listStyle(.inset)
         .contextMenu(forSelectionType: UUID.self) { ids in
             Menu("Changer le type") {

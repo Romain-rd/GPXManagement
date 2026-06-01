@@ -52,6 +52,7 @@ struct ActivityDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
+                Divider()
                 metricsGrid
                 profileSection
                 mapSection
@@ -149,10 +150,10 @@ struct ActivityDetailView: View {
                 }
             } label: {
                 Image(systemName: activity.activityType.symbolName)
-                    .font(.system(size: 28))
-                    .foregroundStyle(.tint)
-                    .frame(width: 52, height: 52)
-                    .background(Circle().fill(.tint.opacity(0.15)))
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 54, height: 54)
+                    .background(Circle().fill(Color(nsColor: activity.activityType.trackColor)))
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "pencil.circle.fill")
                             .font(.system(size: 16))

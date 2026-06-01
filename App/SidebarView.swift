@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import GPXCore
+import GPXMapKit
 
 struct SidebarView: View {
     @Bindable var navigation: AppNavigationModel
@@ -29,7 +30,11 @@ struct SidebarView: View {
             .buttonStyle(.plain)
             .opacity(listVM.availableActivityTypes.isEmpty ? 0 : 1)
             .disabled(listVM.availableActivityTypes.isEmpty)
-            Label("Toutes les activités", systemImage: "tray.full")
+            Label {
+                Text("Toutes les activités")
+            } icon: {
+                Image(systemName: "tray.full").foregroundStyle(.tint)
+            }
         }
         .badge(listVM.allActivities.count)
         .tag(SidebarDestination.allActivities)
@@ -41,10 +46,15 @@ struct SidebarView: View {
 
             if typesExpanded {
                 ForEach(listVM.availableActivityTypes, id: \.type) { entry in
-                    Label(entry.type.displayName, systemImage: entry.type.symbolName)
-                        .badge(entry.count)
-                        .padding(.leading, 18)
-                        .tag(SidebarDestination.activityType(entry.type))
+                    Label {
+                        Text(entry.type.displayName)
+                    } icon: {
+                        Image(systemName: entry.type.symbolName)
+                            .foregroundStyle(Color(nsColor: entry.type.trackColor))
+                    }
+                    .badge(entry.count)
+                    .padding(.leading, 18)
+                    .tag(SidebarDestination.activityType(entry.type))
                 }
             }
 
@@ -69,7 +79,11 @@ struct SidebarView: View {
 
             Section("Filtres intelligents") {
                 ForEach(listVM.smartFilters) { filter in
-                    Label(filter.name, systemImage: "folder.badge.gearshape")
+                    Label {
+                        Text(filter.name)
+                    } icon: {
+                        Image(systemName: "folder.badge.gearshape").foregroundStyle(.secondary)
+                    }
                         .badge(listVM.count(for: filter))
                         .tag(SidebarDestination.smartFilter(filter.id))
                         .contextMenu {
@@ -113,7 +127,7 @@ struct SidebarView: View {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
                     .frame(width: 20, height: 20).clipShape(RoundedRectangle(cornerRadius: 4))
             } else {
-                Image(systemName: "flag.2.crossed")
+                Image(systemName: "flag.2.crossed").foregroundStyle(.orange)
             }
         }
         .badge(count)
