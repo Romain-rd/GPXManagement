@@ -23,6 +23,9 @@ struct ActivityDetailView: View {
     @State private var photoMapItems: [PhotoMapItem] = []
     @State private var previewURL: URL?
     @State private var hiddenPhotoIDs: Set<String> = []
+    @State private var editingMedia: EditingMedia?
+    @State private var photosReload = 0
+    @AppStorage("appCreatedAssets") private var appCreatedAssetsJSON = ""
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -260,18 +263,61 @@ struct ActivityDetailView: View {
             end: activity.endDate,
             assets: $photoAssets,
             showOnMap: $photosOnMapEnabled,
+            reloadToken: photosReload,
             isShownOnMap: { !hiddenPhotoIDs.contains($0) },
+            isAppCreated: { appCreatedAssets.contains($0) },
             onToggleMap: togglePhotoOnMap,
-            onSelect: previewPhoto
+            onSelect: previewPhoto,
+            onEdit: editMedia,
+            onDelete: deleteMedia
         )
         .onChange(of: photoAssets) { _, newAssets in
             Task { await buildPhotoMapItems(newAssets) }
+        }
+        .sheet(item: $editingMedia) { media in
+            PhotoCropEditor(
+                asset: media.asset,
+                onCancel: { editingMedia = nil },
+                onSave: { jpeg in saveCroppedPhoto(from: media.asset, jpeg: jpeg) }
+            )
         }
     }
 
     private func togglePhotoOnMap(_ id: String) {
         if hiddenPhotoIDs.contains(id) { hiddenPhotoIDs.remove(id) } else { hiddenPhotoIDs.insert(id) }
         UserDefaults.standard.set(Array(hiddenPhotoIDs), forKey: Self.hiddenPhotosKey)
+    }
+
+    // MARK: - Édition des médias
+
+    private var appCreatedAssets: Set<String> {
+        guard let d = appCreatedAssetsJSON.data(using: .utf8),
+              let arr = try? JSONDecoder().decode([String].self, from: d) else { return [] }
+        return Set(arr)
+    }
+    private func setAppCreatedAssets(_ set: Set<String>) {
+        if let d = try? JSONEncoder().encode(Array(set)), let s = String(data: d, encoding: .utf8) { appCreatedAssetsJSON = s }
+    }
+    private func editMedia(_ asset: PHAsset) {
+        editingMedia = EditingMedia(id: asset.localIdentifier, asset: asset)
+    }
+    private func saveCroppedPhoto(from asset: PHAsset, jpeg: Data) {
+        editingMedia = nil
+        Task {
+            if let id = await PhotoLibraryService.createImageAsset(jpeg: jpeg, creationDate: asset.creationDate, location: asset.location) {
+                setAppCreatedAssets(appCreatedAssets.union([id]))
+            }
+            photosReload += 1
+        }
+    }
+    private func deleteMedia(_ asset: PHAsset) {
+        let id = asset.localIdentifier
+        Task {
+            if await PhotoLibraryService.deleteAssets([id]) {
+                setAppCreatedAssets(appCreatedAssets.subtracting([id]))
+                photosReload += 1
+            }
+        }
     }
 
     private func previewPhoto(_ asset: PHAsset) {
@@ -750,6 +796,65 @@ enum PhotoLibraryService {
         }
     }
 
+    /// Image haute définition (recadrage). Plafonnée pour rester raisonnable en mémoire.
+    static func editingImage(for asset: PHAsset) async -> NSImage? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            options.resizeMode = .exact
+            PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: 4096, height: 4096), contentMode: .aspectFit, options: options) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    /// Crée une nouvelle photo dans la photothèque (en conservant date et lieu de l'original). Renvoie son identifiant.
+    static func createImageAsset(jpeg: Data, creationDate: Date?, location: CLLocation?) async -> String? {
+        var newID: String?
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .photo, data: jpeg, options: nil)
+                request.creationDate = creationDate
+                request.location = location
+                newID = request.placeholderForCreatedAsset?.localIdentifier
+            }
+            return newID
+        } catch {
+            return nil
+        }
+    }
+
+    /// Crée une nouvelle vidéo dans la photothèque depuis un fichier (date/lieu conservés). Renvoie son identifiant.
+    static func createVideoAsset(fileURL: URL, creationDate: Date?, location: CLLocation?) async -> String? {
+        var newID: String?
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .video, fileURL: fileURL, options: nil)
+                request.creationDate = creationDate
+                request.location = location
+                newID = request.placeholderForCreatedAsset?.localIdentifier
+            }
+            return newID
+        } catch {
+            return nil
+        }
+    }
+
+    /// Supprime des assets (confirmation système requise pour la photothèque de l'utilisateur).
+    static func deleteAssets(_ localIdentifiers: [String]) async -> Bool {
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: localIdentifiers, options: nil)
+        guard assets.count > 0 else { return false }
+        do {
+            try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.deleteAssets(assets) }
+            return true
+        } catch {
+            return false
+        }
+    }
+
     static func avAsset(for asset: PHAsset) async -> AVAsset? {
         await withCheckedContinuation { continuation in
             let options = PHVideoRequestOptions()
@@ -805,9 +910,13 @@ private struct ActivityPhotosSection: View {
     let end: Date
     @Binding var assets: [PHAsset]
     @Binding var showOnMap: Bool
+    let reloadToken: Int
     let isShownOnMap: (String) -> Bool
+    let isAppCreated: (String) -> Bool
     let onToggleMap: (String) -> Void
     let onSelect: (PHAsset) -> Void
+    let onEdit: (PHAsset) -> Void
+    let onDelete: (PHAsset) -> Void
 
     @State private var status: PHAuthorizationStatus = .notDetermined
     @State private var isLoading = true
@@ -830,6 +939,7 @@ private struct ActivityPhotosSection: View {
             content
         }
         .task(id: activityId) { await load() }
+        .onChange(of: reloadToken) { _, _ in Task { await load() } }
     }
 
     @ViewBuilder
@@ -855,8 +965,11 @@ private struct ActivityPhotosSection: View {
                         asset: asset,
                         shownOnMap: isShownOnMap(asset.localIdentifier),
                         mapToggleEnabled: showOnMap,
+                        isAppCreated: isAppCreated(asset.localIdentifier),
                         onToggleMap: { onToggleMap(asset.localIdentifier) },
-                        onSelect: { onSelect(asset) }
+                        onSelect: { onSelect(asset) },
+                        onEdit: { onEdit(asset) },
+                        onDelete: { onDelete(asset) }
                     )
                 }
             }
@@ -888,9 +1001,15 @@ private struct PhotoThumbnail: View {
     let asset: PHAsset
     let shownOnMap: Bool
     let mapToggleEnabled: Bool
+    let isAppCreated: Bool
     let onToggleMap: () -> Void
     let onSelect: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
     @State private var image: NSImage?
+    @State private var hovering = false
+
+    private var canEdit: Bool { asset.mediaType == .image }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -933,6 +1052,25 @@ private struct PhotoThumbnail: View {
             .opacity(mapToggleEnabled ? 1 : 0.45)
             .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
         }
+        .overlay(alignment: .topLeading) {
+            if canEdit && hovering {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 16))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, Color.accentColor)
+                        .background(Circle().fill(.black.opacity(0.25)))
+                }
+                .buttonStyle(.plain)
+                .padding(3)
+                .help("Modifier…")
+            }
+        }
+        .onHover { hovering = $0 }
+        .contextMenu {
+            if canEdit { Button("Modifier…") { onEdit() } }
+            if isAppCreated { Button("Supprimer", role: .destructive) { onDelete() } }
+        }
         .task(id: asset.localIdentifier) {
             image = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 200, height: 200))
         }
@@ -941,6 +1079,219 @@ private struct PhotoThumbnail: View {
     private static func durationText(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+// MARK: - Édition de média (recadrage)
+
+enum CropRatio: String, CaseIterable, Identifiable {
+    case r16x9, r1x1, r9x16, original, free
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .r16x9: return "16:9"
+        case .r1x1: return "1:1"
+        case .r9x16: return "9:16"
+        case .original: return "Original"
+        case .free: return "Libre"
+        }
+    }
+    /// Aspect cible en pixels (largeur/hauteur). nil = libre.
+    func pixelAspect(imageAspect: CGFloat) -> CGFloat? {
+        switch self {
+        case .r16x9: return 16.0 / 9.0
+        case .r1x1: return 1
+        case .r9x16: return 9.0 / 16.0
+        case .original: return imageAspect
+        case .free: return nil
+        }
+    }
+}
+
+private struct EditingMedia: Identifiable {
+    let id: String
+    let asset: PHAsset
+}
+
+/// Recadrage d'une photo selon un ratio, puis enregistrement d'une nouvelle photo dans la photothèque.
+private struct PhotoCropEditor: View {
+    let asset: PHAsset
+    let onCancel: () -> Void
+    let onSave: (Data) -> Void
+
+    @State private var image: NSImage?
+    @State private var ratio: CropRatio = .r16x9
+    @State private var crop = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.5) // normalisé, origine haut-gauche
+
+    private var imageAspect: CGFloat {
+        guard let s = image?.size, s.height > 0 else { return 1 }
+        return s.width / s.height
+    }
+    /// Aspect normalisé (nw/nh) correspondant au ratio pixel cible.
+    private var normalizedAspect: CGFloat? {
+        guard let r = ratio.pixelAspect(imageAspect: imageAspect) else { return nil }
+        return r / imageAspect
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recadrer la photo").font(.title3.bold())
+            Picker("Format", selection: $ratio) {
+                ForEach(CropRatio.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .onChange(of: ratio) { _, _ in resetCrop() }
+
+            GeometryReader { geo in
+                if let image {
+                    let iv = Self.fit(image.size, in: geo.size)
+                    ZStack(alignment: .topLeading) {
+                        Image(nsImage: image).resizable()
+                            .frame(width: iv.width, height: iv.height)
+                            .position(x: iv.midX, y: iv.midY)
+                        CropDim(crop: crop, imageRect: iv)
+                            .fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
+                        CropRectView(crop: $crop, imageRect: iv, normalizedAspect: normalizedAspect)
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .coordinateSpace(name: "crop")
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(height: 380)
+
+            HStack {
+                Spacer()
+                Button("Annuler") { onCancel() }
+                Button("Enregistrer") { if let data = makeJPEG() { onSave(data) } }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(image == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 660)
+        .task {
+            image = await PhotoLibraryService.editingImage(for: asset)
+            resetCrop()
+        }
+    }
+
+    private func resetCrop() {
+        let an = normalizedAspect ?? imageAspect / imageAspect // libre → 1 (carré normalisé de base)
+        var w: CGFloat = 1, h: CGFloat = 1
+        if an >= 1 { w = 1; h = 1 / an } else { h = 1; w = an }
+        if ratio == .free { w = 0.9; h = 0.9 }
+        crop = CGRect(x: (1 - w) / 2, y: (1 - h) / 2, width: w, height: h)
+    }
+
+    private func makeJPEG() -> Data? {
+        guard let image, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let W = CGFloat(cg.width), H = CGFloat(cg.height)
+        let px = CGRect(x: crop.minX * W, y: crop.minY * H, width: crop.width * W, height: crop.height * H).integral
+        guard let cropped = cg.cropping(to: px) else { return nil }
+        return NSBitmapImageRep(cgImage: cropped).representation(using: .jpeg, properties: [.compressionFactor: 0.92])
+    }
+
+    static func fit(_ size: CGSize, in container: CGSize) -> CGRect {
+        guard size.width > 0, size.height > 0 else { return CGRect(origin: .zero, size: container) }
+        let s = min(container.width / size.width, container.height / size.height)
+        let w = size.width * s, h = size.height * s
+        return CGRect(x: (container.width - w) / 2, y: (container.height - h) / 2, width: w, height: h)
+    }
+}
+
+private struct CropDim: Shape {
+    let crop: CGRect
+    let imageRect: CGRect
+    func path(in rect: CGRect) -> Path {
+        var p = Path(imageRect)
+        p.addRect(CGRect(x: imageRect.minX + crop.minX * imageRect.width,
+                         y: imageRect.minY + crop.minY * imageRect.height,
+                         width: crop.width * imageRect.width,
+                         height: crop.height * imageRect.height))
+        return p
+    }
+}
+
+private struct CropRectView: View {
+    @Binding var crop: CGRect
+    let imageRect: CGRect
+    let normalizedAspect: CGFloat?
+    @State private var dragStart: CGRect?
+
+    private func viewRect() -> CGRect {
+        CGRect(x: imageRect.minX + crop.minX * imageRect.width,
+               y: imageRect.minY + crop.minY * imageRect.height,
+               width: crop.width * imageRect.width, height: crop.height * imageRect.height)
+    }
+
+    var body: some View {
+        let r = viewRect()
+        ZStack(alignment: .topLeading) {
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .frame(width: r.width, height: r.height)
+                .overlay(Rectangle().strokeBorder(.white, lineWidth: 2))
+                .position(x: r.midX, y: r.midY)
+                .gesture(moveGesture)
+            handle(at: CGPoint(x: r.minX, y: r.minY), corner: .topLeft)
+            handle(at: CGPoint(x: r.maxX, y: r.maxY), corner: .bottomRight)
+        }
+    }
+
+    private enum Corner { case topLeft, bottomRight }
+
+    private func handle(at p: CGPoint, corner: Corner) -> some View {
+        Circle().fill(.white).frame(width: 16, height: 16)
+            .overlay(Circle().strokeBorder(.gray, lineWidth: 1))
+            .position(x: p.x, y: p.y)
+            .highPriorityGesture(
+                DragGesture(coordinateSpace: .named("crop"))
+                    .onChanged { v in resize(corner: corner, to: v.location) }
+            )
+    }
+
+    private var moveGesture: some Gesture {
+        DragGesture(coordinateSpace: .named("crop"))
+            .onChanged { v in
+                let s = dragStart ?? crop; if dragStart == nil { dragStart = s }
+                let dx = Double(v.translation.width) / Double(imageRect.width)
+                let dy = Double(v.translation.height) / Double(imageRect.height)
+                crop.origin = CGPoint(x: min(max(0, s.minX + dx), 1 - crop.width),
+                                      y: min(max(0, s.minY + dy), 1 - crop.height))
+            }
+            .onEnded { _ in dragStart = nil }
+    }
+
+    private func resize(corner: Corner, to location: CGPoint) {
+        let nx = Double((location.x - imageRect.minX) / imageRect.width)
+        let ny = Double((location.y - imageRect.minY) / imageRect.height)
+        let cx = min(max(0, nx), 1), cy = min(max(0, ny), 1)
+        switch corner {
+        case .bottomRight:
+            let anchorX = crop.minX, anchorY = crop.minY
+            var w = max(0.05, cx - anchorX), h = max(0.05, cy - anchorY)
+            if let an = normalizedAspect {
+                h = w / an
+                if anchorY + h > 1 { h = 1 - anchorY; w = h * an }
+                if anchorX + w > 1 { w = 1 - anchorX; h = w / an }
+            } else {
+                w = min(w, 1 - anchorX); h = min(h, 1 - anchorY)
+            }
+            crop = CGRect(x: anchorX, y: anchorY, width: w, height: h)
+        case .topLeft:
+            let anchorX = crop.maxX, anchorY = crop.maxY
+            var w = max(0.05, anchorX - cx), h = max(0.05, anchorY - cy)
+            if let an = normalizedAspect {
+                h = w / an
+                if anchorY - h < 0 { h = anchorY; w = h * an }
+                if anchorX - w < 0 { w = anchorX; h = w / an }
+            } else {
+                w = min(w, anchorX); h = min(h, anchorY)
+            }
+            crop = CGRect(x: anchorX - w, y: anchorY - h, width: w, height: h)
+        }
     }
 }
 
