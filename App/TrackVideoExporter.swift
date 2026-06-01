@@ -377,7 +377,7 @@ enum TrackVideoExporter {
         // Carton d'intro (titre + date) — optionnel.
         if config.showIntro {
             let intro = drawCard(background: background, title: config.title, subtitle: config.dateText, lines: [], width: width, height: height, scale: scale)
-            for _ in 0..<Int(introSeconds * Double(fps)) { append(intro) }
+            for _ in 0..<Int(introSeconds * Double(fps)) { autoreleasepool { append(intro) } }
         }
         progress(0.05)
 
@@ -391,10 +391,12 @@ enum TrackVideoExporter {
             case .photo(let image, _, _):
                 let total = Int(photoSeconds * Double(fps))
                 for i in 0..<total {
-                    let p: CGFloat = i < anim ? CGFloat(i) / CGFloat(anim)
-                        : (i >= total - anim ? CGFloat(total - i) / CGFloat(anim) : 1)
-                    let app = appearance(config.transition, progress: p, mediaRect: mediaRect)
-                    append(renderFrame(background: background, point: point, hud: info, encart: image, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, appearance: app))
+                    autoreleasepool {
+                        let p: CGFloat = i < anim ? CGFloat(i) / CGFloat(anim)
+                            : (i >= total - anim ? CGFloat(total - i) / CGFloat(anim) : 1)
+                        let app = appearance(config.transition, progress: p, mediaRect: mediaRect)
+                        append(renderFrame(background: background, point: point, hud: info, encart: image, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, appearance: app))
+                    }
                 }
             case .video(let asset, _, _):
                 let start = Double(frameIndex) / Double(fps)
@@ -408,7 +410,9 @@ enum TrackVideoExporter {
         for f in 0...trackFrames {
             let target = (Double(f) / Double(trackFrames)) * total
             while mediaPtr < ordered.count, ordered[mediaPtr].dist <= target { await emitMedia(ordered[mediaPtr]); mediaPtr += 1 }
-            append(renderFrame(background: background, point: position(atMeters: target), hud: hud(at: target), encart: nil, width: width, height: height, scale: scale, profile: profileOverlay(atMeters: target), hudBottom: hudBottom, mediaRect: nil))
+            autoreleasepool {
+                append(renderFrame(background: background, point: position(atMeters: target), hud: hud(at: target), encart: nil, width: width, height: height, scale: scale, profile: profileOverlay(atMeters: target), hudBottom: hudBottom, mediaRect: nil))
+            }
             if f % 15 == 0 { progress(0.08 + 0.6 * Double(f) / Double(trackFrames)) }
         }
         while mediaPtr < ordered.count { await emitMedia(ordered[mediaPtr]); mediaPtr += 1 }
@@ -416,7 +420,7 @@ enum TrackVideoExporter {
         // Carton de fin (titre + résumé des métriques) — optionnel.
         if config.showOutro {
             let outro = drawCard(background: background, title: config.title, subtitle: nil, lines: config.summary, width: width, height: height, scale: scale)
-            for _ in 0..<Int(outroSeconds * Double(fps)) { append(outro) }
+            for _ in 0..<Int(outroSeconds * Double(fps)) { autoreleasepool { append(outro) } }
         }
 
         input.markAsFinished()
@@ -453,23 +457,29 @@ enum TrackVideoExporter {
 
         // Lecture du clip en entier (rééchantillonné à 30 fps), avec animation d'entrée sur le début.
         while true {
-            guard let sample = output.copyNextSampleBuffer(), let buffer = CMSampleBufferGetImageBuffer(sample) else { break }
-            let presentation = CMSampleBufferGetPresentationTimeStamp(sample)
-            let ci = CIImage(cvPixelBuffer: buffer).transformed(by: transform)
-            lastImage = ciContext.createCGImage(ci, from: ci.extent)
-            while CMTimeCompare(presentation, nextEmitTime) >= 0 {
-                if let image = lastImage {
-                    let p: CGFloat = emitted < animFrames ? CGFloat(emitted) / CGFloat(animFrames) : 1
-                    frame(image, appearance(transition, progress: p, mediaRect: rect))
-                    emitted += 1
+            let more = autoreleasepool { () -> Bool in
+                guard let sample = output.copyNextSampleBuffer(), let buffer = CMSampleBufferGetImageBuffer(sample) else { return false }
+                let presentation = CMSampleBufferGetPresentationTimeStamp(sample)
+                let ci = CIImage(cvPixelBuffer: buffer).transformed(by: transform)
+                lastImage = ciContext.createCGImage(ci, from: ci.extent)
+                while CMTimeCompare(presentation, nextEmitTime) >= 0 {
+                    if let image = lastImage {
+                        let p: CGFloat = emitted < animFrames ? CGFloat(emitted) / CGFloat(animFrames) : 1
+                        frame(image, appearance(transition, progress: p, mediaRect: rect))
+                        emitted += 1
+                    }
+                    nextEmitTime = CMTimeAdd(nextEmitTime, frameStep)
                 }
-                nextEmitTime = CMTimeAdd(nextEmitTime, frameStep)
+                return true
             }
+            if !more { break }
         }
         if emitted == 0, let image = lastImage {
             for i in 0..<Int(Double(fps)) {
-                let p: CGFloat = i < animFrames ? CGFloat(i) / CGFloat(animFrames) : 1
-                frame(image, appearance(transition, progress: p, mediaRect: rect)); emitted += 1
+                autoreleasepool {
+                    let p: CGFloat = i < animFrames ? CGFloat(i) / CGFloat(animFrames) : 1
+                    frame(image, appearance(transition, progress: p, mediaRect: rect)); emitted += 1
+                }
             }
         }
         reader.cancelReading()
@@ -477,8 +487,10 @@ enum TrackVideoExporter {
         let played = emitted
         if let image = lastImage, transition != .none {
             for k in 0..<animFrames {
-                let p = CGFloat(animFrames - k) / CGFloat(animFrames)
-                frame(image, appearance(transition, progress: p, mediaRect: rect))
+                autoreleasepool {
+                    let p = CGFloat(animFrames - k) / CGFloat(animFrames)
+                    frame(image, appearance(transition, progress: p, mediaRect: rect))
+                }
             }
         }
         return played

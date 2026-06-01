@@ -131,10 +131,12 @@ enum RaidVideoExporter {
         let frames = Int(seconds * Double(fps))
         var idx: Int64 = 0
         for _ in 0..<frames {
-            while !input.isReadyForMoreMediaData { usleep(2000) }
-            if let buffer = pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
-                adaptor.append(buffer, withPresentationTime: CMTime(value: idx, timescale: fps))
-                idx += 1
+            autoreleasepool {
+                while !input.isReadyForMoreMediaData { usleep(2000) }
+                if let buffer = pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
+                    adaptor.append(buffer, withPresentationTime: CMTime(value: idx, timescale: fps))
+                    idx += 1
+                }
             }
         }
         input.markAsFinished()
