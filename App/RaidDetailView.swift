@@ -40,6 +40,12 @@ struct RaidDetailView: View {
     @State private var editingLayout = VideoLayout.defaultLayout(for: .landscape)
     @State private var editingTracePoints: [CGPoint] = []
 
+    @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
+    @State private var editingTemplateID: String?
+    @State private var showTemplateNameAlert = false
+    @State private var templateNameInput = ""
+    @State private var savingNewTemplate = false
+
     private var filmFormat: VideoFormat { VideoFormat(rawValue: raidVideoFormatRaw) ?? .landscape }
 
     private func layoutFor(_ id: UUID) -> VideoLayout {
@@ -382,6 +388,14 @@ struct RaidDetailView: View {
     private var layoutEditorSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Disposition de l'étape").font(.headline)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("MODÈLE").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                layoutTemplateBar
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.secondary.opacity(0.15)))
+
             Toggle("Afficher le profil altimétrique", isOn: Binding(
                 get: { editingLayout.profile != nil },
                 set: { on in
@@ -402,6 +416,62 @@ struct RaidDetailView: View {
         }
         .padding(20)
         .frame(width: 560)
+        .alert(savingNewTemplate ? "Nouveau modèle" : "Renommer le modèle", isPresented: $showTemplateNameAlert) {
+            TextField("Nom du modèle", text: $templateNameInput)
+            Button(savingNewTemplate ? "Enregistrer" : "Renommer") {
+                let name = templateNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                if savingNewTemplate { saveLayoutAsNewTemplate(name: name) } else { renameSelectedTemplate(name) }
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+    }
+
+    private var layoutTemplateBar: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Section("Prédéfinis") {
+                    ForEach(VideoTemplate.builtins) { t in
+                        Button { applyTemplateToEditor(t) } label: {
+                            Label(t.name, systemImage: t.id == editingTemplateID ? "checkmark" : "")
+                        }
+                    }
+                }
+                if !userTemplates.isEmpty {
+                    Section("Mes modèles") {
+                        ForEach(userTemplates) { t in
+                            Button { applyTemplateToEditor(t) } label: {
+                                Label(t.name, systemImage: t.id == editingTemplateID ? "checkmark" : "")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "rectangle.on.rectangle.angled")
+                    Text(selectedEditorTemplate?.name ?? "Modèle")
+                    if !editorMatchesTemplate { Text("• modifié").font(.caption2).foregroundStyle(.secondary) }
+                }
+            }
+            .fixedSize()
+
+            Spacer()
+
+            Button("Enregistrer sous…") {
+                savingNewTemplate = true
+                templateNameInput = (selectedEditorTemplate?.name).map { "\($0) copie" } ?? "Ma disposition"
+                showTemplateNameAlert = true
+            }
+            if let t = selectedEditorTemplate, !t.builtin {
+                Button("Mettre à jour") { updateSelectedTemplate() }
+                    .disabled(editorMatchesTemplate)
+                Menu {
+                    Button("Renommer…") { savingNewTemplate = false; templateNameInput = t.name; showTemplateNameAlert = true }
+                    Button("Supprimer", role: .destructive) { deleteSelectedTemplate() }
+                } label: { Image(systemName: "ellipsis.circle") }
+                .fixedSize()
+            }
+        }
     }
 
     // MARK: Informations / notes
@@ -614,6 +684,7 @@ struct RaidDetailView: View {
     private func editLayout(for member: ActivitySummary) {
         editingLayout = layoutFor(member.id)
         editingTracePoints = []
+        editingTemplateID = allTemplates.first(where: { $0.layout == editingLayout })?.id
         editingLayoutStageId = member.id
         Task { editingTracePoints = await tracePreviewPoints(for: member.id) }
     }
@@ -624,6 +695,55 @@ struct RaidDetailView: View {
         let data = try? JSONEncoder().encode(editingLayout)
         Task { try? await repository.updateVideoLayoutData(id: id, data: data) }
         editingLayoutStageId = nil
+    }
+
+    // MARK: Modèles de disposition (partagés avec le film d'activité)
+
+    private var userTemplates: [VideoTemplate] {
+        guard let d = userTemplatesJSON.data(using: .utf8),
+              let arr = try? JSONDecoder().decode([VideoTemplate].self, from: d) else { return [] }
+        return arr
+    }
+    private func setUserTemplates(_ arr: [VideoTemplate]) {
+        if let d = try? JSONEncoder().encode(arr), let s = String(data: d, encoding: .utf8) { userTemplatesJSON = s }
+    }
+    private var allTemplates: [VideoTemplate] { VideoTemplate.builtins + userTemplates }
+    private var selectedEditorTemplate: VideoTemplate? { allTemplates.first { $0.id == editingTemplateID } }
+    private var editorMatchesTemplate: Bool {
+        guard let t = selectedEditorTemplate else { return false }
+        return t.layout == editingLayout
+    }
+    private func applyTemplateToEditor(_ t: VideoTemplate) {
+        editingLayout = t.layout
+        editingTemplateID = t.id
+    }
+    private func templateFromEditor(id: String, name: String) -> VideoTemplate {
+        VideoTemplate(id: id, name: name,
+                      quality: VideoQuality(rawValue: raidVideoQualityRaw) ?? .hd720,
+                      format: filmFormat, layout: editingLayout, builtin: false,
+                      transition: MediaTransition(rawValue: raidVideoTransitionRaw) ?? .fade,
+                      showHeartRate: raidVideoHeartRateOn, showIntro: true, showOutro: true,
+                      mapLayerRaw: raidVideoMapLayerRaw)
+    }
+    private func saveLayoutAsNewTemplate(name: String) {
+        let t = templateFromEditor(id: "user.\(UUID().uuidString)", name: name)
+        setUserTemplates(userTemplates + [t])
+        editingTemplateID = t.id
+    }
+    private func updateSelectedTemplate() {
+        guard let id = editingTemplateID, var t = userTemplates.first(where: { $0.id == id }), !t.builtin else { return }
+        t.layout = editingLayout
+        setUserTemplates(userTemplates.map { $0.id == t.id ? t : $0 })
+    }
+    private func renameSelectedTemplate(_ name: String) {
+        guard var t = selectedEditorTemplate, !t.builtin else { return }
+        t.name = name
+        setUserTemplates(userTemplates.map { $0.id == t.id ? t : $0 })
+    }
+    private func deleteSelectedTemplate() {
+        guard let t = selectedEditorTemplate, !t.builtin else { return }
+        setUserTemplates(userTemplates.filter { $0.id != t.id })
+        editingTemplateID = nil
     }
 
     private func tracePreviewPoints(for id: UUID) async -> [CGPoint] {
