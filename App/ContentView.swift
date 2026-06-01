@@ -68,9 +68,20 @@ struct ContentView: View {
         .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()
+            syncActiveSmartFilter()
         }
         .onChange(of: navigation.sidebarSelection) { _, _ in
             navigation.listSelection = []
+            syncActiveSmartFilter()
+        }
+        .sheet(item: editingSmartFilterBinding) { filter in
+            SmartFilterEditor(filter: filter, listVM: listVM, onSave: { updated in
+                Task {
+                    await listVM.saveSmartFilter(updated)
+                    navigation.editingSmartFilter = nil
+                    navigation.sidebarSelection = .smartFilter(updated.id)
+                }
+            }, onCancel: { navigation.editingSmartFilter = nil })
         }
         .onChange(of: services.importedCount) { _, _ in
             Task { await listVM.reload() }
@@ -146,6 +157,19 @@ struct ContentView: View {
                 description: Text("Choisissez une activité dans la liste.")
             )
         }
+    }
+
+    private func syncActiveSmartFilter() {
+        listVM.activeSmartFilter = navigation.selectedSmartFilterId.flatMap { id in
+            listVM.smartFilters.first { $0.id == id }
+        }
+    }
+
+    private var editingSmartFilterBinding: Binding<SmartFilter?> {
+        Binding(
+            get: { navigation.editingSmartFilter },
+            set: { navigation.editingSmartFilter = $0 }
+        )
     }
 
     private var hasPendingImportsBinding: Binding<Bool> {

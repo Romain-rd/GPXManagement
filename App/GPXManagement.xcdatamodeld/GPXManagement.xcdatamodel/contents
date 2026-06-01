@@ -46,6 +46,14 @@
         <attribute name="subtitle" optional="YES" attributeType="String"/>
         <attribute name="updatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
     </entity>
+    <entity name="SmartFilter" representedClassName="NSManagedObject" syncable="YES" codeGenerationType="none">
+        <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="matchAll" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="name" attributeType="String" defaultValueString=""/>
+        <attribute name="rulesData" optional="YES" attributeType="Binary"/>
+        <attribute name="updatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+    </entity>
     <entity name="StravaAccount" representedClassName="StravaAccount" syncable="YES" codeGenerationType="class">
         <attribute name="athleteId" attributeType="String" defaultValueString=""/>
         <attribute name="lastFullSyncDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>

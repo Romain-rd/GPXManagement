@@ -37,6 +37,28 @@ struct SidebarView: View {
                     }
                 }
             }
+
+            Section("Filtres intelligents") {
+                ForEach(listVM.smartFilters) { filter in
+                    Label(filter.name, systemImage: "folder.badge.gearshape")
+                        .badge(listVM.count(for: filter))
+                        .tag(SidebarDestination.smartFilter(filter.id))
+                        .contextMenu {
+                            Button("Modifier…") { navigation.editingSmartFilter = filter }
+                            Button("Supprimer", role: .destructive) {
+                                Task { await listVM.deleteSmartFilter(filter.id) }
+                                if navigation.selectedSmartFilterId == filter.id { navigation.sidebarSelection = .allActivities }
+                            }
+                        }
+                }
+                Button {
+                    navigation.editingSmartFilter = SmartFilter(name: "Nouveau filtre", rules: [SmartFilterRule()])
+                } label: {
+                    Label("Nouveau filtre intelligent…", systemImage: "plus")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .navigationTitle("Bibliothèque")
         .listStyle(.sidebar)

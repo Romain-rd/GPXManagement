@@ -6,6 +6,8 @@ import GPXCore
 final class ActivityListViewModel {
     var allActivities: [ActivitySummary] = []
     var raids: [Raid] = []
+    var smartFilters: [SmartFilter] = []
+    var activeSmartFilter: SmartFilter?
     var filters: ActivityFilters = .init()
     var sortOrder: ActivitySortOrder = .dateDescending
     var searchText: String = ""
@@ -21,6 +23,7 @@ final class ActivityListViewModel {
 
     var visibleActivities: [ActivitySummary] {
         let filtered = allActivities.filter { activity in
+            if let smart = activeSmartFilter, !smart.matches(activity) { return false }
             if !filters.matches(activity) { return false }
             if !searchText.isEmpty {
                 let needle = Self.foldedLowercased(searchText)
@@ -83,6 +86,7 @@ final class ActivityListViewModel {
         do {
             allActivities = try await repository.fetchAllSummaries()
             raids = try await repository.fetchRaids()
+            smartFilters = try await repository.fetchSmartFilters()
         } catch {
             self.error = "Échec du chargement : \(error.localizedDescription)"
         }
@@ -130,6 +134,36 @@ final class ActivityListViewModel {
             for raidId in affected { await refreshRaidDates(raidId) }
         } catch {
             self.error = "Échec du retrait du raid : \(error.localizedDescription)"
+        }
+    }
+
+    func count(for filter: SmartFilter) -> Int {
+        allActivities.filter { filter.matches($0) }.count
+    }
+
+    func saveSmartFilter(_ filter: SmartFilter) async {
+        var updated = filter
+        updated.updatedAt = Date()
+        do {
+            if smartFilters.contains(where: { $0.id == updated.id }) {
+                try await repository.updateSmartFilter(updated)
+                if let idx = smartFilters.firstIndex(where: { $0.id == updated.id }) { smartFilters[idx] = updated }
+            } else {
+                try await repository.createSmartFilter(updated)
+                smartFilters.append(updated)
+            }
+            if activeSmartFilter?.id == updated.id { activeSmartFilter = updated }
+        } catch {
+            self.error = "Échec de l'enregistrement du filtre : \(error.localizedDescription)"
+        }
+    }
+
+    func deleteSmartFilter(_ id: UUID) async {
+        do {
+            try await repository.deleteSmartFilter(id: id)
+            smartFilters.removeAll { $0.id == id }
+        } catch {
+            self.error = "Échec de la suppression du filtre : \(error.localizedDescription)"
         }
     }
 

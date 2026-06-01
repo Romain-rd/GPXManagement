@@ -352,6 +352,78 @@ extension CoreDataActivityRepository {
     }
 }
 
+extension CoreDataActivityRepository {
+    func fetchSmartFilters() async throws -> [SmartFilter] {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")
+            fetch.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+            return try context.fetch(fetch).compactMap(SmartFilterMapper.map)
+        }
+    }
+
+    func createSmartFilter(_ filter: SmartFilter) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: "SmartFilter", into: context)
+            SmartFilterMapper.apply(filter, to: object)
+            try context.save()
+        }
+    }
+
+    func updateSmartFilter(_ filter: SmartFilter) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")
+            fetch.predicate = NSPredicate(format: "id == %@", filter.id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let object = try context.fetch(fetch).first else { return }
+            SmartFilterMapper.apply(filter, to: object)
+            try context.save()
+        }
+    }
+
+    func deleteSmartFilter(id: UUID) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let object = try context.fetch(fetch).first { context.delete(object) }
+            if context.hasChanges { try context.save() }
+        }
+    }
+}
+
+enum SmartFilterMapper {
+    static func map(_ object: NSManagedObject) -> SmartFilter? {
+        guard let id = object.value(forKey: "id") as? UUID,
+              let name = object.value(forKey: "name") as? String else { return nil }
+        var rules: [SmartFilterRule] = []
+        if let data = object.value(forKey: "rulesData") as? Data,
+           let decoded = try? JSONDecoder().decode([SmartFilterRule].self, from: data) {
+            rules = decoded
+        }
+        return SmartFilter(
+            id: id,
+            name: name,
+            matchAll: (object.value(forKey: "matchAll") as? Bool) ?? true,
+            rules: rules,
+            createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
+            updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
+        )
+    }
+
+    static func apply(_ filter: SmartFilter, to object: NSManagedObject) {
+        object.setValue(filter.id, forKey: "id")
+        object.setValue(filter.name, forKey: "name")
+        object.setValue(filter.matchAll, forKey: "matchAll")
+        object.setValue(try? JSONEncoder().encode(filter.rules), forKey: "rulesData")
+        object.setValue(filter.createdAt, forKey: "createdAt")
+        object.setValue(filter.updatedAt, forKey: "updatedAt")
+    }
+}
+
 enum RaidMapper {
     static func map(_ object: NSManagedObject) -> Raid? {
         guard let id = object.value(forKey: "id") as? UUID,
