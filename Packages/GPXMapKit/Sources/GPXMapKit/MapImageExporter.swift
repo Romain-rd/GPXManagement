@@ -29,16 +29,30 @@ public enum MapImageExporter {
     ) async throws -> Data {
         guard mapRect.size.width > 0, mapRect.size.height > 0 else { throw MapImageExportError.emptyRegion }
 
-        if layer.isIGN {
-            return try await renderIGN(layer: layer, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress)
+        if let template = layer.tileURLTemplate {
+            return try await renderTiledMap(maxZoom: layer.maxZoom, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
+                templateURL(template, z: z, x: x, y: y)
+            }
+        } else if layer.isIGN {
+            return try await renderTiledMap(maxZoom: layer.maxZoom, attribution: layer.attribution, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress) { z, x, y in
+                IGNTileOverlay.buildURL(layerIdentifier: layer.wmtsLayerIdentifier!, format: layer.wmtsFormat,
+                                        tileMatrixSet: layer.wmtsTileMatrixSet, apiKey: layer.discoveryAPIKey, z: z, x: x, y: y)
+            }
         } else {
             return try await renderApple(layer: layer, mapRect: mapRect, tracks: tracks, maxDimension: maxDimension, trackColor: trackColor, onProgress: onProgress)
         }
     }
 
-    // MARK: - IGN (composition de tuiles WMTS)
+    private static func templateURL(_ template: String, z: Int, x: Int, y: Int) -> URL? {
+        URL(string: template
+            .replacingOccurrences(of: "{z}", with: "\(z)")
+            .replacingOccurrences(of: "{x}", with: "\(x)")
+            .replacingOccurrences(of: "{y}", with: "\(y)"))
+    }
 
-    private static func renderIGN(layer: MapLayer, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?) async throws -> Data {
+    // MARK: - Composition de tuiles XYZ/WMTS
+
+    private static func renderTiledMap(maxZoom: Int, attribution: String?, mapRect: MKMapRect, tracks: [TrackOverlayInput], maxDimension: Int?, trackColor: NSColor?, onProgress: (@Sendable (Progress) -> Void)?, urlFor: @Sendable @escaping (Int, Int, Int) -> URL?) async throws -> Data {
         let topLeft = MKMapPoint(x: mapRect.minX, y: mapRect.minY).coordinate
         let bottomRight = MKMapPoint(x: mapRect.maxX, y: mapRect.maxY).coordinate
         let topLat = topLeft.latitude, leftLon = topLeft.longitude
@@ -52,7 +66,7 @@ public enum MapImageExporter {
 
         // Définition maximale : on part du zoom le plus détaillé de la couche et on
         // ne redescend que si le nombre de tuiles dépasse le budget.
-        var z = layer.maxZoom
+        var z = maxZoom
         while z > 3 {
             let r = tileRange(z)
             let count = (r.xMax - r.xMin + 1) * (r.yMax - r.yMin + 1)
@@ -92,16 +106,10 @@ public enum MapImageExporter {
 
         let images: [(TilePos, CGImage?)] = await withTaskGroup(of: (TilePos, CGImage?).self) { group in
             for pos in positions {
-                let url = IGNTileOverlay.buildURL(
-                    layerIdentifier: layer.wmtsLayerIdentifier!,
-                    format: layer.wmtsFormat,
-                    tileMatrixSet: layer.wmtsTileMatrixSet,
-                    apiKey: layer.discoveryAPIKey,
-                    z: z, x: pos.x, y: pos.y
-                )
+                let url = urlFor(z, pos.x, pos.y)
                 group.addTask {
-                    let img = await fetchImage(url: url)
-                    return (pos, img)
+                    guard let url else { return (pos, nil) }
+                    return (pos, await fetchImage(url: url))
                 }
             }
             var out: [(TilePos, CGImage?)] = []
@@ -126,10 +134,30 @@ public enum MapImageExporter {
 
         // Dessiner les traces
         drawTracks(tracks, in: ctx, heightPx: heightPx, originX: r.originX, originY: r.originY, z: z, lineWidth: lineWidth, override: trackColor)
+        drawAttribution(attribution, in: ctx, width: widthPx, height: heightPx)
 
         onProgress?(Progress(fraction: 0.98, label: "Encodage du PNG…"))
         guard let cgImage = ctx.makeImage() else { throw MapImageExportError.contextFailure }
         return try png(from: downscale(cgImage, scale: outputScale))
+    }
+
+    private static func drawAttribution(_ text: String?, in ctx: CGContext, width: Int, height: Int) {
+        guard let text, !text.isEmpty else { return }
+        let fontSize = max(11.0, Double(height) / 55.0)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
+            .foregroundColor: NSColor.white
+        ]
+        let s = NSAttributedString(string: text, attributes: attrs)
+        let size = s.size()
+        let pad = fontSize * 0.5
+        let box = CGRect(x: Double(width) - size.width - pad * 2 - 4, y: 4, width: size.width + pad * 2, height: size.height + pad)
+        NSColor.black.withAlphaComponent(0.45).setFill()
+        NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4).fill()
+        s.draw(at: CGPoint(x: box.minX + pad, y: box.minY + pad / 2))
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private static func downscale(_ image: CGImage, scale: Double) -> CGImage {
@@ -166,6 +194,7 @@ public enum MapImageExporter {
         }
 
         drawTracksApple(tracks, in: ctx, snapshot: snapshot, height: size.height, override: trackColor)
+        drawAttribution(layer.attribution, in: ctx, width: Int(size.width), height: Int(size.height))
 
         guard let cgImage = ctx.makeImage() else { throw MapImageExportError.contextFailure }
         return try png(from: cgImage)

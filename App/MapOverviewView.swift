@@ -9,11 +9,15 @@ struct LayerPicker: View {
 
     var body: some View {
         Menu {
-            ForEach(MapLayer.allCases) { l in
-                Button {
-                    layer = l
-                } label: {
-                    Label(l.displayName, systemImage: l == layer ? "checkmark" : "")
+            ForEach(MapLayer.countryOrder, id: \.self) { country in
+                Section(country) {
+                    ForEach(MapLayer.allCases.filter { $0.country == country }) { l in
+                        Button {
+                            layer = l
+                        } label: {
+                            Label(l.displayName, systemImage: l == layer ? "checkmark" : "")
+                        }
+                    }
                 }
             }
         } label: {

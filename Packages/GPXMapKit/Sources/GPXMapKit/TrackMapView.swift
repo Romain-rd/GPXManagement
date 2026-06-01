@@ -105,9 +105,17 @@ public struct TrackMapView: NSViewRepresentable {
             mapView.preferredConfiguration = MKHybridMapConfiguration()
         default:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
-            let overlay = IGNTileOverlay(layer: layer)
             // canReplaceMapContent=true → la tuile sert de fond et masque les labels Apple ;
             // les polylines (ajoutées ensuite, même niveau) se dessinent par-dessus.
+            let overlay: MKTileOverlay
+            if let template = layer.tileURLTemplate {
+                let tile = MKTileOverlay(urlTemplate: template)
+                tile.canReplaceMapContent = true
+                tile.maximumZ = layer.maxZoom
+                overlay = tile
+            } else {
+                overlay = IGNTileOverlay(layer: layer)
+            }
             mapView.addOverlay(overlay, level: .aboveLabels)
         }
     }

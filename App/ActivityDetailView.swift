@@ -765,6 +765,16 @@ private struct ActivityMapCard: View {
                 ContentUnavailableView("Pas de tracé", systemImage: "map", description: Text("La trace ne contient pas de coordonnées."))
             } else {
                 TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, photos: photos, onSelectPhoto: onSelectPhoto)
+                    .overlay(alignment: .bottomLeading) {
+                        if let credit = layer.attribution {
+                            Text(credit)
+                                .font(.system(size: 9))
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(.black.opacity(0.45), in: Capsule())
+                                .foregroundStyle(.white)
+                                .padding(6)
+                        }
+                    }
             }
         }
         .task(id: activityId) { await load() }
