@@ -38,6 +38,7 @@ struct ActivityDetailView: View {
     @AppStorage("videoHeartRate") private var videoHeartRateOn = true
     @AppStorage("videoIntro") private var videoIntroOn = true
     @AppStorage("videoOutro") private var videoOutroOn = true
+    @AppStorage("videoMapLayer") private var videoMapLayerRaw = "ign_scan25"
     @State private var currentLayout = VideoLayout.defaultLayout(for: .landscape)
     @State private var tracePreview: [CGPoint] = []
     @State private var showTemplateNameAlert = false
@@ -347,6 +348,9 @@ struct ActivityDetailView: View {
     private var videoTransitionBinding: Binding<MediaTransition> {
         Binding(get: { MediaTransition(rawValue: videoTransitionRaw) ?? .fade }, set: { videoTransitionRaw = $0.rawValue })
     }
+    private var videoMapLayerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer(rawValue: videoMapLayerRaw) ?? .ignScan25 }, set: { videoMapLayerRaw = $0.rawValue })
+    }
     private var videoQualityBinding: Binding<VideoQuality> {
         Binding(get: { VideoQuality(rawValue: videoQualityRaw) ?? .hd720 }, set: { videoQualityRaw = $0.rawValue })
     }
@@ -384,13 +388,14 @@ struct ActivityDetailView: View {
         guard let t = selectedTemplate else { return false }
         return t.quality.rawValue == videoQualityRaw && t.format.rawValue == videoFormatRaw && t.layout == currentLayout
             && t.transition.rawValue == videoTransitionRaw && t.showHeartRate == videoHeartRateOn
-            && t.showIntro == videoIntroOn && t.showOutro == videoOutroOn
+            && t.showIntro == videoIntroOn && t.showOutro == videoOutroOn && t.mapLayerRaw == videoMapLayerRaw
     }
     private func currentTemplate(id: String, name: String, builtin: Bool) -> VideoTemplate {
         VideoTemplate(id: id, name: name, quality: VideoQuality(rawValue: videoQualityRaw) ?? .hd720,
                       format: videoFormat, layout: currentLayout, builtin: builtin,
                       transition: MediaTransition(rawValue: videoTransitionRaw) ?? .fade,
-                      showHeartRate: videoHeartRateOn, showIntro: videoIntroOn, showOutro: videoOutroOn)
+                      showHeartRate: videoHeartRateOn, showIntro: videoIntroOn, showOutro: videoOutroOn,
+                      mapLayerRaw: videoMapLayerRaw)
     }
     private func applyTemplate(_ t: VideoTemplate) {
         videoQualityRaw = t.quality.rawValue
@@ -400,6 +405,7 @@ struct ActivityDetailView: View {
         videoHeartRateOn = t.showHeartRate
         videoIntroOn = t.showIntro
         videoOutroOn = t.showOutro
+        videoMapLayerRaw = t.mapLayerRaw
         selectedTemplateID = t.id
     }
     private func saveAsNewTemplate(name: String) {
@@ -465,6 +471,11 @@ struct ActivityDetailView: View {
                     .disabled(currentLayout.profile == nil)
                 Toggle("Carton de début", isOn: $videoIntroOn)
                 Toggle("Carton de fin", isOn: $videoOutroOn)
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                Text("Fond de carte").font(.callout)
+                LayerPicker(layer: videoMapLayerBinding)
                 Spacer()
             }
             Text("Glissez les zones pour les déplacer, la poignée (coin) pour les redimensionner. Carton titre+date au début, résumé à la fin.")
@@ -575,6 +586,7 @@ struct ActivityDetailView: View {
             showHeartRate: videoHeartRateOn && layout.profile != nil,
             showIntro: videoIntroOn,
             showOutro: videoOutroOn,
+            mapLayer: MapLayer(rawValue: videoMapLayerRaw) ?? .ignScan25,
             title: activity.title,
             dateText: Self.formatDate(activity.startDate),
             summary: videoSummaryLines()

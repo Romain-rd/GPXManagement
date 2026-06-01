@@ -5,6 +5,7 @@ import MapKit
 import CoreLocation
 import CoreImage
 import GPXCore
+import GPXMapKit
 
 enum TrackVideoMedia {
     case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D)
@@ -110,11 +111,14 @@ struct VideoTemplate: Identifiable, Codable, Equatable {
     var showHeartRate: Bool
     var showIntro: Bool
     var showOutro: Bool
+    var mapLayerRaw: String
 
     init(id: String, name: String, quality: VideoQuality, format: VideoFormat, layout: VideoLayout, builtin: Bool,
-         transition: MediaTransition = .fade, showHeartRate: Bool = true, showIntro: Bool = true, showOutro: Bool = true) {
+         transition: MediaTransition = .fade, showHeartRate: Bool = true, showIntro: Bool = true, showOutro: Bool = true,
+         mapLayerRaw: String = "ign_scan25") {
         self.id = id; self.name = name; self.quality = quality; self.format = format; self.layout = layout; self.builtin = builtin
         self.transition = transition; self.showHeartRate = showHeartRate; self.showIntro = showIntro; self.showOutro = showOutro
+        self.mapLayerRaw = mapLayerRaw
     }
 
     init(from decoder: Decoder) throws {
@@ -129,6 +133,7 @@ struct VideoTemplate: Identifiable, Codable, Equatable {
         showHeartRate = (try? c.decode(Bool.self, forKey: .showHeartRate)) ?? true
         showIntro = (try? c.decode(Bool.self, forKey: .showIntro)) ?? true
         showOutro = (try? c.decode(Bool.self, forKey: .showOutro)) ?? true
+        mapLayerRaw = (try? c.decode(String.self, forKey: .mapLayerRaw)) ?? "ign_scan25"
     }
 
     static let builtins: [VideoTemplate] = [
@@ -164,6 +169,7 @@ struct VideoConfig {
     let showHeartRate: Bool
     let showIntro: Bool
     let showOutro: Bool
+    let mapLayer: MapLayer
     let title: String
     let dateText: String
     let summary: [(label: String, value: String)]
@@ -253,7 +259,14 @@ enum TrackVideoExporter {
         let bounding = boundingMapRect(coords)
         let aspect = W / H
         let mapRect = mapRectForZone(bounding: bounding, aspect: aspect, zone: layout.trace)
-        let snapshot = try await mapSnapshot(mapRect: mapRect, width: width, height: height)
+        // Fond de carte selon la couche choisie (IGN ou Apple), sans tracé : on dessine la trace nous-mêmes.
+        let mapImage: NSImage
+        if let png = try? await MapImageExporter.renderPNG(layer: config.mapLayer, mapRect: mapRect, tracks: [], maxDimension: Swift.max(width, height)),
+           let img = NSImage(data: png) {
+            mapImage = img
+        } else {
+            throw TrackVideoError.snapshotFailed
+        }
         let project: (CLLocationCoordinate2D) -> CGPoint = { coord in
             let mp = MKMapPoint(coord)
             let nx = (mp.x - mapRect.minX) / mapRect.width
@@ -306,7 +319,7 @@ enum TrackVideoExporter {
         }
 
         let markers = media.map { (point: project($0.coordinate), image: $0.thumbnail, isVideo: $0.isVideo) }
-        let background = bakeBackground(snapshot: snapshot, points: coords.map(project), markers: markers, width: width, height: height, scale: scale)
+        let background = bakeBackground(mapImage: mapImage, points: coords.map(project), markers: markers, width: width, height: height, scale: scale)
         let projectedPoints = coords.map(project)
         func position(atMeters meters: Double) -> CGPoint {
             let s = segment(at: meters)
@@ -497,10 +510,10 @@ enum TrackVideoExporter {
 
     // MARK: - Rendu
 
-    private static func bakeBackground(snapshot: MKMapSnapshotter.Snapshot, points: [CGPoint], markers: [(point: CGPoint, image: NSImage?, isVideo: Bool)], width: Int, height: Int, scale: Double) -> NSImage {
+    private static func bakeBackground(mapImage: NSImage, points: [CGPoint], markers: [(point: CGPoint, image: NSImage?, isVideo: Bool)], width: Int, height: Int, scale: Double) -> NSImage {
         let image = NSImage(size: NSSize(width: width, height: height))
         image.lockFocus()
-        snapshot.image.draw(in: NSRect(x: 0, y: 0, width: width, height: height))
+        mapImage.draw(in: NSRect(x: 0, y: 0, width: width, height: height))
         let path = NSBezierPath()
         for (i, p) in points.enumerated() { if i == 0 { path.move(to: p) } else { path.line(to: p) } }
         path.lineJoinStyle = .round; path.lineCapStyle = .round
@@ -758,15 +771,6 @@ enum TrackVideoExporter {
         NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
                          samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
                          bytesPerRow: 0, bitsPerPixel: 0)!
-    }
-
-    private static func mapSnapshot(mapRect: MKMapRect, width: Int, height: Int) async throws -> MKMapSnapshotter.Snapshot {
-        let options = MKMapSnapshotter.Options()
-        options.mapRect = mapRect
-        options.size = CGSize(width: width, height: height)
-        options.pointOfInterestFilter = .excludingAll
-        do { return try await MKMapSnapshotter(options: options).start() }
-        catch { throw TrackVideoError.snapshotFailed }
     }
 
     private static func pixelBuffer(from image: CGImage, pool: CVPixelBufferPool?, width: Int, height: Int) -> CVPixelBuffer? {
