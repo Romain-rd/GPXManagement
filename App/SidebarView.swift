@@ -5,6 +5,9 @@ struct SidebarView: View {
     @Bindable var navigation: AppNavigationModel
     @Bindable var listVM: ActivityListViewModel
 
+    @State private var renamingRaid: Raid?
+    @State private var renameText = ""
+
     var body: some View {
         List {
             Section("Activités") {
@@ -72,9 +75,44 @@ struct SidebarView: View {
                     }
                 }
             }
+
+            if !listVM.availableRaids.isEmpty {
+                Section("Raids") {
+                    ForEach(listVM.availableRaids, id: \.raid.id) { entry in
+                        FacetRow(
+                            label: entry.raid.name,
+                            systemImage: "flag.2.crossed",
+                            count: entry.count,
+                            isOn: listVM.filters.raids.contains(entry.raid.id)
+                        ) {
+                            listVM.filters.toggleRaid(entry.raid.id)
+                        }
+                        .contextMenu {
+                            Button("Renommer…") {
+                                renameText = entry.raid.name
+                                renamingRaid = entry.raid
+                            }
+                            Button("Supprimer le raid", role: .destructive) {
+                                Task { await listVM.deleteRaid(entry.raid.id) }
+                            }
+                        }
+                    }
+                }
+            }
         }
         .navigationTitle("Filtres")
         .listStyle(.sidebar)
+        .alert("Renommer le raid", isPresented: Binding(get: { renamingRaid != nil }, set: { if !$0 { renamingRaid = nil } })) {
+            TextField("Nom du raid", text: $renameText)
+            Button("Annuler", role: .cancel) { renamingRaid = nil }
+            Button("Renommer") {
+                if let raid = renamingRaid {
+                    let name = renameText.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty { Task { await listVM.renameRaid(raid.id, name: name) } }
+                }
+                renamingRaid = nil
+            }
+        }
     }
 }
 

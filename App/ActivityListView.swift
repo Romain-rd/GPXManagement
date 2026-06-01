@@ -8,6 +8,8 @@ struct ActivityListView: View {
     @Bindable var navigation: AppNavigationModel
     @Bindable var services: AppServices
     @State private var isDropTargeted = false
+    @State private var creatingRaidIds: Set<UUID>?
+    @State private var newRaidName = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,6 +32,19 @@ struct ActivityListView: View {
             return true
         } isTargeted: { isDropTargeted = $0 }
         .navigationTitle("Activités")
+        .alert("Nouveau raid", isPresented: Binding(get: { creatingRaidIds != nil }, set: { if !$0 { creatingRaidIds = nil } })) {
+            TextField("Nom du raid", text: $newRaidName)
+            Button("Annuler", role: .cancel) { creatingRaidIds = nil }
+            Button("Créer") {
+                if let ids = creatingRaidIds {
+                    let name = newRaidName.trimmingCharacters(in: .whitespaces)
+                    Task { await listVM.createRaid(name: name.isEmpty ? "Nouveau raid" : name, activityIds: ids) }
+                }
+                creatingRaidIds = nil
+            }
+        } message: {
+            Text("Regrouper \(creatingRaidIds?.count ?? 0) activité(s) sélectionnée(s) dans un raid.")
+        }
     }
 
     private var sortBar: some View {
@@ -112,6 +127,26 @@ struct ActivityListView: View {
                         Task { await listVM.updateType(ids: ids, type: type) }
                     } label: {
                         Label(type.displayName, systemImage: type.symbolName)
+                    }
+                }
+            }
+            Menu("Raid") {
+                Button("Nouveau raid…") {
+                    newRaidName = listVM.suggestedRaidName(for: ids)
+                    creatingRaidIds = ids
+                }
+                if !listVM.raids.isEmpty {
+                    Menu("Ajouter au raid") {
+                        ForEach(listVM.raids) { raid in
+                            Button(raid.name) {
+                                Task { await listVM.addToRaid(raid.id, activityIds: ids) }
+                            }
+                        }
+                    }
+                }
+                if ids.contains(where: { id in listVM.allActivities.first(where: { $0.id == id })?.raidId != nil }) {
+                    Button("Retirer du raid") {
+                        Task { await listVM.removeFromRaid(activityIds: ids) }
                     }
                 }
             }

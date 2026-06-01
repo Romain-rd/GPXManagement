@@ -5,6 +5,7 @@ import GPXCore
 @Observable
 final class ActivityListViewModel {
     var allActivities: [ActivitySummary] = []
+    var raids: [Raid] = []
     var filters: ActivityFilters = .init()
     var sortOrder: ActivitySortOrder = .dateDescending
     var searchText: String = ""
@@ -66,13 +67,104 @@ final class ActivityListViewModel {
         return counts.map { ($0.key, $0.value) }.sorted { $0.source.sortKey < $1.source.sortKey }
     }
 
+    var availableRaids: [(raid: Raid, count: Int)] {
+        var counts: [UUID: Int] = [:]
+        for activity in allActivities {
+            if let raidId = activity.raidId { counts[raidId, default: 0] += 1 }
+        }
+        return raids
+            .map { ($0, counts[$0.id] ?? 0) }
+            .sorted { ($0.0.startDate ?? .distantPast) > ($1.0.startDate ?? .distantPast) }
+    }
+
     func reload() async {
         isLoading = true
         defer { isLoading = false }
         do {
             allActivities = try await repository.fetchAllSummaries()
+            raids = try await repository.fetchRaids()
         } catch {
             self.error = "Échec du chargement : \(error.localizedDescription)"
+        }
+    }
+
+    func suggestedRaidName(for ids: Set<UUID>) -> String {
+        let dates = allActivities.filter { ids.contains($0.id) }.map(\.startDate)
+        guard let earliest = dates.min() else { return "Nouveau raid" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "LLLL yyyy"
+        return "Raid " + f.string(from: earliest)
+    }
+
+    func createRaid(name: String, activityIds: Set<UUID>) async {
+        let raid = Raid(name: name)
+        do {
+            try await repository.createRaid(raid)
+            try await repository.setRaid(activityIds: Array(activityIds), raidId: raid.id)
+            await reload()
+            await refreshRaidDates(raid.id)
+            filters.reset()
+            filters.raids.insert(raid.id)
+        } catch {
+            self.error = "Échec de la création du raid : \(error.localizedDescription)"
+        }
+    }
+
+    func addToRaid(_ raidId: UUID, activityIds: Set<UUID>) async {
+        do {
+            try await repository.setRaid(activityIds: Array(activityIds), raidId: raidId)
+            await reload()
+            await refreshRaidDates(raidId)
+        } catch {
+            self.error = "Échec de l'ajout au raid : \(error.localizedDescription)"
+        }
+    }
+
+    func removeFromRaid(activityIds: Set<UUID>) async {
+        let affected = Set(allActivities.filter { activityIds.contains($0.id) }.compactMap(\.raidId))
+        do {
+            try await repository.setRaid(activityIds: Array(activityIds), raidId: nil)
+            await reload()
+            for raidId in affected { await refreshRaidDates(raidId) }
+        } catch {
+            self.error = "Échec du retrait du raid : \(error.localizedDescription)"
+        }
+    }
+
+    func renameRaid(_ raidId: UUID, name: String) async {
+        guard var raid = raids.first(where: { $0.id == raidId }) else { return }
+        raid.name = name
+        raid.updatedAt = Date()
+        do {
+            try await repository.updateRaid(raid)
+            if let idx = raids.firstIndex(where: { $0.id == raidId }) { raids[idx] = raid }
+        } catch {
+            self.error = "Échec du renommage du raid : \(error.localizedDescription)"
+        }
+    }
+
+    func deleteRaid(_ raidId: UUID) async {
+        do {
+            try await repository.deleteRaid(id: raidId)
+            filters.raids.remove(raidId)
+            await reload()
+        } catch {
+            self.error = "Échec de la suppression du raid : \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshRaidDates(_ raidId: UUID) async {
+        guard var raid = raids.first(where: { $0.id == raidId }) else { return }
+        let members = allActivities.filter { $0.raidId == raidId }
+        raid.startDate = members.map(\.startDate).min()
+        raid.endDate = members.map(\.endDate).max()
+        raid.updatedAt = Date()
+        do {
+            try await repository.updateRaid(raid)
+            if let idx = raids.firstIndex(where: { $0.id == raidId }) { raids[idx] = raid }
+        } catch {
+            // dates non critiques : ignorer l'échec
         }
     }
 

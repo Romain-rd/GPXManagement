@@ -257,7 +257,113 @@ enum ActivitySummaryMapper {
             sourceFileFormat: format,
             sourceApp: object.value(forKey: "sourceApp") as? String,
             tags: tags,
-            notes: object.value(forKey: "notes") as? String
+            notes: object.value(forKey: "notes") as? String,
+            raidId: object.value(forKey: "raidId") as? UUID
         )
+    }
+}
+
+extension CoreDataActivityRepository {
+    func fetchRaids() async throws -> [Raid] {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.sortDescriptors = [NSSortDescriptor(key: "startDate", ascending: false)]
+            return try context.fetch(fetch).compactMap(RaidMapper.map)
+        }
+    }
+
+    func createRaid(_ raid: Raid) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let object = NSEntityDescription.insertNewObject(forEntityName: "Raid", into: context)
+            RaidMapper.apply(raid, to: object)
+            try context.save()
+        }
+    }
+
+    func updateRaid(_ raid: Raid) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", raid.id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let object = try context.fetch(fetch).first else { return }
+            RaidMapper.apply(raid, to: object)
+            try context.save()
+        }
+    }
+
+    func deleteRaid(id: UUID) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let activities = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            activities.predicate = NSPredicate(format: "raidId == %@", id as CVarArg)
+            let now = Date()
+            for activity in try context.fetch(activities) {
+                activity.setValue(nil, forKey: "raidId")
+                activity.setValue(now, forKey: "updatedAt")
+            }
+            let raids = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            raids.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            raids.fetchLimit = 1
+            if let object = try context.fetch(raids).first { context.delete(object) }
+            if context.hasChanges { try context.save() }
+        }
+    }
+
+    func setRaid(activityIds: [UUID], raidId: UUID?) async throws {
+        guard !activityIds.isEmpty else { return }
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id IN %@", activityIds)
+            let now = Date()
+            for activity in try context.fetch(fetch) {
+                activity.setValue(raidId, forKey: "raidId")
+                activity.setValue(now, forKey: "updatedAt")
+            }
+            if context.hasChanges { try context.save() }
+        }
+    }
+}
+
+enum RaidMapper {
+    static func map(_ object: NSManagedObject) -> Raid? {
+        guard let id = object.value(forKey: "id") as? UUID,
+              let name = object.value(forKey: "name") as? String
+        else { return nil }
+        var participants: [RaidParticipant] = []
+        if let data = object.value(forKey: "participantsData") as? Data,
+           let decoded = try? JSONDecoder().decode([RaidParticipant].self, from: data) {
+            participants = decoded
+        }
+        return Raid(
+            id: id,
+            name: name,
+            subtitle: object.value(forKey: "subtitle") as? String,
+            place: object.value(forKey: "place") as? String,
+            notes: object.value(forKey: "notes") as? String,
+            startDate: object.value(forKey: "startDate") as? Date,
+            endDate: object.value(forKey: "endDate") as? Date,
+            coverAssetId: object.value(forKey: "coverAssetId") as? String,
+            participants: participants,
+            createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
+            updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
+        )
+    }
+
+    static func apply(_ raid: Raid, to object: NSManagedObject) {
+        object.setValue(raid.id, forKey: "id")
+        object.setValue(raid.name, forKey: "name")
+        object.setValue(raid.subtitle, forKey: "subtitle")
+        object.setValue(raid.place, forKey: "place")
+        object.setValue(raid.notes, forKey: "notes")
+        object.setValue(raid.startDate, forKey: "startDate")
+        object.setValue(raid.endDate, forKey: "endDate")
+        object.setValue(raid.coverAssetId, forKey: "coverAssetId")
+        object.setValue(try? JSONEncoder().encode(raid.participants), forKey: "participantsData")
+        object.setValue(raid.createdAt, forKey: "createdAt")
+        object.setValue(raid.updatedAt, forKey: "updatedAt")
     }
 }
