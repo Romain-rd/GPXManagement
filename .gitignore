@@ -31,3 +31,4 @@ Packages/*/.swiftpm/
 
 # Secrets — see Secrets.xcconfig.example
 Secrets.xcconfig
+build/
