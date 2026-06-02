@@ -15,27 +15,27 @@
 		3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */; };
 		31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D245452CFD3422DFE36DB3 /* WindowModel.swift */; };
 		344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7894B1C175BDAA6118892D /* AppConfig.swift */; };
+		35BA04D227FCCCD0E5A04DB2 /* RaidVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D30FAA3BB1A3C0CC71F6BD /* RaidVideoExporter.swift */; };
 		39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DE51F8BF3C4AABD07045B9 /* ContentView.swift */; };
 		3DAD5B0820EBA343E4EC07DB /* ActivityFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */; };
 		410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */; };
 		49D54D695ECF125EA368F30D /* ActivityListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */; };
+		54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79107E0008C422D10DDDD339 /* RaidDetailView.swift */; };
 		5E2086A9A62998F215D1204F /* GPXCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5239B19228804795EAC2D36D /* GPXCore */; };
 		69199036BADF737CF4157B63 /* CoreDataActivityRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */; };
 		6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */; };
 		71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */; };
 		736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */; };
-		A1B2C3D4E5F600000000B001 /* TrackVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */; };
-		A1B2C3D4E5F600000000C001 /* RaidDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */; };
-		A1B2C3D4E5F600000000D001 /* RaidVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000D002 /* RaidVideoExporter.swift */; };
-		A1B2C3D4E5F600000000E001 /* SmartFilterEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000E002 /* SmartFilterEditor.swift */; };
 		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
 		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
+		9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */; };
 		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
 		A52A49DCAB0612268A04D686 /* AppNavigationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */; };
 		B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */; };
 		BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */; };
 		C5426088620B57FAAB41E593 /* ActivityRepository+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */; };
+		C636BD1A9F64CE4417C80538 /* TrackVideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A26B940AD631BD2D44E7A807 /* TrackVideoExporter.swift */; };
 		C7789234717598A80B08C875 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44934C5F563E2D198B67B314 /* PreferencesView.swift */; };
 		C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */; };
 		D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */; };
@@ -65,6 +65,7 @@
 		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
 		0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityRepository+Fetch.swift"; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
+		1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseGeocoder.swift; sourceTree = "<group>"; };
 		2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapOverviewView.swift; sourceTree = "<group>"; };
@@ -76,6 +77,7 @@
 		511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFiltersTests.swift; sourceTree = "<group>"; };
 		5B7894B1C175BDAA6118892D /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
+		79107E0008C422D10DDDD339 /* RaidDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailView.swift; sourceTree = "<group>"; };
 		881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
 		8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceControllerTests.swift; sourceTree = "<group>"; };
 		8F705DA1DD220140BBC3930E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
 		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A26B940AD631BD2D44E7A807 /* TrackVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackVideoExporter.swift; sourceTree = "<group>"; };
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
 		B5D245452CFD3422DFE36DB3 /* WindowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowModel.swift; sourceTree = "<group>"; };
 		B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileTabView.swift; sourceTree = "<group>"; };
@@ -93,6 +96,7 @@
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
 		BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackAuthServer.swift; sourceTree = "<group>"; };
+		C6D30FAA3BB1A3C0CC71F6BD /* RaidVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidVideoExporter.swift; sourceTree = "<group>"; };
 		C7ACADC04245857846CE60BC /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModelTests.swift; sourceTree = "<group>"; };
 		E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityType+Display.swift"; sourceTree = "<group>"; };
@@ -101,12 +105,8 @@
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
 		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackVideoExporter.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F600000000D002 /* RaidVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidVideoExporter.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F600000000E002 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_2464F1DB-6372-4A0B-925A-91B34C5802F0" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,17 +169,17 @@
 				C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */,
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
 				FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */,
-				A1B2C3D4E5F600000000B002 /* TrackVideoExporter.swift */,
-				A1B2C3D4E5F600000000C002 /* RaidDetailView.swift */,
-				A1B2C3D4E5F600000000D002 /* RaidVideoExporter.swift */,
-				A1B2C3D4E5F600000000E002 /* SmartFilterEditor.swift */,
 				FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
+				79107E0008C422D10DDDD339 /* RaidDetailView.swift */,
+				C6D30FAA3BB1A3C0CC71F6BD /* RaidVideoExporter.swift */,
 				2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */,
 				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
+				1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */,
 				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
 				EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */,
+				A26B940AD631BD2D44E7A807 /* TrackVideoExporter.swift */,
 				E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */,
 				B5D245452CFD3422DFE36DB3 /* WindowModel.swift */,
 			);
@@ -213,10 +213,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_A65F6AA9-DEE3-47C8-ADBB-79BB841A2F66" /* GPXManagement */ = {
+		"TEMP_DF1C2B86-5FF7-4153-B54C-FF88F7B4AE1B" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_2464F1DB-6372-4A0B-925A-91B34C5802F0" /* Secrets.xcconfig */,
+				"TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -344,17 +344,17 @@
 				DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */,
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
 				736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */,
-				A1B2C3D4E5F600000000B001 /* TrackVideoExporter.swift in Sources */,
-				A1B2C3D4E5F600000000C001 /* RaidDetailView.swift in Sources */,
-				A1B2C3D4E5F600000000D001 /* RaidVideoExporter.swift in Sources */,
-				A1B2C3D4E5F600000000E001 /* SmartFilterEditor.swift in Sources */,
 				C8A56B68B3A58555D7491D14 /* PersistenceController.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
+				54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */,
+				35BA04D227FCCCD0E5A04DB2 /* RaidVideoExporter.swift in Sources */,
 				FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */,
 				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
+				9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */,
 				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
 				D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */,
+				C636BD1A9F64CE4417C80538 /* TrackVideoExporter.swift in Sources */,
 				6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */,
 				31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */,
 			);
@@ -404,7 +404,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2464F1DB-6372-4A0B-925A-91B34C5802F0" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -492,7 +492,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2464F1DB-6372-4A0B-925A-91B34C5802F0" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
