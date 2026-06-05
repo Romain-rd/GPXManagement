@@ -160,8 +160,15 @@ enum HTMLReportRenderer {
         }
 
         onProgress?(Double(total) / Double(total + 1), "Page du raid…")
-        let html = buildRaidHTML(raid: raid, members: members, layer: layer, coverRef: coverRef, avatarRefs: avatarRefs, stages: stages)
-        files["index.html"] = html.data(using: .utf8) ?? Data()
+        // Page d'aperçu (carte d'ensemble) dans apercu/ → réfs assets remontées d'un niveau.
+        let overview = buildRaidOverviewHTML(raid: raid, members: members, layer: layer,
+                                             coverRef: coverRef.map { "../" + $0 },
+                                             avatarRefs: avatarRefs.map { $0.isEmpty ? "" : "../" + $0 },
+                                             stages: stages)
+        files["apercu/index.html"] = overview.data(using: .utf8) ?? Data()
+        // Coquille split-view à la racine (liste des étapes + iframe de l'étape sélectionnée).
+        let shell = buildRaidShellHTML(raid: raid, members: members, coverRef: coverRef, stages: stages)
+        files["index.html"] = shell.data(using: .utf8) ?? Data()
         return files
     }
 
@@ -171,15 +178,9 @@ enum HTMLReportRenderer {
         return "jpg"
     }
 
-    private static func buildRaidHTML(raid: Raid, members: [ActivitySummary], layer: MapLayer, coverRef: String?, avatarRefs: [String], stages: [RaidStage]) -> String {
+    private static func buildRaidOverviewHTML(raid: Raid, members: [ActivitySummary], layer: MapLayer, coverRef: String?, avatarRefs: [String], stages: [RaidStage]) -> String {
         let accent = hex(members.first?.activityType.trackColor ?? .systemBlue)
         let tile = webTileLayer(for: layer)
-
-        let dateText: String = {
-            if let s = raid.startDate, let e = raid.endDate { return "\(fmtDateShort(s)) → \(fmtDateShort(e))" }
-            if let s = raid.startDate { return fmtDateShort(s) }
-            return ""
-        }()
 
         let cover = coverRef.map { "<div class=\"cover\" style=\"background-image:url('\($0)')\"></div>" } ?? ""
 
@@ -194,27 +195,9 @@ enum HTMLReportRenderer {
             participantsHTML = "<section class=\"section\"><h2>Participants</h2><div class=\"participants\">\(items)</div></section>"
         }
 
-        let totalDist = members.reduce(0) { $0 + $1.distance }
-        let totalGain = members.reduce(0) { $0 + $1.elevationGain }
-        let totalLoss = members.reduce(0) { $0 + $1.elevationLoss }
-        let totalDur = members.reduce(0) { $0 + $1.duration }
-        let totalMov = members.reduce(0) { $0 + $1.movingDuration }
-        let cards = [
-            metricCard("📍", "Étapes", "\(members.count)"),
-            metricCard("📏", "Distance", fmtDistance(totalDist)),
-            metricCard("⬆️", "Dénivelé +", "\(Int(totalGain.rounded())) m"),
-            metricCard("⬇️", "Dénivelé −", "\(Int(totalLoss.rounded())) m"),
-            metricCard("🕐", "Durée totale", fmtDuration(totalDur)),
-            metricCard("⏱️", "En mouvement", fmtDuration(totalMov))
-        ].joined()
-
+        let cards = raidStatCards(members).joined()
         let legend = stages.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>\(esc("J\($0.index) · \($0.title)"))</span>" }.joined()
         let mapSection = "<section class=\"section\"><h2>Carte d'ensemble</h2><div id=\"map\" class=\"map interactive\"></div><div class=\"legend\">\(legend)</div></section>"
-
-        let stageList = stages.map { s in
-            "<a class=\"stage\" href=\"etape-\(s.index)/\"><span class=\"sb\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"si\"><span class=\"st\">\(esc(s.title))</span><span class=\"sm\">\(esc(s.dateText)) · \(esc(fmtDistance(s.distance))) · \(Int(s.gain.rounded())) m D+</span></div><span class=\"sa\">›</span></a>"
-        }.joined()
-        let stagesSection = "<section class=\"section\"><h2>Étapes</h2><div class=\"stages\">\(stageList)</div></section>"
 
         var notesSection = ""
         if let notes = raid.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
@@ -229,35 +212,94 @@ enum HTMLReportRenderer {
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>\(esc(raid.name))</title>
+        <title>\(esc(raid.name)) — Carte d'ensemble</title>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
         <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>\(css(accent: accent))\(raidCSS)</style>
         </head>
         <body>
-        <main class="page raid-page">
+        <main class="page">
           \(cover)
-          <header class="hero">
-            <div class="hero-text">
-              <h1>\(esc(raid.name))</h1>
-              \(subtitle.isEmpty ? "" : "<p class=\"subtitle\">\(esc(subtitle))</p>")
-              \(dateText.isEmpty ? "" : "<p class=\"subtitle\">\(esc(dateText))</p>")
-            </div>
-          </header>
-          <div class="raid-cols">
-            <div class="col-left">
-              <section class="metrics">\(cards)</section>
-              \(participantsHTML)
-              \(notesSection)
-            </div>
-            <div class="col-right">
-              \(mapSection)
-              \(stagesSection)
-            </div>
-          </div>
+          <header class="hero"><div class="hero-text"><h1>\(esc(raid.name))</h1>\(subtitle.isEmpty ? "" : "<p class=\"subtitle\">\(esc(subtitle))</p>")</div></header>
+          <section class="metrics">\(cards)</section>
+          \(mapSection)
+          \(participantsHTML)
+          \(notesSection)
           <footer><p class="madeby">Généré par GPXManagement</p></footer>
         </main>
         \(raidMapScript(stages: stages, tile: tile, accent: accent))
+        </body>
+        </html>
+        """
+    }
+
+    private static func raidStatCards(_ members: [ActivitySummary]) -> [String] {
+        let totalDist = members.reduce(0) { $0 + $1.distance }
+        let totalGain = members.reduce(0) { $0 + $1.elevationGain }
+        let totalLoss = members.reduce(0) { $0 + $1.elevationLoss }
+        let totalDur = members.reduce(0) { $0 + $1.duration }
+        let totalMov = members.reduce(0) { $0 + $1.movingDuration }
+        return [
+            metricCard("📍", "Étapes", "\(members.count)"),
+            metricCard("📏", "Distance", fmtDistance(totalDist)),
+            metricCard("⬆️", "Dénivelé +", "\(Int(totalGain.rounded())) m"),
+            metricCard("⬇️", "Dénivelé −", "\(Int(totalLoss.rounded())) m"),
+            metricCard("🕐", "Durée totale", fmtDuration(totalDur)),
+            metricCard("⏱️", "En mouvement", fmtDuration(totalMov))
+        ]
+    }
+
+    /// Coquille split-view : barre latérale (identité + liste des étapes), iframe de l'étape sélectionnée.
+    private static func buildRaidShellHTML(raid: Raid, members: [ActivitySummary], coverRef: String?, stages: [RaidStage]) -> String {
+        let accent = hex(members.first?.activityType.trackColor ?? .systemBlue)
+        let dateText: String = {
+            if let s = raid.startDate, let e = raid.endDate { return "\(fmtDateShort(s)) → \(fmtDateShort(e))" }
+            if let s = raid.startDate { return fmtDateShort(s) }
+            return ""
+        }()
+        let subtitle = [raid.subtitle, raid.place].compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " · ")
+        let sub = [subtitle, dateText].filter { !$0.isEmpty }.joined(separator: " · ")
+
+        let coverThumb = coverRef.map { "<div class=\"side-cover\" style=\"background-image:url('\($0)')\"></div>" } ?? ""
+        let totalDist = members.reduce(0) { $0 + $1.distance }
+
+        let overviewItem = "<a class=\"nav\" href=\"apercu/\" data-target=\"apercu/\"><span class=\"sb sb-ov\">🗺️</span><div class=\"si\"><span class=\"st\">Carte d'ensemble</span><span class=\"sm\">\(members.count) étapes · \(esc(fmtDistance(totalDist)))</span></div></a>"
+        let stageItems = stages.map { s in
+            "<a class=\"nav\" href=\"etape-\(s.index)/\" data-target=\"etape-\(s.index)/\"><span class=\"sb\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"si\"><span class=\"st\">\(esc(s.title))</span><span class=\"sm\">\(esc(s.dateText)) · \(esc(fmtDistance(s.distance))) · \(Int(s.gain.rounded())) m D+</span></div></a>"
+        }.joined()
+
+        return """
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(esc(raid.name))</title>
+        <style>\(css(accent: accent))\(raidCSS)</style>
+        </head>
+        <body>
+        <div class="raid-shell">
+          <aside class="raid-side">
+            \(coverThumb)
+            <h1 class="side-title">\(esc(raid.name))</h1>
+            \(sub.isEmpty ? "" : "<p class=\"side-sub\">\(esc(sub))</p>")
+            <nav class="raid-nav">\(overviewItem)\(stageItems)</nav>
+            <footer class="side-foot"><span class="madeby">GPXManagement</span></footer>
+          </aside>
+          <main class="raid-main"><iframe id="stageframe" title="Étape"></iframe></main>
+        </div>
+        <script>
+        (function(){
+          var frame = document.getElementById('stageframe');
+          var navs = Array.prototype.slice.call(document.querySelectorAll('.nav'));
+          function split(){ return window.matchMedia('(min-width: 920px)').matches; }
+          function select(a){ navs.forEach(function(n){ n.classList.toggle('active', n === a); }); if (frame) frame.src = a.getAttribute('data-target'); }
+          navs.forEach(function(a){ a.addEventListener('click', function(e){ if (split()) { e.preventDefault(); select(a); } }); });
+          var stagesOnly = navs.filter(function(n){ return n.getAttribute('data-target') !== 'apercu/'; });
+          var first = stagesOnly[0] || navs[0];
+          if (split() && first) select(first);
+        })();
+        </script>
         </body>
         </html>
         """
@@ -306,25 +348,34 @@ enum HTMLReportRenderer {
     }
 
     private static let raidCSS = """
-    .raid-page { max-width:1180px; }
-    .raid-cols { display:grid; grid-template-columns:1fr; gap:28px; align-items:start; }
-    .col-left, .col-right { display:flex; flex-direction:column; gap:28px; min-width:0; }
-    .raid-cols .section { margin-top:0; }
-    .raid-cols .metrics { margin-bottom:0; }
-    @media (min-width: 920px) { .raid-cols { grid-template-columns:minmax(280px,360px) 1fr; } }
     .cover { width:100%; aspect-ratio:21/9; background-size:cover; background-position:center; border-radius:16px; margin-bottom:20px; border:1px solid var(--line); }
     .participants { display:flex; flex-wrap:wrap; gap:14px; }
     .pp { display:flex; align-items:center; gap:8px; }
     .pp img, .pp .pp-ph { width:36px; height:36px; border-radius:50%; object-fit:cover; }
     .pp .pp-ph { display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; font-weight:700; }
-    .stages { display:flex; flex-direction:column; gap:8px; }
-    .stage { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--card); border:1px solid var(--line); border-radius:12px; text-decoration:none; color:var(--fg); transition:border-color .1s; }
-    .stage:hover { border-color:var(--accent); }
-    .stage .sb { flex:0 0 auto; width:36px; height:36px; border-radius:9px; color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:13px; }
-    .stage .si { display:flex; flex-direction:column; min-width:0; flex:1; }
-    .stage .st { font-weight:600; }
-    .stage .sm { font-size:13px; color:var(--sec); }
-    .stage .sa { color:var(--sec); font-size:20px; }
+    /* Coquille split-view */
+    .raid-shell { display:flex; min-height:100vh; }
+    .raid-side { width:320px; flex:0 0 auto; box-sizing:border-box; padding:18px; border-right:1px solid var(--line); height:100vh; overflow-y:auto; position:sticky; top:0; }
+    .side-cover { width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; border-radius:12px; margin-bottom:12px; border:1px solid var(--line); }
+    .side-title { font-size:20px; font-weight:800; letter-spacing:-.02em; margin:0 0 2px; }
+    .side-sub { color:var(--sec); font-size:13px; margin:0 0 14px; }
+    .raid-nav { display:flex; flex-direction:column; gap:8px; }
+    .nav { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; text-decoration:none; color:var(--fg); border:1px solid transparent; }
+    .nav:hover { background:var(--card); }
+    .nav.active { background:var(--card); border-color:var(--accent); }
+    .nav .sb { flex:0 0 auto; width:34px; height:34px; border-radius:9px; color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:13px; }
+    .nav .sb-ov { background:var(--accent); }
+    .nav .si { display:flex; flex-direction:column; min-width:0; }
+    .nav .st { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nav .sm { font-size:12px; color:var(--sec); }
+    .side-foot { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); font-size:12px; }
+    .raid-main { flex:1; min-width:0; }
+    .raid-main iframe { width:100%; height:100vh; border:0; display:block; }
+    @media (max-width: 919px) {
+      .raid-shell { display:block; }
+      .raid-side { width:auto; height:auto; position:static; overflow:visible; border-right:0; border-bottom:1px solid var(--line); }
+      .raid-main { display:none; }
+    }
     """
 
     private static func fmtDateShort(_ d: Date) -> String {
