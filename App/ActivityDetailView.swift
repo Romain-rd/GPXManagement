@@ -1936,21 +1936,25 @@ struct MetricCard: View {
     var tint: Color = .accentColor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(tint)
-            Text(value)
-                .font(.title2.bold())
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 17, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
     }
 }
