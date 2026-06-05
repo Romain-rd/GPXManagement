@@ -128,6 +128,11 @@ public enum ActivityType: String, Codable, CaseIterable, Sendable {
     public static func fromStravaSportType(_ raw: String) -> ActivityType? {
         allCases.first { $0.stravaSportType == raw }
     }
+
+    /// Largeur (en %) des tranches de couleur de pente. Plus large en rando à ski, où le terrain est plus raide.
+    public var slopeColorStep: Double {
+        self == .skiingTouring ? 8 : 4
+    }
 }
 
 public enum ActivityOrigin: String, Codable, CaseIterable, Sendable {

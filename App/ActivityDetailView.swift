@@ -307,7 +307,7 @@ struct ActivityDetailView: View {
                 .labelsHidden()
                 .fixedSize()
             }
-            ElevationProfileTabView(activityId: activity.id, repository: repository, mode: $profileMode, highlightedCoordinate: $highlightedCoordinate)
+            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, highlightedCoordinate: $highlightedCoordinate)
                 .frame(height: 280)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
         }

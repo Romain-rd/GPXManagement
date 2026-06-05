@@ -70,7 +70,7 @@ enum HTMLReportRenderer {
         let trackCoords = options.map == .interactive ? decimatedCoords(points, max: 2000) : []
 
         let profile = ElevationProfileBuilder.build(points: points)
-        let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile)
+        let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile, step: activity.activityType.slopeColorStep)
         let timeProfile = PDFReportRenderer.movementRuns(from: profile)
         let movement = ElevationProfileBuilder.movementTime(profile)
         let interactiveProfile = options.profile == .interactive
@@ -85,7 +85,7 @@ enum HTMLReportRenderer {
                 timePNG = renderChartPNG(HTMLTimeChart(time: timeProfile), size: CGSize(width: 1000, height: 300))
             }
         }
-        let profilePayload = interactiveProfile ? profilePayloadJSON(profile) : ""
+        let profilePayload = interactiveProfile ? profilePayloadJSON(profile, step: activity.activityType.slopeColorStep) : ""
 
         var photoItems: [PhotoItem] = []
         if options.includePhotos {
@@ -99,7 +99,7 @@ enum HTMLReportRenderer {
 
         let assets = HTMLAssets(map: mapPNG, distanceProfile: distancePNG, timeProfile: timePNG, photos: photoItems)
         let html = buildHTML(activity: activity, assets: assets, options: options,
-                             slopeLegend: slopeLegendItems(distanceScale: distanceScale),
+                             slopeLegend: slopeLegendItems(distanceScale: distanceScale, step: activity.activityType.slopeColorStep),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
                              layer: layer, trackCoords: trackCoords, profilePayload: profilePayload)
 
@@ -435,7 +435,7 @@ enum HTMLReportRenderer {
     private static let slopeOrder: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
 
     /// Sérialise le profil (décimé) en objet JS : altitude/pente par distance et par temps + FC, lat/lon pour la synchro carte.
-    private static func profilePayloadJSON(_ profile: [ElevationProfilePoint]) -> String {
+    private static func profilePayloadJSON(_ profile: [ElevationProfilePoint], step: Double) -> String {
         guard profile.count >= 2 else { return "" }
         let pts = ElevationProfileBuilder.decimate(profile, tolerance: 1.0, maxPoints: 1200)
 
@@ -443,12 +443,12 @@ enum HTMLReportRenderer {
         func num(_ d: Double, _ decimals: Int) -> String { String(format: "%.\(decimals)f", d) }
 
         let cats = slopeOrder.map { "\"\(hex($0.color))\"" }
-        let catLabels = slopeOrder.map { "\"\($0.label)\"" }
+        let catLabels = slopeOrder.map { "\"\($0.label(step: step))\"" }
 
         // Distance / pente
         let dx = pts.map { num($0.distanceFromStart / 1000, 3) }
         let dAlt = pts.map { num($0.altitude, 1) }
-        let dCat = pts.map { String(slopeOrder.firstIndex(of: SlopeCategory.category(for: $0.slope)) ?? 0) }
+        let dCat = pts.map { String(slopeOrder.firstIndex(of: SlopeCategory.category(for: $0.slope, step: step)) ?? 0) }
         let dLat = pts.map { num($0.latitude ?? 0, 5) }
         let dLon = pts.map { num($0.longitude ?? 0, 5) }
         let distanceObj = "{x:\(arr(dx)),alt:\(arr(dAlt)),cat:\(arr(dCat)),lat:\(arr(dLat)),lon:\(arr(dLon))}"
@@ -513,10 +513,10 @@ enum HTMLReportRenderer {
 
     private struct LegendItem { let label: String; let color: String }
 
-    private static func slopeLegendItems(distanceScale: [String: Color]) -> [LegendItem] {
+    private static func slopeLegendItems(distanceScale: [String: Color], step: Double) -> [LegendItem] {
         guard !distanceScale.isEmpty else { return [] }
         let cats: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
-        return cats.map { LegendItem(label: $0.label, color: hex($0.color)) }
+        return cats.map { LegendItem(label: $0.label(step: step), color: hex($0.color)) }
     }
 
     private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], profilePayload: String) -> String {

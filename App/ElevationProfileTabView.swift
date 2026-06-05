@@ -4,12 +4,13 @@ import CoreLocation
 import GPXCore
 
 extension SlopeCategory {
-    var label: String {
+    func label(step: Double) -> String {
+        let s = Int(step)
         switch self {
-        case .gentle:   return "0–4 %"
-        case .moderate: return "4–8 %"
-        case .steep:    return "8–12 %"
-        case .veryStep: return "> 12 %"
+        case .gentle:   return "0–\(s) %"
+        case .moderate: return "\(s)–\(s * 2) %"
+        case .steep:    return "\(s * 2)–\(s * 3) %"
+        case .veryStep: return "> \(s * 3) %"
         case .descent:  return "Descente"
         }
     }
@@ -77,9 +78,12 @@ private struct HoverSample {
 
 struct ElevationProfileTabView: View {
     let activityId: UUID
+    let activityType: ActivityType
     let repository: CoreDataActivityRepository
     @Binding var mode: ProfileMode
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
+
+    private var slopeStep: Double { activityType.slopeColorStep }
 
     @State private var trimmedProfile: [ElevationProfilePoint] = []
     @State private var hasAltitude = false
@@ -160,7 +164,7 @@ struct ElevationProfileTabView: View {
     private var legendItems: [(label: String, color: Color, time: TimeInterval)] {
         switch mode {
         case .distance:
-            return Self.legendCategories.map { ($0.label, $0.color, slopeTimes[$0] ?? 0) }
+            return Self.legendCategories.map { ($0.label(step: slopeStep), $0.color, slopeTimes[$0] ?? 0) }
         case .time:
             return [
                 (MovementState.moving.label, MovementState.moving.color, movingTime),
@@ -333,7 +337,7 @@ struct ElevationProfileTabView: View {
             Text(hoverHeader(s)).font(.caption2.bold())
             tooltipRow("Altitude", "\(Int(s.altitude.rounded())) m", .primary)
             if mode == .distance {
-                let cat = SlopeCategory.category(for: s.slope)
+                let cat = SlopeCategory.category(for: s.slope, step: slopeStep)
                 tooltipRow("Pente", String(format: "%+.0f %%", s.slope), cat.color)
             } else {
                 if let clock = s.clock {
@@ -422,7 +426,7 @@ struct ElevationProfileTabView: View {
 
             hasAltitude = !raw.isEmpty
             trimmedProfile = trimmed
-            slopeTimes = ElevationProfileBuilder.timeByCategory(raw)
+            slopeTimes = ElevationProfileBuilder.timeByCategory(raw, step: slopeStep)
             let movement = ElevationProfileBuilder.movementTime(raw)
             movingTime = movement.moving
             pausedTime = movement.paused
@@ -481,8 +485,8 @@ struct ElevationProfileTabView: View {
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
             switch mode {
             case .distance:
-                let c = SlopeCategory.category(for: profile[i].slope)
-                return (c.label, c.color)
+                let c = SlopeCategory.category(for: profile[i].slope, step: slopeStep)
+                return (c.label(step: slopeStep), c.color)
             case .time:
                 let st = movementState(profile, at: i)
                 return (st.label, st.color)

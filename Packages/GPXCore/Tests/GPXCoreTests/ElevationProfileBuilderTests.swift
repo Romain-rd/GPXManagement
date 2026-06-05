@@ -131,4 +131,19 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertEqual(SlopeCategory.category(for: 15), .veryStep)
         XCTAssertEqual(SlopeCategory.category(for: -5), .descent)
     }
+
+    func testSlopeCategoryRangesStep8() {
+        XCTAssertEqual(SlopeCategory.category(for: 6, step: 8), .gentle)
+        XCTAssertEqual(SlopeCategory.category(for: 10, step: 8), .moderate)
+        XCTAssertEqual(SlopeCategory.category(for: 18, step: 8), .steep)
+        XCTAssertEqual(SlopeCategory.category(for: 30, step: 8), .veryStep)
+        XCTAssertEqual(SlopeCategory.category(for: -6, step: 8), .gentle)
+        XCTAssertEqual(SlopeCategory.category(for: -10, step: 8), .descent)
+    }
+
+    func testSlopeColorStepByActivityType() {
+        XCTAssertEqual(ActivityType.skiingTouring.slopeColorStep, 8)
+        XCTAssertEqual(ActivityType.cyclingRoad.slopeColorStep, 4)
+        XCTAssertEqual(ActivityType.skiingAlpine.slopeColorStep, 4)
+    }
 }

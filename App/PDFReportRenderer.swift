@@ -70,7 +70,7 @@ enum PDFReportRenderer {
         }
 
         let profile = ElevationProfileBuilder.build(points: points)
-        let (distanceSamples, distanceScale) = slopeRuns(from: profile)
+        let (distanceSamples, distanceScale) = slopeRuns(from: profile, step: activity.activityType.slopeColorStep)
         let timeProfile = movementRuns(from: profile)
         let movement = ElevationProfileBuilder.movementTime(profile)
 
@@ -118,10 +118,10 @@ enum PDFReportRenderer {
     // MARK: - Données des profils
 
     /// Regroupe les points en segments contigus de même pente (chaque run = une aire colorée distincte).
-    static func slopeRuns(from profile: [ElevationProfilePoint]) -> ([ProfileChartSample], [String: Color]) {
+    static func slopeRuns(from profile: [ElevationProfilePoint], step: Double = 4) -> ([ProfileChartSample], [String: Color]) {
         guard profile.count >= 2 else { return ([], [:]) }
-        let categories = (0..<(profile.count - 1)).map { SlopeCategory.category(for: profile[$0].slope) }
-        return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 }, key: { categories[$0].label }, color: { categories[$0].color })
+        let categories = (0..<(profile.count - 1)).map { SlopeCategory.category(for: profile[$0].slope, step: step) }
+        return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 }, key: { categories[$0].label(step: step) }, color: { categories[$0].color })
     }
 
     /// Profil en fonction du temps : aires mouvement/pause + courbe de fréquence cardiaque normalisée.
@@ -284,6 +284,7 @@ struct PDFProfilesPage: View {
     let pausedTime: TimeInterval
 
     private static let slopeCategories: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
+    private var slopeStep: Double { activity.activityType.slopeColorStep }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -356,7 +357,7 @@ struct PDFProfilesPage: View {
             ForEach(Self.slopeCategories, id: \.self) { cat in
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 2).fill(cat.color.opacity(0.7)).frame(width: 9, height: 9)
-                    Text(cat.label).font(.system(size: 8)).foregroundStyle(.secondary)
+                    Text(cat.label(step: slopeStep)).font(.system(size: 8)).foregroundStyle(.secondary)
                 }
             }
         }

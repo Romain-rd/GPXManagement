@@ -70,14 +70,14 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
-    public static func timeByCategory(_ profile: [ElevationProfilePoint]) -> [SlopeCategory: TimeInterval] {
+    public static func timeByCategory(_ profile: [ElevationProfilePoint], step: Double = 4) -> [SlopeCategory: TimeInterval] {
         guard profile.count >= 2 else { return [:] }
         var result: [SlopeCategory: TimeInterval] = [:]
         for i in 0..<(profile.count - 1) {
             guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
             let dt = t2.timeIntervalSince(t1)
             guard dt > 0, dt <= 300 else { continue }
-            let category = SlopeCategory.category(for: profile[i].slope)
+            let category = SlopeCategory.category(for: profile[i].slope, step: step)
             result[category, default: 0] += dt
         }
         return result
@@ -179,14 +179,14 @@ public enum SlopeCategory: Sendable, Hashable {
     case veryStep
     case descent
 
-    public static func category(for slope: Double) -> SlopeCategory {
-        if slope < -4 { return .descent }
+    public static func category(for slope: Double, step: Double = 4) -> SlopeCategory {
+        if slope < -step { return .descent }
         let absVal = abs(slope)
         switch absVal {
-        case ..<4:    return .gentle
-        case ..<8:    return .moderate
-        case ..<12:   return .steep
-        default:      return .veryStep
+        case ..<step:       return .gentle
+        case ..<(step * 2): return .moderate
+        case ..<(step * 3): return .steep
+        default:            return .veryStep
         }
     }
 }
