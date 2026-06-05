@@ -736,8 +736,9 @@ struct ActivityDetailView: View {
                             ForEach(WebExportOptions.MapRendering.allCases) { Text($0.label).tag($0) }
                         }
                         .pickerStyle(.segmented).labelsHidden().fixedSize()
-                        .disabled(true)
-                        Text("Version interactive (Leaflet + IGN) à venir.").font(.caption2).foregroundStyle(.tertiary)
+                        if webOptions.map == .interactive {
+                            Text("Carte Leaflet + tuiles IGN, chargées en ligne (nécessite une connexion).").font(.caption2).foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 GridRow {

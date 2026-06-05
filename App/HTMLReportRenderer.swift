@@ -55,11 +55,12 @@ enum HTMLReportRenderer {
         let points = try TrackPointCodec.decode(data)
 
         var mapPNG: Data?
-        if let bounds = PDFReportRenderer.boundingMapRect(points) {
+        if options.map == .staticImage, let bounds = PDFReportRenderer.boundingMapRect(points) {
             let mapRect = framedMapRect(bounds, aspect: mapAspect)
             let overlay = TrackOverlayInput(activityId: activity.id, activityType: activity.activityType, coordinates: points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
             mapPNG = try? await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: [overlay], maxDimension: 2000, trackColor: activity.activityType.trackColor)
         }
+        let trackCoords = options.map == .interactive ? decimatedCoords(points, max: 2000) : []
 
         let profile = ElevationProfileBuilder.build(points: points)
         let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile)
@@ -88,7 +89,7 @@ enum HTMLReportRenderer {
         let html = buildHTML(activity: activity, assets: assets, options: options,
                              slopeLegend: slopeLegendItems(distanceScale: distanceScale),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
-                             mapAttribution: layer.attribution)
+                             layer: layer, trackCoords: trackCoords)
 
         switch options.output {
         case .singleFile:
@@ -124,6 +125,37 @@ enum HTMLReportRenderer {
         }
     }
 
+    private static func decimatedCoords(_ points: [TrackPoint], max: Int) -> [(lat: Double, lon: Double)] {
+        guard points.count > max else { return points.map { ($0.latitude, $0.longitude) } }
+        let step = Double(points.count) / Double(max)
+        var out = (0..<max).map { i -> (Double, Double) in let p = points[Int(Double(i) * step)]; return (p.latitude, p.longitude) }
+        if let last = points.last { out.append((last.latitude, last.longitude)) }
+        return out
+    }
+
+    /// Gabarit de tuiles {z}/{x}/{y} pour Leaflet, dérivé de la couche choisie.
+    /// IGN WMTS répliqué depuis les paramètres publics ; fallback web pour les couches Apple (sans équivalent tuiles).
+    private struct WebTileLayer { let urlTemplate: String; let maxZoom: Int; let attribution: String }
+
+    private static func webTileLayer(for layer: MapLayer) -> WebTileLayer {
+        if layer.isIGN, let identifier = layer.wmtsLayerIdentifier {
+            let endpoint = layer.discoveryAPIKey == nil ? "https://data.geopf.fr/wmts" : "https://data.geopf.fr/private/wmts"
+            var query = ""
+            if let key = layer.discoveryAPIKey { query += "apikey=\(key)&" }
+            query += "SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=\(identifier)&STYLE=normal"
+            query += "&FORMAT=\(layer.wmtsFormat)&TILEMATRIXSET=\(layer.wmtsTileMatrixSet)&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
+            return WebTileLayer(urlTemplate: "\(endpoint)?\(query)", maxZoom: layer.maxZoom, attribution: layer.attribution ?? "© IGN-F / Géoportail")
+        }
+        if let template = layer.tileURLTemplate {
+            return WebTileLayer(urlTemplate: template, maxZoom: layer.maxZoom, attribution: layer.attribution ?? "")
+        }
+        // Couches Apple : pas de tuiles web → repli (satellite → Esri, sinon OSM).
+        if layer == .mapkitSatellite {
+            return WebTileLayer(urlTemplate: MapLayer.esriImagery.tileURLTemplate ?? "", maxZoom: MapLayer.esriImagery.maxZoom, attribution: MapLayer.esriImagery.attribution ?? "")
+        }
+        return WebTileLayer(urlTemplate: MapLayer.osm.tileURLTemplate ?? "", maxZoom: MapLayer.osm.maxZoom, attribution: MapLayer.osm.attribution ?? "")
+    }
+
     // MARK: - Rendu d'images
 
     private static func renderChartPNG(_ view: some View, size: CGSize) -> Data? {
@@ -152,9 +184,10 @@ enum HTMLReportRenderer {
         return cats.map { LegendItem(label: $0.label, color: hex($0.color)) }
     }
 
-    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, mapAttribution: String?) -> String {
+    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)]) -> String {
         let accent = hex(activity.activityType.trackColor)
         let inline = options.output == .singleFile
+        let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
 
         func imgTag(_ data: Data?, file: String, mime: String, alt: String, cssClass: String) -> String {
             guard let data else { return "" }
@@ -200,12 +233,32 @@ enum HTMLReportRenderer {
             profileSection = "<section class=\"section\"><h2>Profil altimétrique</h2>\(blocks)</section>"
         }
 
-        // Carte
-        let mapImg = imgTag(assets.map, file: "images/carte.png", mime: "image/png", alt: "Carte du parcours", cssClass: "map")
+        // Carte (statique ou interactive Leaflet)
         var mapSection = ""
-        if !mapImg.isEmpty {
-            let credit = mapAttribution.map { "<p class=\"credit\">\(esc($0))</p>" } ?? ""
-            mapSection = "<section class=\"section\"><h2>Carte</h2>\(mapImg)\(credit)</section>"
+        var mapScript = ""
+        if interactiveMap {
+            let tile = webTileLayer(for: layer)
+            let coordsJSON = "[" + trackCoords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
+            mapSection = "<section class=\"section\"><h2>Carte</h2><div id=\"map\" class=\"map interactive\"></div></section>"
+            mapScript = """
+            <script>
+            (function(){
+              var coords = \(coordsJSON);
+              var map = L.map('map', { scrollWheelZoom: false });
+              L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom: \(tile.maxZoom), attribution: \(jsString(tile.attribution)) }).addTo(map);
+              var line = L.polyline(coords, { color: \(jsString(accent)), weight: 4, opacity: 0.9 }).addTo(map);
+              map.fitBounds(line.getBounds(), { padding: [24, 24] });
+              L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#34c759', fillOpacity: 1 }).addTo(map);
+              L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
+            })();
+            </script>
+            """
+        } else {
+            let mapImg = imgTag(assets.map, file: "images/carte.png", mime: "image/png", alt: "Carte du parcours", cssClass: "map")
+            if !mapImg.isEmpty {
+                let credit = layer.attribution.map { "<p class=\"credit\">\(esc($0))</p>" } ?? ""
+                mapSection = "<section class=\"section\"><h2>Carte</h2>\(mapImg)\(credit)</section>"
+            }
         }
 
         // Photos
@@ -224,6 +277,11 @@ enum HTMLReportRenderer {
         }
         let sourceLine = "<p class=\"source\">\(esc(sourceText(activity))) · Fichier : \(esc(activity.sourceFileFormat.rawValue.uppercased())) \(esc(activity.sourceFileName))</p>"
 
+        let leafletHead = interactiveMap ? """
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+        <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+        """ : ""
+
         return """
         <!DOCTYPE html>
         <html lang="fr">
@@ -231,6 +289,7 @@ enum HTMLReportRenderer {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>\(esc(activity.title))</title>
+        \(leafletHead)
         <style>\(css(accent: accent))</style>
         </head>
         <body>
@@ -250,9 +309,16 @@ enum HTMLReportRenderer {
           \(notesSection)
           <footer>\(sourceLine)<p class="madeby">Généré par GPXManagement</p></footer>
         </main>
+        \(mapScript)
         </body>
         </html>
         """
+    }
+
+    private static func jsString(_ s: String) -> String {
+        "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n") + "\""
     }
 
     private static func metricCard(_ label: String, _ value: String) -> String {
@@ -280,6 +346,8 @@ enum HTMLReportRenderer {
         .section h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--sec); margin:0 0 12px; }
         .section h3 { font-size:15px; font-weight:600; margin:18px 0 8px; }
         .map { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
+        .map.interactive { overflow:hidden; z-index:0; }
+        .leaflet-container { background:var(--card); font:inherit; }
         .chart { width:100%; height:auto; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
         .credit { font-size:11px; color:var(--sec); margin:6px 0 0; }
         .chart-block { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
