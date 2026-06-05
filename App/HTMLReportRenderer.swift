@@ -235,7 +235,7 @@ enum HTMLReportRenderer {
         <style>\(css(accent: accent))\(raidCSS)</style>
         </head>
         <body>
-        <main class="page">
+        <main class="page raid-page">
           \(cover)
           <header class="hero">
             <div class="hero-text">
@@ -244,11 +244,17 @@ enum HTMLReportRenderer {
               \(dateText.isEmpty ? "" : "<p class=\"subtitle\">\(esc(dateText))</p>")
             </div>
           </header>
-          <section class="metrics">\(cards)</section>
-          \(participantsHTML)
-          \(mapSection)
-          \(stagesSection)
-          \(notesSection)
+          <div class="raid-cols">
+            <div class="col-left">
+              <section class="metrics">\(cards)</section>
+              \(participantsHTML)
+              \(notesSection)
+            </div>
+            <div class="col-right">
+              \(mapSection)
+              \(stagesSection)
+            </div>
+          </div>
           <footer><p class="madeby">Généré par GPXManagement</p></footer>
         </main>
         \(raidMapScript(stages: stages, tile: tile, accent: accent))
@@ -300,6 +306,12 @@ enum HTMLReportRenderer {
     }
 
     private static let raidCSS = """
+    .raid-page { max-width:1180px; }
+    .raid-cols { display:grid; grid-template-columns:1fr; gap:28px; align-items:start; }
+    .col-left, .col-right { display:flex; flex-direction:column; gap:28px; min-width:0; }
+    .raid-cols .section { margin-top:0; }
+    .raid-cols .metrics { margin-bottom:0; }
+    @media (min-width: 920px) { .raid-cols { grid-template-columns:minmax(280px,360px) 1fr; } }
     .cover { width:100%; aspect-ratio:21/9; background-size:cover; background-position:center; border-radius:16px; margin-bottom:20px; border:1px solid var(--line); }
     .participants { display:flex; flex-wrap:wrap; gap:14px; }
     .pp { display:flex; align-items:center; gap:8px; }
