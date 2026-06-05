@@ -182,8 +182,6 @@ enum HTMLReportRenderer {
         let accent = hex(members.first?.activityType.trackColor ?? .systemBlue)
         let tile = webTileLayer(for: layer)
 
-        let cover = coverRef.map { "<div class=\"cover\" style=\"background-image:url('\($0)')\"></div>" } ?? ""
-
         var participantsHTML = ""
         if !raid.participants.isEmpty {
             let items = raid.participants.enumerated().map { i, p -> String in
@@ -219,7 +217,6 @@ enum HTMLReportRenderer {
         </head>
         <body>
         <main class="page">
-          \(cover)
           <header class="hero"><div class="hero-text"><h1>\(esc(raid.name))</h1>\(subtitle.isEmpty ? "" : "<p class=\"subtitle\">\(esc(subtitle))</p>")</div></header>
           <section class="metrics">\(cards)</section>
           \(mapSection)
@@ -295,9 +292,8 @@ enum HTMLReportRenderer {
           function split(){ return window.matchMedia('(min-width: 920px)').matches; }
           function select(a){ navs.forEach(function(n){ n.classList.toggle('active', n === a); }); if (frame) frame.src = a.getAttribute('data-target'); }
           navs.forEach(function(a){ a.addEventListener('click', function(e){ if (split()) { e.preventDefault(); select(a); } }); });
-          var stagesOnly = navs.filter(function(n){ return n.getAttribute('data-target') !== 'apercu/'; });
-          var first = stagesOnly[0] || navs[0];
-          if (split() && first) select(first);
+          var overview = navs.filter(function(n){ return n.getAttribute('data-target') === 'apercu/'; })[0] || navs[0];
+          if (split() && overview) select(overview);
         })();
         </script>
         </body>

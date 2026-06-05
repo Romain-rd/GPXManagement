@@ -59,6 +59,21 @@ enum BunnyStorageService {
             done += 1
             onProgress?(Double(done) / Double(total), "Envoi \(done)/\(total)…")
         }
+        onProgress?(1, "Invalidation du cache…")
+        await purgeCache(folder: folder)
+    }
+
+    private static let publicBase = "https://www.gpxmanagement.net/"
+
+    /// Purge le cache CDN de la pull zone pour le dossier publié (sinon l'ancienne version reste servie).
+    private static func purgeCache(folder: String) async {
+        let target = "\(publicBase)\(folder)/*"
+        guard let encoded = target.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://api.bunny.net/purge?url=\(encoded)&async=false") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "AccessKey")
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     private static func resolveZone() async throws -> ResolvedZone {
