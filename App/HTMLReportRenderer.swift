@@ -342,24 +342,34 @@ enum HTMLReportRenderer {
               L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
 
               var el = document.getElementById('map');
-              function isFs(){ return document.fullscreenElement === el || document.webkitFullscreenElement === el; }
+              var fsBtn = null, pseudo = false;
+              function nativeSupported(){ return !!(el.requestFullscreen || el.webkitRequestFullscreen); }
+              function isNativeFs(){ return document.fullscreenElement === el || document.webkitFullscreenElement === el; }
+              function active(){ return pseudo || isNativeFs(); }
+              function refresh(){ setTimeout(function(){ map.invalidateSize(); map.fitBounds(line.getBounds(), { padding: [24, 24] }); if (fsBtn) fsBtn.innerHTML = active() ? '✕' : '⤢'; }, 160); }
+              function toggle(){
+                if (nativeSupported()) {
+                  if (!isNativeFs()) { (el.requestFullscreen || el.webkitRequestFullscreen).call(el); }
+                  else { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+                } else {
+                  pseudo = !pseudo;
+                  el.classList.toggle('gpx-pseudo-fs', pseudo);
+                  document.body.classList.toggle('gpx-fs-lock', pseudo);
+                  refresh();
+                }
+              }
               var FsControl = L.Control.extend({
                 options: { position: 'topright' },
                 onAdd: function(){
-                  var btn = L.DomUtil.create('a', 'leaflet-bar leaflet-control gpx-fs');
-                  btn.href = '#'; btn.title = 'Plein écran'; btn.innerHTML = '⤢';
-                  L.DomEvent.on(btn, 'click', function(e){
-                    L.DomEvent.stop(e);
-                    if (!isFs()) { (el.requestFullscreen || el.webkitRequestFullscreen).call(el); }
-                    else { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
-                  });
-                  return btn;
+                  fsBtn = L.DomUtil.create('a', 'leaflet-bar leaflet-control gpx-fs');
+                  fsBtn.href = '#'; fsBtn.title = 'Plein écran'; fsBtn.innerHTML = '⤢';
+                  L.DomEvent.on(fsBtn, 'click', function(e){ L.DomEvent.stop(e); toggle(); });
+                  return fsBtn;
                 }
               });
               map.addControl(new FsControl());
-              function onFsChange(){ setTimeout(function(){ map.invalidateSize(); map.fitBounds(line.getBounds(), { padding: [24, 24] }); }, 150); }
-              document.addEventListener('fullscreenchange', onFsChange);
-              document.addEventListener('webkitfullscreenchange', onFsChange);
+              document.addEventListener('fullscreenchange', refresh);
+              document.addEventListener('webkitfullscreenchange', refresh);
 
               var cursor = null;
               window.gpxHighlight = function(lat, lon){
@@ -622,6 +632,8 @@ enum HTMLReportRenderer {
         .leaflet-container { background:var(--card); font:inherit; }
         .gpx-fs { font-size:18px; line-height:28px; text-align:center; width:30px; height:30px; cursor:pointer; text-decoration:none; color:#333; background:#fff; }
         #map:fullscreen, #map:-webkit-full-screen { width:100%; height:100%; border-radius:0; aspect-ratio:auto; border:0; }
+        #map.gpx-pseudo-fs { position:fixed !important; inset:0 !important; width:100vw !important; height:100vh !important; height:100dvh !important; border-radius:0 !important; aspect-ratio:auto !important; border:0 !important; z-index:9999 !important; }
+        body.gpx-fs-lock { overflow:hidden; }
         .chart { width:100%; height:auto; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
         .credit { font-size:11px; color:var(--sec); margin:6px 0 0; }
         .chart-block { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
