@@ -230,38 +230,43 @@ struct ActivityDetailView: View {
     @ViewBuilder
     private var publishedLinkSection: some View {
         if let urlString = publishedURL, let url = URL(string: urlString) {
-            HStack(spacing: 10) {
-                Image(systemName: "globe")
-                    .foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Publié sur le web").font(.caption).foregroundStyle(.secondary)
-                    Link(urlString, destination: url)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                Spacer()
-                Button {
-                    Task { await republishWeb() }
-                } label: {
-                    if isExportingWeb {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Republier", systemImage: "arrow.clockwise")
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "globe").foregroundStyle(.tint)
+                    Text("Publié sur le web").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await republishWeb() }
+                    } label: {
+                        if isExportingWeb {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("Republier", systemImage: "arrow.clockwise")
+                        }
                     }
+                    .disabled(isExportingWeb || !BunnyStorageService.isConfigured)
+                    .help("Republier avec les mêmes paramètres")
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Ouvrir", systemImage: "arrow.up.right.square")
+                    }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(urlString, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .help("Copier le lien")
                 }
-                .disabled(isExportingWeb || !BunnyStorageService.isConfigured)
-                .help("Republier avec les mêmes paramètres")
-                Button {
-                    NSWorkspace.shared.open(url)
-                } label: {
-                    Label("Ouvrir", systemImage: "arrow.up.right.square")
+                .controlSize(.small)
+                Link(destination: url) {
+                    Text(urlString)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(urlString, forType: .string)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .help("Copier le lien")
+                .font(.callout)
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
