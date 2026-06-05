@@ -246,6 +246,30 @@ extension CoreDataActivityRepository {
             }
         }
     }
+
+    func fetchWebPublishedURL(id: UUID) async throws -> String? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "webPublishedURL") as? String
+        }
+    }
+
+    func setWebPublishedURL(id: UUID, url: String) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(url, forKey: "webPublishedURL")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
 }
 
 enum ActivitySummaryMapper {

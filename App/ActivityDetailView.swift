@@ -32,6 +32,7 @@ struct ActivityDetailView: View {
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
+    @State private var publishedURL: String?
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -57,6 +58,7 @@ struct ActivityDetailView: View {
                 header
                 Divider()
                 metricsGrid
+                publishedLinkSection
                 mapSection
                 profileSection
                 photosSection
@@ -68,8 +70,13 @@ struct ActivityDetailView: View {
         .onAppear {
             notesDraft = activity.notes ?? ""
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
+            Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
         }
-        .onChange(of: activity.id) { _, _ in notesDraft = activity.notes ?? "" }
+        .onChange(of: activity.id) { _, _ in
+            notesDraft = activity.notes ?? ""
+            publishedURL = nil
+            Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -193,6 +200,37 @@ struct ActivityDetailView: View {
                 }
             }
             Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var publishedLinkSection: some View {
+        if let urlString = publishedURL, let url = URL(string: urlString) {
+            HStack(spacing: 10) {
+                Image(systemName: "globe")
+                    .foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Publié sur le web").font(.caption).foregroundStyle(.secondary)
+                    Link(urlString, destination: url)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer()
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Ouvrir", systemImage: "arrow.up.right.square")
+                }
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(urlString, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .help("Copier le lien")
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
         }
     }
 
@@ -754,11 +792,24 @@ struct ActivityDetailView: View {
                     }
                 }
                 GridRow {
-                    Text("Format").gridColumnAlignment(.trailing)
-                    Picker("", selection: $webOptions.output) {
-                        ForEach(WebExportOptions.Output.allCases) { Text($0.label).tag($0) }
+                    Text("Destination").gridColumnAlignment(.trailing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Picker("", selection: $webOptions.output) {
+                            ForEach(WebExportOptions.Output.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        if webOptions.output == .publishBunny {
+                            if BunnyStorageService.isConfigured {
+                                Text(publishedURL == nil
+                                     ? "Publie la page sur gpxmanagement.net et enregistre le lien."
+                                     : "Re-publie sur le lien existant (écrase le contenu).")
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            } else {
+                                Text("⚠︎ Bunny non configuré (renseigner Secrets.xcconfig).")
+                                    .font(.caption2).foregroundStyle(.orange)
+                            }
+                        }
                     }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
                 }
                 GridRow {
                     Text("Photos").gridColumnAlignment(.trailing)
@@ -769,11 +820,12 @@ struct ActivityDetailView: View {
             HStack {
                 Spacer()
                 Button("Annuler") { showWebExportOptions = false }
-                Button("Générer la page") {
+                Button(webOptions.output == .publishBunny ? "Publier" : "Générer la page") {
                     showWebExportOptions = false
                     Task { await exportWeb() }
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(webOptions.output == .publishBunny && !BunnyStorageService.isConfigured)
             }
         }
         .padding(20)
@@ -798,22 +850,40 @@ struct ActivityDetailView: View {
                 try html.write(to: url, options: .atomic)
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             case .folder(let files):
-                let panel = NSSavePanel()
-                panel.title = "Exporter le dossier de la page web"
-                panel.nameFieldStringValue = safeName
-                guard panel.runModal() == .OK, let dir = panel.url else { return }
-                try? FileManager.default.removeItem(at: dir)
-                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                for (rel, data) in files {
-                    let fileURL = dir.appendingPathComponent(rel)
-                    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try data.write(to: fileURL, options: .atomic)
+                if webOptions.output == .publishBunny {
+                    try await publishToBunny(files: files)
+                } else {
+                    let panel = NSSavePanel()
+                    panel.title = "Exporter le dossier de la page web"
+                    panel.nameFieldStringValue = safeName
+                    guard panel.runModal() == .OK, let dir = panel.url else { return }
+                    try? FileManager.default.removeItem(at: dir)
+                    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    for (rel, data) in files {
+                        let fileURL = dir.appendingPathComponent(rel)
+                        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try data.write(to: fileURL, options: .atomic)
+                    }
+                    NSWorkspace.shared.activateFileViewerSelecting([dir])
                 }
-                NSWorkspace.shared.activateFileViewerSelecting([dir])
             }
         } catch {
             exportError = error.localizedDescription
         }
+    }
+
+    private func publishToBunny(files: [String: Data]) async throws {
+        let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
+        try await BunnyStorageService.publish(files: files, folder: "traces/\(uuid)")
+        let url = "https://www.gpxmanagement.net/traces/\(uuid)/"
+        try await repository.setWebPublishedURL(id: activity.id, url: url)
+        publishedURL = url
+    }
+
+    /// UUID du dossier déjà publié (extrait du lien stocké) pour republier au même endroit.
+    private func existingPublishUUID() -> String? {
+        guard let s = publishedURL, let comps = URLComponents(string: s) else { return nil }
+        return comps.path.split(separator: "/").map(String.init).last
     }
 
     private func exportPDF() async {

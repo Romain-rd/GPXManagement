@@ -41,6 +41,7 @@
 		D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */; };
 		D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */; };
 		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
+		D9A721DBFC355D7D2570747F /* BunnyStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */; };
 		E64B4322FE44A87CE52FA9CE /* HTMLReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */; };
@@ -63,6 +64,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BunnyStorageService.swift; sourceTree = "<group>"; };
 		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
 		0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityRepository+Fetch.swift"; sourceTree = "<group>"; };
 		108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLReportRenderer.swift; sourceTree = "<group>"; };
@@ -108,7 +110,7 @@
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
 		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_744B1B11-0694-470B-9EBB-F12C65EC8A6D" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +164,7 @@
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
 				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
+				0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */,
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				E58CA06227C8889397B8742E /* CoreDataActivityRepository.swift */,
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
@@ -216,10 +219,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_A0D7F984-D73C-4D99-A9BE-81D8CEF219E3" /* GPXManagement */ = {
+		"TEMP_B6A731C7-DDA0-4785-99B7-73B4DDF5DCB4" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */,
+				"TEMP_744B1B11-0694-470B-9EBB-F12C65EC8A6D" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -337,6 +340,7 @@
 				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
 				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
+				D9A721DBFC355D7D2570747F /* BunnyStorageService.swift in Sources */,
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
 				30240CD2CC186ADBDE356B92 /* CoreDataActivityRepository.swift in Sources */,
 				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
@@ -408,7 +412,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_744B1B11-0694-470B-9EBB-F12C65EC8A6D" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -496,7 +500,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_744B1B11-0694-470B-9EBB-F12C65EC8A6D" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

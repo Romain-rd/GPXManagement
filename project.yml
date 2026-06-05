@@ -62,6 +62,9 @@ targets:
         NSPhotoLibraryUsageDescription: "Pour afficher les photos prises pendant vos activités, à proximité de la trace enregistrée."
         StravaClientID: $(STRAVA_CLIENT_ID)
         StravaClientSecret: $(STRAVA_CLIENT_SECRET)
+        BunnyStorageZone: $(BUNNY_STORAGE_ZONE)
+        BunnyStorageRegion: $(BUNNY_STORAGE_REGION)
+        BunnyStorageKey: $(BUNNY_STORAGE_KEY)
         NSUbiquitousContainers:
           iCloud.com.demoustier.GPXManagement:
             NSUbiquitousContainerName: GPXManagement

@@ -18,9 +18,15 @@ struct WebExportOptions {
         var label: String { self == .staticImage ? "Image statique" : "Graphique interactif" }
     }
     enum Output: String, CaseIterable, Identifiable {
-        case singleFile, folder
+        case singleFile, folder, publishBunny
         var id: String { rawValue }
-        var label: String { self == .singleFile ? "Fichier HTML unique" : "Dossier (HTML + images)" }
+        var label: String {
+            switch self {
+            case .singleFile:   return "Fichier unique"
+            case .folder:       return "Dossier"
+            case .publishBunny: return "GPXManagement.net"
+            }
+        }
     }
 
     var map: MapRendering = .staticImage
@@ -100,7 +106,7 @@ enum HTMLReportRenderer {
         case .singleFile:
             guard let data = html.data(using: .utf8) else { throw HTMLReportError.renderFailed }
             return .singleFile(html: data)
-        case .folder:
+        case .folder, .publishBunny:
             var files: [String: Data] = ["index.html": html.data(using: .utf8) ?? Data()]
             if let map = mapPNG { files["images/carte.png"] = map }
             if let d = distancePNG { files["images/profil-distance.png"] = d }
