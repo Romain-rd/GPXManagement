@@ -80,16 +80,17 @@ enum HTMLReportRenderer {
         }
         let profilePayload = interactiveProfile ? profilePayloadJSON(profile) : ""
 
-        var photoJPEGs: [Data] = []
+        var photoItems: [PhotoItem] = []
         if options.includePhotos {
             for asset in photos {
                 if let image = await PhotoLibraryService.fullImage(for: asset), let jpeg = image.jpeg(quality: 0.82) {
-                    photoJPEGs.append(jpeg)
+                    let coord = asset.location?.coordinate
+                    photoItems.append(PhotoItem(data: jpeg, lat: coord?.latitude, lon: coord?.longitude))
                 }
             }
         }
 
-        let assets = HTMLAssets(map: mapPNG, distanceProfile: distancePNG, timeProfile: timePNG, photos: photoJPEGs)
+        let assets = HTMLAssets(map: mapPNG, distanceProfile: distancePNG, timeProfile: timePNG, photos: photoItems)
         let html = buildHTML(activity: activity, assets: assets, options: options,
                              slopeLegend: slopeLegendItems(distanceScale: distanceScale),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
@@ -104,7 +105,7 @@ enum HTMLReportRenderer {
             if let map = mapPNG { files["images/carte.png"] = map }
             if let d = distancePNG { files["images/profil-distance.png"] = d }
             if let t = timePNG { files["images/profil-temps.png"] = t }
-            for (i, jpeg) in photoJPEGs.enumerated() { files["images/photo-\(i + 1).jpg"] = jpeg }
+            for (i, item) in photoItems.enumerated() { files["images/photo-\(i + 1).jpg"] = item.data }
             return .folder(files: files)
         }
     }
@@ -232,11 +233,13 @@ enum HTMLReportRenderer {
 
     // MARK: - Construction du HTML
 
+    private struct PhotoItem { let data: Data; let lat: Double?; let lon: Double? }
+
     private struct HTMLAssets {
         let map: Data?
         let distanceProfile: Data?
         let timeProfile: Data?
-        let photos: [Data]
+        let photos: [PhotoItem]
     }
 
     private struct LegendItem { let label: String; let color: String }
@@ -338,6 +341,13 @@ enum HTMLReportRenderer {
                 else { cursor.setLatLng([lat, lon]); }
               };
               window.gpxClearHighlight = function(){ if (cursor) { map.removeLayer(cursor); cursor = null; } };
+              var photoMarker = null;
+              window.gpxShowPhoto = function(lat, lon, zoom){
+                if (lat == null || lon == null) { return; }
+                if (!photoMarker) { photoMarker = L.circleMarker([lat, lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#ffcc00', fillOpacity: 1 }).addTo(map); }
+                else { photoMarker.setLatLng([lat, lon]); }
+                if (zoom) { map.setView([lat, lon], Math.max(map.getZoom(), 15)); } else if (!map.getBounds().contains([lat, lon])) { map.panTo([lat, lon]); }
+              };
             })();
             </script>
             """
@@ -349,13 +359,22 @@ enum HTMLReportRenderer {
             }
         }
 
-        // Photos
+        // Photos (cliquables/survolables → localisation sur la carte interactive)
         var photosSection = ""
+        var photoScript = ""
         if !assets.photos.isEmpty {
-            let grid = assets.photos.enumerated().map { i, data in
-                imgTag(data, file: "images/photo-\(i + 1).jpg", mime: "image/jpeg", alt: "Photo \(i + 1)", cssClass: "photo")
+            let grid = assets.photos.enumerated().map { i, item -> String in
+                let src = inline ? "data:image/jpeg;base64,\(item.data.base64EncodedString())" : "images/photo-\(i + 1).jpg"
+                if interactiveMap, let lat = item.lat, let lon = item.lon {
+                    let attrs = " data-lat=\"\(String(format: "%.6f", lat))\" data-lon=\"\(String(format: "%.6f", lon))\" title=\"Voir où la photo a été prise\""
+                    return "<img class=\"photo locatable\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\"\(attrs)>"
+                }
+                return "<img class=\"photo\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\">"
             }.joined()
             photosSection = "<section class=\"section\"><h2>Photos</h2><div class=\"photos\">\(grid)</div></section>"
+            if interactiveMap, assets.photos.contains(where: { $0.lat != nil }) {
+                photoScript = "<script>\n\(photoMapJS)\n</script>"
+            }
         }
 
         // Notes + source
@@ -397,8 +416,9 @@ enum HTMLReportRenderer {
           \(notesSection)
           <footer>\(sourceLine)<p class="madeby">Généré par GPXManagement</p></footer>
         </main>
-        \(profileScript)
         \(mapScript)
+        \(profileScript)
+        \(photoScript)
         </body>
         </html>
         """
@@ -524,6 +544,22 @@ enum HTMLReportRenderer {
     })();
     """
 
+    private static let photoMapJS = """
+    (function(){
+      var imgs = Array.prototype.slice.call(document.querySelectorAll('.photo.locatable'));
+      imgs.forEach(function(img){
+        var lat = parseFloat(img.getAttribute('data-lat'));
+        var lon = parseFloat(img.getAttribute('data-lon'));
+        img.addEventListener('mouseenter', function(){ if (window.gpxShowPhoto) window.gpxShowPhoto(lat, lon, false); });
+        img.addEventListener('click', function(){
+          if (window.gpxShowPhoto) window.gpxShowPhoto(lat, lon, true);
+          var m = document.getElementById('map');
+          if (m) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    })();
+    """
+
     private static func jsString(_ s: String) -> String {
         "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -572,6 +608,8 @@ enum HTMLReportRenderer {
         .tip { position:absolute; pointer-events:none; background:rgba(0,0,0,0.82); color:#fff; font-size:12px; padding:6px 9px; border-radius:8px; transform:translate(-50%,-115%); white-space:nowrap; opacity:0; transition:opacity .08s; z-index:5; }
         .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
         .photo { width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; border:1px solid var(--line); }
+        .photo.locatable { cursor:pointer; transition:transform .1s, box-shadow .1s; }
+        .photo.locatable:hover { transform:scale(1.03); box-shadow:0 0 0 2px var(--accent); }
         .notes { white-space:normal; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:0; }
         footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line); color:var(--sec); font-size:12px; }
         footer p { margin:2px 0; }
