@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPXManagement</title>
+<meta name="description" content="Centralisez, visualisez et partagez vos traces GPS : vélo, moto, marche, randonnée, ski. Cartes IGN, profil altimétrique, statistiques.">
+<style>
+  :root { --accent:#1E88E5; --bg:#f5f5f7; --fg:#1d1d1f; --sec:#6e6e73; --card:#ffffff; --line:#e3e3e6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f5f5f7; --sec:#9a9a9e; --card:#2c2c2e; --line:#3a3a3c; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:920px; margin:0 auto; padding:64px 20px 56px; }
+  .hero { text-align:center; margin-bottom:48px; }
+  .logo { width:84px; height:84px; border-radius:22px; background:linear-gradient(140deg,var(--accent),#43A047); display:inline-flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(30,136,229,.28); }
+  .logo svg { width:50px; height:50px; }
+  h1 { font-size:42px; font-weight:800; letter-spacing:-.03em; margin:20px 0 8px; }
+  .tagline { font-size:19px; color:var(--sec); margin:0 auto; max-width:560px; }
+  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-top:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; }
+  .card h3 { margin:0 0 6px; font-size:17px; }
+  .card p { margin:0; color:var(--sec); font-size:14.5px; }
+  .card .ic { font-size:24px; margin-bottom:10px; display:block; }
+  .note { margin-top:40px; text-align:center; color:var(--sec); font-size:14px; }
+  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--line); text-align:center; color:var(--sec); font-size:13px; }
+  footer .madeby { color:var(--accent); font-weight:600; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 20c2-7 5-3 7-9 1.6-4.8 5-4 5-4"/>
+        <circle cx="17" cy="6" r="2.4" fill="#fff" stroke="none"/>
+        <circle cx="5" cy="20" r="2.4" fill="#fff" stroke="none"/>
+      </svg>
+    </div>
+    <h1>GPXManagement</h1>
+    <p class="tagline">Centralisez, visualisez et partagez toutes vos traces GPS — vélo, moto, marche, randonnée, ski.</p>
+  </header>
+
+  <section class="features">
+    <div class="card"><span class="ic">🗺️</span><h3>Cartes IGN</h3><p>Fonds topographiques SCAN 25, Plan v2, pentes — et fonds monde commutables.</p></div>
+    <div class="card"><span class="ic">📈</span><h3>Profil altimétrique</h3><p>Dénivelé, pente et fréquence cardiaque, survol synchronisé avec la carte.</p></div>
+    <div class="card"><span class="ic">📊</span><h3>Statistiques</h3><p>Distances, dénivelés et temps agrégés par période et par activité.</p></div>
+    <div class="card"><span class="ic">🌐</span><h3>Publication web</h3><p>Chaque sortie devient une page partageable, avec carte interactive et photos.</p></div>
+  </section>
+
+  <p class="note">Application macOS native. Les sorties publiées sont accessibles via leur lien dans <a href="/traces/">/traces</a>.</p>
+
+  <footer>
+    <p class="madeby">GPXManagement</p>
+    <p>© Romain Demoustier</p>
+  </footer>
+</div>
+</body>
+</html>
