@@ -748,8 +748,9 @@ struct ActivityDetailView: View {
                             ForEach(WebExportOptions.ProfileRendering.allCases) { Text($0.label).tag($0) }
                         }
                         .pickerStyle(.segmented).labelsHidden().fixedSize()
-                        .disabled(true)
-                        Text("Version interactive à venir.").font(.caption2).foregroundStyle(.tertiary)
+                        if webOptions.profile == .interactive {
+                            Text("Survol synchronisé avec la carte (si interactive), bascule distance/temps.").font(.caption2).foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 GridRow {

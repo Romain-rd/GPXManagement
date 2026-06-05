@@ -66,15 +66,19 @@ enum HTMLReportRenderer {
         let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile)
         let timeProfile = PDFReportRenderer.movementRuns(from: profile)
         let movement = ElevationProfileBuilder.movementTime(profile)
+        let interactiveProfile = options.profile == .interactive
 
         var distancePNG: Data?
-        if !distanceSamples.isEmpty {
-            distancePNG = renderChartPNG(HTMLDistanceChart(samples: distanceSamples, scale: distanceScale), size: CGSize(width: 1000, height: 300))
-        }
         var timePNG: Data?
-        if timeProfile.available {
-            timePNG = renderChartPNG(HTMLTimeChart(time: timeProfile), size: CGSize(width: 1000, height: 300))
+        if !interactiveProfile {
+            if !distanceSamples.isEmpty {
+                distancePNG = renderChartPNG(HTMLDistanceChart(samples: distanceSamples, scale: distanceScale), size: CGSize(width: 1000, height: 300))
+            }
+            if timeProfile.available {
+                timePNG = renderChartPNG(HTMLTimeChart(time: timeProfile), size: CGSize(width: 1000, height: 300))
+            }
         }
+        let profilePayload = interactiveProfile ? profilePayloadJSON(profile) : ""
 
         var photoJPEGs: [Data] = []
         if options.includePhotos {
@@ -89,7 +93,7 @@ enum HTMLReportRenderer {
         let html = buildHTML(activity: activity, assets: assets, options: options,
                              slopeLegend: slopeLegendItems(distanceScale: distanceScale),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
-                             layer: layer, trackCoords: trackCoords)
+                             layer: layer, trackCoords: trackCoords, profilePayload: profilePayload)
 
         switch options.output {
         case .singleFile:
@@ -156,6 +160,65 @@ enum HTMLReportRenderer {
         return WebTileLayer(urlTemplate: MapLayer.osm.tileURLTemplate ?? "", maxZoom: MapLayer.osm.maxZoom, attribution: MapLayer.osm.attribution ?? "")
     }
 
+    // MARK: - Données du profil interactif
+
+    private static let slopeOrder: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
+
+    /// Sérialise le profil (décimé) en objet JS : altitude/pente par distance et par temps + FC, lat/lon pour la synchro carte.
+    private static func profilePayloadJSON(_ profile: [ElevationProfilePoint]) -> String {
+        guard profile.count >= 2 else { return "" }
+        let pts = ElevationProfileBuilder.decimate(profile, tolerance: 1.0, maxPoints: 1200)
+
+        func arr(_ values: [String]) -> String { "[" + values.joined(separator: ",") + "]" }
+        func num(_ d: Double, _ decimals: Int) -> String { String(format: "%.\(decimals)f", d) }
+
+        let cats = slopeOrder.map { "\"\(hex($0.color))\"" }
+        let catLabels = slopeOrder.map { "\"\($0.label)\"" }
+
+        // Distance / pente
+        let dx = pts.map { num($0.distanceFromStart / 1000, 3) }
+        let dAlt = pts.map { num($0.altitude, 1) }
+        let dCat = pts.map { String(slopeOrder.firstIndex(of: SlopeCategory.category(for: $0.slope)) ?? 0) }
+        let dLat = pts.map { num($0.latitude ?? 0, 5) }
+        let dLon = pts.map { num($0.longitude ?? 0, 5) }
+        let distanceObj = "{x:\(arr(dx)),alt:\(arr(dAlt)),cat:\(arr(dCat)),lat:\(arr(dLat)),lon:\(arr(dLon))}"
+
+        // Temps / mouvement + FC
+        var timeObj = "{available:false}"
+        let stamps = pts.compactMap(\.timestamp)
+        if let t0 = stamps.first, let tLast = stamps.last, tLast > t0 {
+            let useMinutes = tLast.timeIntervalSince(t0) < 5400
+            let div = useMinutes ? 60.0 : 3600.0
+            let axisLabel = useMinutes ? "Temps (min)" : "Temps (h)"
+            var lastX = 0.0
+            let tx = pts.map { p -> String in
+                if let t = p.timestamp { lastX = t.timeIntervalSince(t0) / div }
+                return num(lastX, 3)
+            }
+            let tAlt = pts.map { num($0.altitude, 1) }
+            var moving: [String] = []
+            for i in 0..<pts.count {
+                if i + 1 < pts.count, let a = pts[i].timestamp, let b = pts[i + 1].timestamp, b.timeIntervalSince(a) > 0 {
+                    let dd = pts[i + 1].distanceFromStart - pts[i].distanceFromStart
+                    moving.append(dd / b.timeIntervalSince(a) > 0.5 ? "1" : "0")
+                } else {
+                    moving.append(moving.last ?? "1")
+                }
+            }
+            let hrs = pts.compactMap(\.heartRate).filter { $0 > 0 }
+            var hrField = "null"
+            if hrs.count >= 2 {
+                let hr = pts.map { ($0.heartRate ?? 0) > 0 ? num($0.heartRate!, 0) : "null" }
+                hrField = arr(hr)
+            }
+            let tLatA = pts.map { num($0.latitude ?? 0, 5) }
+            let tLonA = pts.map { num($0.longitude ?? 0, 5) }
+            timeObj = "{available:true,axisLabel:\"\(axisLabel)\",x:\(arr(tx)),alt:\(arr(tAlt)),moving:\(arr(moving)),hr:\(hrField),lat:\(arr(tLatA)),lon:\(arr(tLonA))}"
+        }
+
+        return "{cats:[\(cats.joined(separator: ","))],catLabels:[\(catLabels.joined(separator: ","))],distance:\(distanceObj),time:\(timeObj)}"
+    }
+
     // MARK: - Rendu d'images
 
     private static func renderChartPNG(_ view: some View, size: CGSize) -> Data? {
@@ -184,10 +247,11 @@ enum HTMLReportRenderer {
         return cats.map { LegendItem(label: $0.label, color: hex($0.color)) }
     }
 
-    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)]) -> String {
+    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], profilePayload: String) -> String {
         let accent = hex(activity.activityType.trackColor)
         let inline = options.output == .singleFile
         let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
+        let interactiveProfile = options.profile == .interactive && !profilePayload.isEmpty
 
         func imgTag(_ data: Data?, file: String, mime: String, alt: String, cssClass: String) -> String {
             guard let data else { return "" }
@@ -212,25 +276,42 @@ enum HTMLReportRenderer {
         if let hr = activity.avgHeartRate { cards.append(metricCard("FC moyenne", "\(Int(hr.rounded())) bpm")) }
         if let hr = activity.maxHeartRate { cards.append(metricCard("FC max", "\(Int(hr.rounded())) bpm")) }
 
-        // Profils
+        // Profils (statiques en images, ou graphique interactif canvas)
         var profileSection = ""
-        let distanceImg = imgTag(assets.distanceProfile, file: "images/profil-distance.png", mime: "image/png", alt: "Profil distance / pente", cssClass: "chart")
-        let timeImg = imgTag(assets.timeProfile, file: "images/profil-temps.png", mime: "image/png", alt: "Profil temps / mouvement", cssClass: "chart")
-        if !distanceImg.isEmpty || !timeImg.isEmpty {
-            var blocks = ""
-            if !distanceImg.isEmpty {
-                let legend = slopeLegend.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>\(esc($0.label))</span>" }.joined()
-                blocks += "<div class=\"chart-block\"><h3>Distance / pente</h3>\(distanceImg)<div class=\"legend\">\(legend)</div></div>"
+        var profileScript = ""
+        if interactiveProfile {
+            profileSection = """
+            <section class="section"><h2>Profil altimétrique</h2>
+              <div class="chart-block">
+                <div class="chart-toolbar">
+                  <button class="seg active" data-mode="distance">Distance / pente</button>
+                  <button class="seg" data-mode="time">Temps / mouvement</button>
+                </div>
+                <div class="chart-wrap"><canvas id="profile"></canvas><div id="profile-tip" class="tip"></div></div>
+                <div class="legend" id="profile-legend"></div>
+              </div>
+            </section>
+            """
+            profileScript = "<script>\nwindow.__gpxProfile = \(profilePayload);\n\(profileChartJS)\n</script>"
+        } else {
+            let distanceImg = imgTag(assets.distanceProfile, file: "images/profil-distance.png", mime: "image/png", alt: "Profil distance / pente", cssClass: "chart")
+            let timeImg = imgTag(assets.timeProfile, file: "images/profil-temps.png", mime: "image/png", alt: "Profil temps / mouvement", cssClass: "chart")
+            if !distanceImg.isEmpty || !timeImg.isEmpty {
+                var blocks = ""
+                if !distanceImg.isEmpty {
+                    let legend = slopeLegend.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>\(esc($0.label))</span>" }.joined()
+                    blocks += "<div class=\"chart-block\"><h3>Distance / pente</h3>\(distanceImg)<div class=\"legend\">\(legend)</div></div>"
+                }
+                if !timeImg.isEmpty {
+                    let total = movement.moving + movement.paused
+                    func pct(_ t: TimeInterval) -> String { total > 0 ? " (\(Int((t / total * 100).rounded())) %)" : "" }
+                    var legend = "<span class=\"li\"><i style=\"background:#34c759\"></i>En mouvement : \(esc(fmtDuration(movement.moving)))\(pct(movement.moving))</span>"
+                    legend += "<span class=\"li\"><i style=\"background:#8e8e93\"></i>Pause : \(esc(fmtDuration(movement.paused)))\(pct(movement.paused))</span>"
+                    if hasHeartRate { legend += "<span class=\"li\"><i style=\"background:#ff3b30\"></i>Fréquence cardiaque</span>" }
+                    blocks += "<div class=\"chart-block\"><h3>Temps / mouvement</h3>\(timeImg)<div class=\"legend\">\(legend)</div></div>"
+                }
+                profileSection = "<section class=\"section\"><h2>Profil altimétrique</h2>\(blocks)</section>"
             }
-            if !timeImg.isEmpty {
-                let total = movement.moving + movement.paused
-                func pct(_ t: TimeInterval) -> String { total > 0 ? " (\(Int((t / total * 100).rounded())) %)" : "" }
-                var legend = "<span class=\"li\"><i style=\"background:#34c759\"></i>En mouvement : \(esc(fmtDuration(movement.moving)))\(pct(movement.moving))</span>"
-                legend += "<span class=\"li\"><i style=\"background:#8e8e93\"></i>Pause : \(esc(fmtDuration(movement.paused)))\(pct(movement.paused))</span>"
-                if hasHeartRate { legend += "<span class=\"li\"><i style=\"background:#ff3b30\"></i>Fréquence cardiaque</span>" }
-                blocks += "<div class=\"chart-block\"><h3>Temps / mouvement</h3>\(timeImg)<div class=\"legend\">\(legend)</div></div>"
-            }
-            profileSection = "<section class=\"section\"><h2>Profil altimétrique</h2>\(blocks)</section>"
         }
 
         // Carte (statique ou interactive Leaflet)
@@ -250,6 +331,13 @@ enum HTMLReportRenderer {
               map.fitBounds(line.getBounds(), { padding: [24, 24] });
               L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#34c759', fillOpacity: 1 }).addTo(map);
               L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
+              var cursor = null;
+              window.gpxHighlight = function(lat, lon){
+                if (lat == null || lon == null) { return; }
+                if (!cursor) { cursor = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 2, fillColor: \(jsString(accent)), fillOpacity: 1 }).addTo(map); }
+                else { cursor.setLatLng([lat, lon]); }
+              };
+              window.gpxClearHighlight = function(){ if (cursor) { map.removeLayer(cursor); cursor = null; } };
             })();
             </script>
             """
@@ -309,11 +397,132 @@ enum HTMLReportRenderer {
           \(notesSection)
           <footer>\(sourceLine)<p class="madeby">Généré par GPXManagement</p></footer>
         </main>
+        \(profileScript)
         \(mapScript)
         </body>
         </html>
         """
     }
+
+    private static let profileChartJS = """
+    (function(){
+      var D = window.__gpxProfile;
+      if (!D) return;
+      var canvas = document.getElementById('profile');
+      var tip = document.getElementById('profile-tip');
+      var legend = document.getElementById('profile-legend');
+      var ctx = canvas.getContext('2d');
+      var mode = 'distance';
+      var dpr = window.devicePixelRatio || 1;
+      var pad = { l: 50, r: 16, t: 12, b: 30 };
+      var hover = -1;
+
+      function series(){ return mode === 'distance' ? D.distance : D.time; }
+      function css(v){ return getComputedStyle(document.body).getPropertyValue(v).trim() || '#999'; }
+
+      function resize(){
+        var w = canvas.clientWidth;
+        canvas.width = w * dpr; canvas.height = 300 * dpr;
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        draw();
+      }
+
+      function bounds(s){
+        var xmin = s.x[0], xmax = s.x[s.x.length-1];
+        var amin = Infinity, amax = -Infinity;
+        for (var i=0;i<s.alt.length;i++){ if(s.alt[i]<amin)amin=s.alt[i]; if(s.alt[i]>amax)amax=s.alt[i]; }
+        var padA = (amax-amin)*0.08 || 10;
+        return { xmin:xmin, xmax:xmax, ymin:amin-padA, ymax:amax+padA };
+      }
+
+      function draw(){
+        var s = series();
+        var W = canvas.clientWidth, H = 300;
+        ctx.clearRect(0,0,W,H);
+        var b = bounds(s);
+        var pl = pad.l, pr = W-pad.r, pt = pad.t, pbt = H-pad.b;
+        function X(x){ return pl + (x-b.xmin)/((b.xmax-b.xmin)||1)*(pr-pl); }
+        function Y(y){ return pbt - (y-b.ymin)/((b.ymax-b.ymin)||1)*(pbt-pt); }
+
+        for (var i=0;i<s.x.length-1;i++){
+          var color = mode==='distance' ? (D.cats[s.cat[i]] || '#888') : (s.moving[i]==1 ? '#34c759' : '#8e8e93');
+          ctx.beginPath();
+          ctx.moveTo(X(s.x[i]), pbt);
+          ctx.lineTo(X(s.x[i]), Y(s.alt[i]));
+          ctx.lineTo(X(s.x[i+1]), Y(s.alt[i+1]));
+          ctx.lineTo(X(s.x[i+1]), pbt);
+          ctx.closePath();
+          ctx.fillStyle = color; ctx.globalAlpha = 0.75; ctx.fill(); ctx.globalAlpha = 1;
+        }
+
+        if (mode==='time' && s.hr){
+          var hmin=Infinity,hmax=-Infinity;
+          for (var k=0;k<s.hr.length;k++){ var v=s.hr[k]; if(v!=null){ if(v<hmin)hmin=v; if(v>hmax)hmax=v; } }
+          if (hmax>hmin){
+            ctx.beginPath(); var started=false;
+            for (var k2=0;k2<s.hr.length;k2++){ var v2=s.hr[k2]; if(v2==null)continue; var yy=pbt-(v2-hmin)/(hmax-hmin)*(pbt-pt); var xx=X(s.x[k2]); if(!started){ctx.moveTo(xx,yy);started=true;}else ctx.lineTo(xx,yy); }
+            ctx.strokeStyle='#ff3b30'; ctx.lineWidth=1.5; ctx.stroke();
+          }
+        }
+
+        ctx.strokeStyle = css('--line'); ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(pl,pt); ctx.lineTo(pl,pbt); ctx.lineTo(pr,pbt); ctx.stroke();
+        ctx.fillStyle = css('--sec'); ctx.font='11px -apple-system,sans-serif';
+        for (var t=0;t<=4;t++){ var yv=b.ymin+(b.ymax-b.ymin)*t/4; var yy2=Y(yv); ctx.fillText(Math.round(yv)+' m', 6, yy2+3); ctx.globalAlpha=0.35; ctx.beginPath(); ctx.moveTo(pl,yy2); ctx.lineTo(pr,yy2); ctx.stroke(); ctx.globalAlpha=1; }
+        for (var tx=0;tx<=5;tx++){ var xv=b.xmin+(b.xmax-b.xmin)*tx/5; var xx2=X(xv); ctx.fillText(xv.toFixed(xv<10?1:0), xx2-8, pbt+16); }
+        ctx.fillText(mode==='distance' ? 'Distance (km)' : (s.axisLabel||'Temps'), (pl+pr)/2-30, H-4);
+
+        if (hover>=0 && hover<s.x.length){
+          var hx=X(s.x[hover]), hy=Y(s.alt[hover]);
+          ctx.strokeStyle=css('--accent'); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(hx,pt); ctx.lineTo(hx,pbt); ctx.stroke();
+          ctx.fillStyle=css('--accent'); ctx.beginPath(); ctx.arc(hx,hy,4,0,Math.PI*2); ctx.fill();
+        }
+      }
+
+      function showTip(s,i,px){
+        var html = '<b>'+s.alt[i].toFixed(0)+' m</b>';
+        if (mode==='distance'){ html += '  '+s.x[i].toFixed(2)+' km  '+D.catLabels[s.cat[i]]; }
+        else { html += '  '+s.x[i].toFixed(1)+((s.axisLabel||'').indexOf('min')>=0?' min':' h'); if (s.hr && s.hr[i]!=null) html += '  '+s.hr[i]+' bpm'; }
+        tip.innerHTML = html; tip.style.left = px+'px'; tip.style.top = pad.t+'px'; tip.style.opacity = 1;
+      }
+
+      canvas.addEventListener('mousemove', function(e){
+        var s = series(); var rect = canvas.getBoundingClientRect();
+        var W = canvas.clientWidth; var pl = pad.l, pr = W-pad.r; var b = bounds(s);
+        var xv = b.xmin + (e.clientX-rect.left-pl)/((pr-pl)||1)*(b.xmax-b.xmin);
+        var best=0, bd=Infinity;
+        for (var i=0;i<s.x.length;i++){ var d=Math.abs(s.x[i]-xv); if(d<bd){bd=d;best=i;} }
+        hover=best; draw();
+        var px = pl + (s.x[best]-b.xmin)/((b.xmax-b.xmin)||1)*(pr-pl);
+        showTip(s,best,px);
+        if (window.gpxHighlight && s.lat) window.gpxHighlight(s.lat[best], s.lon[best]);
+      });
+      canvas.addEventListener('mouseleave', function(){ hover=-1; tip.style.opacity=0; draw(); if(window.gpxClearHighlight) window.gpxClearHighlight(); });
+
+      function buildLegend(){
+        var html='';
+        if (mode==='distance'){ for (var i=0;i<D.cats.length;i++){ html += '<span class="li"><i style="background:'+D.cats[i]+'"></i>'+D.catLabels[i]+'</span>'; } }
+        else { html += '<span class="li"><i style="background:#34c759"></i>En mouvement</span><span class="li"><i style="background:#8e8e93"></i>Pause</span>'; if (D.time.hr) html += '<span class="li"><i style="background:#ff3b30"></i>Fréquence cardiaque</span>'; }
+        legend.innerHTML = html;
+      }
+
+      var btns = Array.prototype.slice.call(document.querySelectorAll('.seg'));
+      btns.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var m = btn.getAttribute('data-mode');
+          if (m==='time' && !D.time.available) return;
+          mode = m;
+          btns.forEach(function(b){ b.classList.toggle('active', b===btn); });
+          hover=-1; tip.style.opacity=0; buildLegend(); draw();
+        });
+      });
+      if (!D.time.available){ btns.forEach(function(b){ if(b.getAttribute('data-mode')==='time'){ b.disabled=true; b.style.opacity=0.4; b.style.cursor='not-allowed'; } }); }
+
+      buildLegend();
+      window.addEventListener('resize', resize);
+      resize();
+    })();
+    """
 
     private static func jsString(_ s: String) -> String {
         "\"" + s.replacingOccurrences(of: "\\", with: "\\\\")
@@ -355,6 +564,12 @@ enum HTMLReportRenderer {
         .legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; font-size:12px; color:var(--sec); }
         .legend .li { display:inline-flex; align-items:center; gap:5px; }
         .legend i { width:11px; height:11px; border-radius:3px; display:inline-block; }
+        .chart-toolbar { display:flex; gap:6px; margin-bottom:10px; }
+        .seg { font:13px inherit; padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer; }
+        .seg.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .chart-wrap { position:relative; width:100%; }
+        #profile { width:100%; height:300px; display:block; cursor:crosshair; }
+        .tip { position:absolute; pointer-events:none; background:rgba(0,0,0,0.82); color:#fff; font-size:12px; padding:6px 9px; border-radius:8px; transform:translate(-50%,-115%); white-space:nowrap; opacity:0; transition:opacity .08s; z-index:5; }
         .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
         .photo { width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; border:1px solid var(--line); }
         .notes { white-space:normal; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:0; }
