@@ -277,7 +277,7 @@ struct RaidDetailView: View {
         let totalDistance = members.reduce(0) { $0 + $1.distance }
         let totalGain = members.reduce(0) { $0 + $1.elevationGain }
         let totalMoving = members.reduce(0) { $0 + $1.movingDuration }
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
             statTile("Étapes", "\(members.count)", "point.topleft.down.to.point.bottomright.curvepath")
             statTile("Distance", Self.formatDistance(totalDistance), "ruler")
             statTile("Dénivelé +", "\(Int(totalGain.rounded())) m", "mountain.2")
@@ -286,14 +286,25 @@ struct RaidDetailView: View {
     }
 
     private func statTile(_ title: String, _ value: String, _ symbol: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: symbol).foregroundStyle(.tint)
-            Text(value).font(.title3.monospacedDigit().bold())
-            Text(title).font(.caption).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.tint)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 17, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
     }
 

@@ -242,30 +242,34 @@ struct PDFReportPage: View {
     }
 
     private var statsSection: some View {
-        Grid(alignment: .leading, horizontalSpacing: 28, verticalSpacing: 6) {
-            GridRow {
-                stat("Distance", PDFFmt.distance(activity.distance))
-                stat("Durée", PDFFmt.duration(activity.duration))
-                stat("En mouvement", PDFFmt.duration(activity.movingDuration))
-            }
-            GridRow {
-                stat("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m")
-                stat("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m")
-                stat("Vitesse moy.", PDFFmt.speed(activity.avgSpeed))
-            }
-            GridRow {
-                stat("Vitesse max", PDFFmt.speed(activity.maxSpeed))
-                if let hr = activity.avgHeartRate { stat("FC moy.", "\(Int(hr.rounded())) bpm") } else { Color.clear }
-                if let hr = activity.maxHeartRate { stat("FC max", "\(Int(hr.rounded())) bpm") } else { Color.clear }
-            }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            card("ruler", PDFFmt.distance(activity.distance), "Distance", .blue)
+            card("arrow.up.forward", "\(Int(activity.elevationGain.rounded())) m", "Dénivelé +", .green)
+            card("arrow.down.forward", "\(Int(activity.elevationLoss.rounded())) m", "Dénivelé −", .orange)
+            card("clock", PDFFmt.duration(activity.duration), "Durée totale", .purple)
+            card("stopwatch", PDFFmt.duration(activity.movingDuration), "En mouvement", .purple)
+            card("speedometer", PDFFmt.speed(activity.avgSpeed), "Vitesse moy.", .teal)
+            card("gauge.with.dots.needle.67percent", PDFFmt.speed(activity.maxSpeed), "Vitesse max", .teal)
+            if let hr = activity.avgHeartRate { card("heart", "\(Int(hr.rounded())) bpm", "FC moyenne", .red) }
+            if let hr = activity.maxHeartRate { card("heart.fill", "\(Int(hr.rounded())) bpm", "FC max", .red) }
         }
     }
 
-    private func stat(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.bold())
+    private func card(_ icon: String, _ value: String, _ label: String, _ tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value).font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.95)))
     }
 }
 

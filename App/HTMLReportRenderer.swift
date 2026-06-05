@@ -275,16 +275,16 @@ enum HTMLReportRenderer {
 
         // Métriques
         var cards: [String] = [
-            metricCard("Distance", fmtDistance(activity.distance)),
-            metricCard("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
-            metricCard("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
-            metricCard("Durée totale", fmtDuration(activity.duration)),
-            metricCard("En mouvement", fmtDuration(activity.movingDuration)),
-            metricCard("Vitesse moy.", fmtSpeed(activity.avgSpeed)),
-            metricCard("Vitesse max", fmtSpeed(activity.maxSpeed))
+            metricCard("📏", "Distance", fmtDistance(activity.distance)),
+            metricCard("⬆️", "Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
+            metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
+            metricCard("🕐", "Durée totale", fmtDuration(activity.duration)),
+            metricCard("⏱️", "En mouvement", fmtDuration(activity.movingDuration)),
+            metricCard("💨", "Vitesse moy.", fmtSpeed(activity.avgSpeed)),
+            metricCard("⚡️", "Vitesse max", fmtSpeed(activity.maxSpeed))
         ]
-        if let hr = activity.avgHeartRate { cards.append(metricCard("FC moyenne", "\(Int(hr.rounded())) bpm")) }
-        if let hr = activity.maxHeartRate { cards.append(metricCard("FC max", "\(Int(hr.rounded())) bpm")) }
+        if let hr = activity.avgHeartRate { cards.append(metricCard("❤️", "FC moyenne", "\(Int(hr.rounded())) bpm")) }
+        if let hr = activity.maxHeartRate { cards.append(metricCard("❤️", "FC max", "\(Int(hr.rounded())) bpm")) }
 
         // Profils (statiques en images, ou graphique interactif canvas)
         var profileSection = ""
@@ -604,8 +604,8 @@ enum HTMLReportRenderer {
             .replacingOccurrences(of: "\n", with: "\\n") + "\""
     }
 
-    private static func metricCard(_ label: String, _ value: String) -> String {
-        "<div class=\"card\"><span class=\"v\">\(esc(value))</span><span class=\"l\">\(esc(label))</span></div>"
+    private static func metricCard(_ icon: String, _ label: String, _ value: String) -> String {
+        "<div class=\"card\"><span class=\"ic\">\(icon)</span><div class=\"mc\"><span class=\"v\">\(esc(value))</span><span class=\"l\">\(esc(label))</span></div></div>"
     }
 
     private static func css(accent: String) -> String {
@@ -621,10 +621,12 @@ enum HTMLReportRenderer {
         .subtitle { margin:4px 0 0; color:var(--sec); }
         .tags { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
         .tag { font-size:12px; padding:3px 9px; border-radius:999px; background:var(--line); color:var(--sec); }
-        .metrics { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:8px; }
-        .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:2px; }
-        .card .v { font-size:22px; font-weight:700; }
-        .card .l { font-size:13px; color:var(--sec); }
+        .metrics { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:8px; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+        .card .ic { font-size:18px; flex:0 0 auto; line-height:1; }
+        .card .mc { display:flex; flex-direction:column; line-height:1.25; min-width:0; }
+        .card .v { font-size:17px; font-weight:700; }
+        .card .l { font-size:12px; color:var(--sec); }
         .section { margin-top:32px; }
         .section h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--sec); margin:0 0 12px; }
         .section h3 { font-size:15px; font-weight:600; margin:18px 0 8px; }
