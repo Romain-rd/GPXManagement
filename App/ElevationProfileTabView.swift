@@ -4,17 +4,6 @@ import CoreLocation
 import GPXCore
 
 extension SlopeCategory {
-    func label(step: Double) -> String {
-        let s = Int(step)
-        switch self {
-        case .gentle:   return "0–\(s) %"
-        case .moderate: return "\(s)–\(s * 2) %"
-        case .steep:    return "\(s * 2)–\(s * 3) %"
-        case .veryStep: return "> \(s * 3) %"
-        case .descent:  return "Descente"
-        }
-    }
-
     var color: Color {
         switch self {
         case .gentle:   return .green
@@ -83,7 +72,7 @@ struct ElevationProfileTabView: View {
     @Binding var mode: ProfileMode
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
 
-    private var slopeStep: Double { activityType.slopeColorStep }
+    private var slopeScale: SlopeScale { activityType.slopeScale }
 
     @State private var trimmedProfile: [ElevationProfilePoint] = []
     @State private var hasAltitude = false
@@ -164,7 +153,7 @@ struct ElevationProfileTabView: View {
     private var legendItems: [(label: String, color: Color, time: TimeInterval)] {
         switch mode {
         case .distance:
-            return Self.legendCategories.map { ($0.label(step: slopeStep), $0.color, slopeTimes[$0] ?? 0) }
+            return Self.legendCategories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
         case .time:
             return [
                 (MovementState.moving.label, MovementState.moving.color, movingTime),
@@ -337,7 +326,7 @@ struct ElevationProfileTabView: View {
             Text(hoverHeader(s)).font(.caption2.bold())
             tooltipRow("Altitude", "\(Int(s.altitude.rounded())) m", .primary)
             if mode == .distance {
-                let cat = SlopeCategory.category(for: s.slope, step: slopeStep)
+                let cat = slopeScale.category(for: s.slope)
                 tooltipRow("Pente", String(format: "%+.0f %%", s.slope), cat.color)
             } else {
                 if let clock = s.clock {
@@ -426,7 +415,7 @@ struct ElevationProfileTabView: View {
 
             hasAltitude = !raw.isEmpty
             trimmedProfile = trimmed
-            slopeTimes = ElevationProfileBuilder.timeByCategory(raw, step: slopeStep)
+            slopeTimes = ElevationProfileBuilder.timeByCategory(raw, scale: slopeScale)
             let movement = ElevationProfileBuilder.movementTime(raw)
             movingTime = movement.moving
             pausedTime = movement.paused
@@ -485,8 +474,8 @@ struct ElevationProfileTabView: View {
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
             switch mode {
             case .distance:
-                let c = SlopeCategory.category(for: profile[i].slope, step: slopeStep)
-                return (c.label(step: slopeStep), c.color)
+                let c = slopeScale.category(for: profile[i].slope)
+                return (slopeScale.label(for: c), c.color)
             case .time:
                 let st = movementState(profile, at: i)
                 return (st.label, st.color)

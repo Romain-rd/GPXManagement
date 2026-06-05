@@ -129,9 +129,9 @@ public enum ActivityType: String, Codable, CaseIterable, Sendable {
         allCases.first { $0.stravaSportType == raw }
     }
 
-    /// Largeur (en %) des tranches de couleur de pente. Plus large en rando à ski, où le terrain est plus raide.
-    public var slopeColorStep: Double {
-        self == .skiingTouring ? 8 : 4
+    /// Échelle de couleur de pente. Rando à ski : seuils en degrés (25/30/35°, référentiel avalanche) ; sinon en %.
+    public var slopeScale: SlopeScale {
+        self == .skiingTouring ? .skiTouring : .percent
     }
 }
 

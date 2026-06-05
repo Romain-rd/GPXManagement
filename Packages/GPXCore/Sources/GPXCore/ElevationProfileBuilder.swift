@@ -70,14 +70,14 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
-    public static func timeByCategory(_ profile: [ElevationProfilePoint], step: Double = 4) -> [SlopeCategory: TimeInterval] {
+    public static func timeByCategory(_ profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> [SlopeCategory: TimeInterval] {
         guard profile.count >= 2 else { return [:] }
         var result: [SlopeCategory: TimeInterval] = [:]
         for i in 0..<(profile.count - 1) {
             guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
             let dt = t2.timeIntervalSince(t1)
             guard dt > 0, dt <= 300 else { continue }
-            let category = SlopeCategory.category(for: profile[i].slope, step: step)
+            let category = scale.category(for: profile[i].slope)
             result[category, default: 0] += dt
         }
         return result
@@ -178,15 +178,51 @@ public enum SlopeCategory: Sendable, Hashable {
     case steep
     case veryStep
     case descent
+}
 
-    public static func category(for slope: Double, step: Double = 4) -> SlopeCategory {
-        if slope < -step { return .descent }
-        let absVal = abs(slope)
-        switch absVal {
-        case ..<step:       return .gentle
-        case ..<(step * 2): return .moderate
-        case ..<(step * 3): return .steep
-        default:            return .veryStep
+/// Échelle de classement de la pente. Les pentes du profil sont toujours en %, mais les seuils peuvent
+/// être exprimés en % (vélo, etc.) ou en degrés (rando à ski, référentiel avalanche 25/30/35°).
+public struct SlopeScale: Sendable, Equatable {
+    public enum Unit: Sendable, Equatable { case percent, degrees }
+
+    public let unit: Unit
+    /// Trois bornes croissantes, dans l'unité de `unit` (gentle|moderate, moderate|steep, steep|veryStep).
+    public let bounds: [Double]
+
+    public static let percent = SlopeScale(unit: .percent, bounds: [4, 8, 12])
+    public static let skiTouring = SlopeScale(unit: .degrees, bounds: [25, 30, 35])
+
+    public init(unit: Unit, bounds: [Double]) {
+        self.unit = unit
+        self.bounds = bounds
+    }
+
+    private var percentBounds: [Double] {
+        switch unit {
+        case .percent: return bounds
+        case .degrees: return bounds.map { tan($0 * .pi / 180) * 100 }
+        }
+    }
+
+    public func category(for slopePercent: Double) -> SlopeCategory {
+        let b = percentBounds
+        if slopePercent < -b[0] { return .descent }
+        let absVal = abs(slopePercent)
+        if absVal < b[0] { return .gentle }
+        if absVal < b[1] { return .moderate }
+        if absVal < b[2] { return .steep }
+        return .veryStep
+    }
+
+    public func label(for category: SlopeCategory) -> String {
+        let suffix = unit == .degrees ? "°" : " %"
+        func n(_ v: Double) -> String { String(Int(v.rounded())) }
+        switch category {
+        case .gentle:   return unit == .degrees ? "< \(n(bounds[0]))\(suffix)" : "0–\(n(bounds[0]))\(suffix)"
+        case .moderate: return "\(n(bounds[0]))–\(n(bounds[1]))\(suffix)"
+        case .steep:    return "\(n(bounds[1]))–\(n(bounds[2]))\(suffix)"
+        case .veryStep: return "> \(n(bounds[2]))\(suffix)"
+        case .descent:  return "Descente"
         }
     }
 }

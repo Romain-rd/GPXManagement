@@ -123,27 +123,39 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertEqual(decimated.last?.distanceFromStart, profile.last?.distanceFromStart)
     }
 
-    func testSlopeCategoryRanges() {
-        XCTAssertEqual(SlopeCategory.category(for: 0), .gentle)
-        XCTAssertEqual(SlopeCategory.category(for: 3.9), .gentle)
-        XCTAssertEqual(SlopeCategory.category(for: 6), .moderate)
-        XCTAssertEqual(SlopeCategory.category(for: 10), .steep)
-        XCTAssertEqual(SlopeCategory.category(for: 15), .veryStep)
-        XCTAssertEqual(SlopeCategory.category(for: -5), .descent)
+    func testSlopeCategoryRangesPercent() {
+        let s = SlopeScale.percent
+        XCTAssertEqual(s.category(for: 0), .gentle)
+        XCTAssertEqual(s.category(for: 3.9), .gentle)
+        XCTAssertEqual(s.category(for: 6), .moderate)
+        XCTAssertEqual(s.category(for: 10), .steep)
+        XCTAssertEqual(s.category(for: 15), .veryStep)
+        XCTAssertEqual(s.category(for: -5), .descent)
     }
 
-    func testSlopeCategoryRangesStep8() {
-        XCTAssertEqual(SlopeCategory.category(for: 6, step: 8), .gentle)
-        XCTAssertEqual(SlopeCategory.category(for: 10, step: 8), .moderate)
-        XCTAssertEqual(SlopeCategory.category(for: 18, step: 8), .steep)
-        XCTAssertEqual(SlopeCategory.category(for: 30, step: 8), .veryStep)
-        XCTAssertEqual(SlopeCategory.category(for: -6, step: 8), .gentle)
-        XCTAssertEqual(SlopeCategory.category(for: -10, step: 8), .descent)
+    func testSlopeCategoryRangesSkiTouringAngles() {
+        // Seuils 25/30/35° ≈ 47/58/70 % de pente.
+        let s = SlopeScale.skiTouring
+        XCTAssertEqual(s.category(for: 40), .gentle)    // ≈ 21,8°
+        XCTAssertEqual(s.category(for: 50), .moderate)  // ≈ 26,6°
+        XCTAssertEqual(s.category(for: 65), .steep)     // ≈ 33,0°
+        XCTAssertEqual(s.category(for: 80), .veryStep)  // ≈ 38,7°
+        XCTAssertEqual(s.category(for: -40), .gentle)
+        XCTAssertEqual(s.category(for: -60), .descent)
     }
 
-    func testSlopeColorStepByActivityType() {
-        XCTAssertEqual(ActivityType.skiingTouring.slopeColorStep, 8)
-        XCTAssertEqual(ActivityType.cyclingRoad.slopeColorStep, 4)
-        XCTAssertEqual(ActivityType.skiingAlpine.slopeColorStep, 4)
+    func testSlopeScaleLabels() {
+        XCTAssertEqual(SlopeScale.percent.label(for: .gentle), "0–4 %")
+        XCTAssertEqual(SlopeScale.percent.label(for: .veryStep), "> 12 %")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .gentle), "< 25°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .moderate), "25–30°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .steep), "30–35°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .veryStep), "> 35°")
+    }
+
+    func testSlopeScaleByActivityType() {
+        XCTAssertEqual(ActivityType.skiingTouring.slopeScale, .skiTouring)
+        XCTAssertEqual(ActivityType.cyclingRoad.slopeScale, .percent)
+        XCTAssertEqual(ActivityType.skiingAlpine.slopeScale, .percent)
     }
 }
