@@ -55,9 +55,10 @@ enum HTMLReportRenderer {
         let points = try TrackPointCodec.decode(data)
 
         var mapPNG: Data?
-        if let mapRect = PDFReportRenderer.boundingMapRect(points) {
+        if let bounds = PDFReportRenderer.boundingMapRect(points) {
+            let mapRect = framedMapRect(bounds, aspect: mapAspect)
             let overlay = TrackOverlayInput(activityId: activity.id, activityType: activity.activityType, coordinates: points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
-            mapPNG = try? await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: [overlay], maxDimension: 1600, trackColor: activity.activityType.trackColor)
+            mapPNG = try? await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: [overlay], maxDimension: 2000, trackColor: activity.activityType.trackColor)
         }
 
         let profile = ElevationProfileBuilder.build(points: points)
@@ -100,6 +101,26 @@ enum HTMLReportRenderer {
             if let t = timePNG { files["images/profil-temps.png"] = t }
             for (i, jpeg) in photoJPEGs.enumerated() { files["images/photo-\(i + 1).jpg"] = jpeg }
             return .folder(files: files)
+        }
+    }
+
+    // MARK: - Carte
+
+    private static let mapAspect: Double = 16.0 / 10.0
+
+    /// Élargit le rectangle du tracé à un format paysage : le parcours reste centré avec du contexte
+    /// autour, l'image est nette (le côté large reçoit le maximum de pixels) plutôt que sur-zoomée.
+    private static func framedMapRect(_ rect: MKMapRect, aspect: Double) -> MKMapRect {
+        guard rect.size.width > 0, rect.size.height > 0 else { return rect }
+        let current = rect.size.width / rect.size.height
+        if current < aspect {
+            let newWidth = rect.size.height * aspect
+            let dx = (newWidth - rect.size.width) / 2
+            return MKMapRect(x: rect.origin.x - dx, y: rect.origin.y, width: newWidth, height: rect.size.height)
+        } else {
+            let newHeight = rect.size.width / aspect
+            let dy = (newHeight - rect.size.height) / 2
+            return MKMapRect(x: rect.origin.x, y: rect.origin.y - dy, width: rect.size.width, height: newHeight)
         }
     }
 
@@ -258,7 +279,8 @@ enum HTMLReportRenderer {
         .section { margin-top:32px; }
         .section h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--sec); margin:0 0 12px; }
         .section h3 { font-size:15px; font-weight:600; margin:18px 0 8px; }
-        .map, .chart { width:100%; height:auto; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
+        .map { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
+        .chart { width:100%; height:auto; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
         .credit { font-size:11px; color:var(--sec); margin:6px 0 0; }
         .chart-block { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
         .chart-block h3 { margin-top:0; }
