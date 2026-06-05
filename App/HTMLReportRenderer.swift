@@ -117,6 +117,206 @@ enum HTMLReportRenderer {
         }
     }
 
+    // MARK: - Export d'un raid
+
+    private struct RaidStage {
+        let index: Int
+        let title: String
+        let dateText: String
+        let distance: Double
+        let gain: Double
+        let coords: [(lat: Double, lon: Double)]
+        let color: String
+    }
+
+    private static let raidPalette = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9"]
+
+    /// Génère le dossier d'un raid : page d'ensemble + une page complète par étape (réutilise `render`).
+    static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]]) async throws -> [String: Data] {
+        var files: [String: Data] = [:]
+        var stageOpts = options
+        stageOpts.output = .folder
+
+        var stages: [RaidStage] = []
+        for (i, m) in members.enumerated() {
+            let out = try await render(activity: m, repository: repository, layer: layer, options: stageOpts, photos: stagePhotos[m.id] ?? [])
+            if case let .folder(stageFiles) = out {
+                for (rel, data) in stageFiles { files["etape-\(i + 1)/\(rel)"] = data }
+            }
+            var coords: [(lat: Double, lon: Double)] = []
+            if let data = try? await repository.fetchTrackData(id: m.id), !data.isEmpty, let pts = try? TrackPointCodec.decode(data) {
+                coords = decimatedCoords(pts, max: 1500)
+            }
+            stages.append(RaidStage(index: i + 1, title: m.title, dateText: fmtDateShort(m.startDate), distance: m.distance, gain: m.elevationGain, coords: coords, color: raidPalette[i % raidPalette.count]))
+        }
+
+        var coverRef: String?
+        if let cover = raid.coverImageData { let name = "assets/cover.\(imageExt(cover))"; files[name] = cover; coverRef = name }
+        var avatarRefs: [String] = []
+        for (i, p) in raid.participants.enumerated() {
+            if let d = p.avatarImageData { let name = "assets/avatar-\(i + 1).\(imageExt(d))"; files[name] = d; avatarRefs.append(name) } else { avatarRefs.append("") }
+        }
+
+        let html = buildRaidHTML(raid: raid, members: members, layer: layer, coverRef: coverRef, avatarRefs: avatarRefs, stages: stages)
+        files["index.html"] = html.data(using: .utf8) ?? Data()
+        return files
+    }
+
+    private static func imageExt(_ data: Data) -> String {
+        let sig = [UInt8](data.prefix(4))
+        if sig.count == 4, sig[0] == 0x89, sig[1] == 0x50, sig[2] == 0x4E, sig[3] == 0x47 { return "png" }
+        return "jpg"
+    }
+
+    private static func buildRaidHTML(raid: Raid, members: [ActivitySummary], layer: MapLayer, coverRef: String?, avatarRefs: [String], stages: [RaidStage]) -> String {
+        let accent = hex(members.first?.activityType.trackColor ?? .systemBlue)
+        let tile = webTileLayer(for: layer)
+
+        let dateText: String = {
+            if let s = raid.startDate, let e = raid.endDate { return "\(fmtDateShort(s)) → \(fmtDateShort(e))" }
+            if let s = raid.startDate { return fmtDateShort(s) }
+            return ""
+        }()
+
+        let cover = coverRef.map { "<div class=\"cover\" style=\"background-image:url('\($0)')\"></div>" } ?? ""
+
+        var participantsHTML = ""
+        if !raid.participants.isEmpty {
+            let items = raid.participants.enumerated().map { i, p -> String in
+                let av = (i < avatarRefs.count && !avatarRefs[i].isEmpty)
+                    ? "<img src=\"\(avatarRefs[i])\" alt=\"\(esc(p.name))\">"
+                    : "<span class=\"pp-ph\">\(esc(String(p.name.prefix(1))))</span>"
+                return "<div class=\"pp\">\(av)<span>\(esc(p.name))</span></div>"
+            }.joined()
+            participantsHTML = "<section class=\"section\"><h2>Participants</h2><div class=\"participants\">\(items)</div></section>"
+        }
+
+        let totalDist = members.reduce(0) { $0 + $1.distance }
+        let totalGain = members.reduce(0) { $0 + $1.elevationGain }
+        let totalLoss = members.reduce(0) { $0 + $1.elevationLoss }
+        let totalDur = members.reduce(0) { $0 + $1.duration }
+        let totalMov = members.reduce(0) { $0 + $1.movingDuration }
+        let cards = [
+            metricCard("📍", "Étapes", "\(members.count)"),
+            metricCard("📏", "Distance", fmtDistance(totalDist)),
+            metricCard("⬆️", "Dénivelé +", "\(Int(totalGain.rounded())) m"),
+            metricCard("⬇️", "Dénivelé −", "\(Int(totalLoss.rounded())) m"),
+            metricCard("🕐", "Durée totale", fmtDuration(totalDur)),
+            metricCard("⏱️", "En mouvement", fmtDuration(totalMov))
+        ].joined()
+
+        let legend = stages.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>\(esc("J\($0.index) · \($0.title)"))</span>" }.joined()
+        let mapSection = "<section class=\"section\"><h2>Carte d'ensemble</h2><div id=\"map\" class=\"map interactive\"></div><div class=\"legend\">\(legend)</div></section>"
+
+        let stageList = stages.map { s in
+            "<a class=\"stage\" href=\"etape-\(s.index)/\"><span class=\"sb\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"si\"><span class=\"st\">\(esc(s.title))</span><span class=\"sm\">\(esc(s.dateText)) · \(esc(fmtDistance(s.distance))) · \(Int(s.gain.rounded())) m D+</span></div><span class=\"sa\">›</span></a>"
+        }.joined()
+        let stagesSection = "<section class=\"section\"><h2>Étapes</h2><div class=\"stages\">\(stageList)</div></section>"
+
+        var notesSection = ""
+        if let notes = raid.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            notesSection = "<section class=\"section\"><h2>Notes</h2><p class=\"notes\">\(nl2br(notes))</p></section>"
+        }
+
+        let subtitle = [raid.subtitle, raid.place].compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " · ")
+
+        return """
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(esc(raid.name))</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+        <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>\(css(accent: accent))\(raidCSS)</style>
+        </head>
+        <body>
+        <main class="page">
+          \(cover)
+          <header class="hero">
+            <div class="hero-text">
+              <h1>\(esc(raid.name))</h1>
+              \(subtitle.isEmpty ? "" : "<p class=\"subtitle\">\(esc(subtitle))</p>")
+              \(dateText.isEmpty ? "" : "<p class=\"subtitle\">\(esc(dateText))</p>")
+            </div>
+          </header>
+          <section class="metrics">\(cards)</section>
+          \(participantsHTML)
+          \(mapSection)
+          \(stagesSection)
+          \(notesSection)
+          <footer><p class="madeby">Généré par GPXManagement</p></footer>
+        </main>
+        \(raidMapScript(stages: stages, tile: tile, accent: accent))
+        </body>
+        </html>
+        """
+    }
+
+    private static func raidMapScript(stages: [RaidStage], tile: WebTileLayer, accent: String) -> String {
+        let groups = stages.map { s -> String in
+            let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
+            return "{color:\(jsString(s.color)),coords:\(coords)}"
+        }.joined(separator: ",")
+        return """
+        <script>
+        (function(){
+          var groups = [\(groups)];
+          var map = L.map('map', { scrollWheelZoom: false });
+          L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom: \(tile.maxZoom), attribution: \(jsString(tile.attribution)) }).addTo(map);
+          var lines = [];
+          groups.forEach(function(g){
+            if (!g.coords.length) return;
+            var line = L.polyline(g.coords, { color: g.color, weight: 4, opacity: 0.9 }).addTo(map);
+            lines.push(line);
+          });
+          if (lines.length) { map.fitBounds(L.featureGroup(lines).getBounds(), { padding: [24, 24] }); }
+          var el = document.getElementById('map');
+          var pseudo = false;
+          function nativeSupported(){ return !!(el.requestFullscreen || el.webkitRequestFullscreen); }
+          function isNativeFs(){ return document.fullscreenElement === el || document.webkitFullscreenElement === el; }
+          function refresh(){ setTimeout(function(){ map.invalidateSize(); if (lines.length) map.fitBounds(L.featureGroup(lines).getBounds(), { padding: [24, 24] }); if (fsBtn) fsBtn.innerHTML = (pseudo || isNativeFs()) ? '✕' : '⤢'; }, 160); }
+          function toggle(){
+            if (nativeSupported()) {
+              if (!isNativeFs()) { (el.requestFullscreen || el.webkitRequestFullscreen).call(el); }
+              else { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+            } else { pseudo = !pseudo; el.classList.toggle('gpx-pseudo-fs', pseudo); document.body.classList.toggle('gpx-fs-lock', pseudo); refresh(); }
+          }
+          var fsBtn = null;
+          var FsControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function(){ fsBtn = L.DomUtil.create('a', 'leaflet-bar leaflet-control gpx-fs'); fsBtn.href = '#'; fsBtn.title = 'Plein écran'; fsBtn.innerHTML = '⤢'; L.DomEvent.on(fsBtn, 'click', function(e){ L.DomEvent.stop(e); toggle(); }); return fsBtn; }
+          });
+          map.addControl(new FsControl());
+          document.addEventListener('fullscreenchange', refresh);
+          document.addEventListener('webkitfullscreenchange', refresh);
+        })();
+        </script>
+        """
+    }
+
+    private static let raidCSS = """
+    .cover { width:100%; aspect-ratio:21/9; background-size:cover; background-position:center; border-radius:16px; margin-bottom:20px; border:1px solid var(--line); }
+    .participants { display:flex; flex-wrap:wrap; gap:14px; }
+    .pp { display:flex; align-items:center; gap:8px; }
+    .pp img, .pp .pp-ph { width:36px; height:36px; border-radius:50%; object-fit:cover; }
+    .pp .pp-ph { display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; font-weight:700; }
+    .stages { display:flex; flex-direction:column; gap:8px; }
+    .stage { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--card); border:1px solid var(--line); border-radius:12px; text-decoration:none; color:var(--fg); transition:border-color .1s; }
+    .stage:hover { border-color:var(--accent); }
+    .stage .sb { flex:0 0 auto; width:36px; height:36px; border-radius:9px; color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:13px; }
+    .stage .si { display:flex; flex-direction:column; min-width:0; flex:1; }
+    .stage .st { font-weight:600; }
+    .stage .sm { font-size:13px; color:var(--sec); }
+    .stage .sa { color:var(--sec); font-size:20px; }
+    """
+
+    private static func fmtDateShort(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .medium; f.timeStyle = .none
+        return f.string(from: d)
+    }
+
     // MARK: - Carte
 
     private static let mapAspect: Double = 16.0 / 10.0

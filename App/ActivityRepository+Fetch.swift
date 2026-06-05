@@ -371,6 +371,41 @@ extension CoreDataActivityRepository {
         }
     }
 
+    func fetchRaidWebPublishedURL(id: UUID) async throws -> String? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "webPublishedURL") as? String
+        }
+    }
+
+    func fetchRaidWebPublishConfig(id: UUID) async throws -> String? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "webPublishConfig") as? String
+        }
+    }
+
+    func setRaidWebPublished(id: UUID, url: String, configJSON: String?) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let object = try context.fetch(fetch).first {
+                object.setValue(url, forKey: "webPublishedURL")
+                object.setValue(configJSON, forKey: "webPublishConfig")
+                object.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
     func setRaid(activityIds: [UUID], raidId: UUID?) async throws {
         guard !activityIds.isEmpty else { return }
         let context = persistence.container.newBackgroundContext()

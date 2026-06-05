@@ -27,6 +27,11 @@ struct RaidDetailView: View {
     @State private var filmProgress: Double = 0
     @State private var filmStatus = ""
     @State private var exportError: String?
+    @State private var showWebExportOptions = false
+    @State private var isExportingWeb = false
+    @State private var webOptions = WebExportOptions()
+    @State private var publishedURL: String?
+    @State private var publishConfigJSON: String?
 
     @AppStorage("raidVideoQuality") private var raidVideoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("raidVideoFormat") private var raidVideoFormatRaw = VideoFormat.landscape.rawValue
@@ -79,6 +84,7 @@ struct RaidDetailView: View {
                 header
                 statsGrid
                 actionBar
+                publishedLinkSection
                 participantsSection
                 mapCard
                 stepsSection
@@ -91,6 +97,8 @@ struct RaidDetailView: View {
         .navigationTitle(raid.name)
         .task(id: raid.id) { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
+        .task(id: raid.id) { await loadPublishState() }
+        .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
         .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
         .onChange(of: coverPickerItem) { _, item in
@@ -152,6 +160,17 @@ struct RaidDetailView: View {
             }
             .disabled(members.isEmpty || isExportingFilm)
 
+            Button {
+                showWebExportOptions = true
+            } label: {
+                if isExportingWeb {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Exporter en page web…", systemImage: "globe")
+                }
+            }
+            .disabled(members.isEmpty || isExportingWeb)
+
             Spacer()
             if isExportingFilm {
                 ProgressView(value: filmProgress)
@@ -162,6 +181,174 @@ struct RaidDetailView: View {
             }
         }
         .buttonStyle(.bordered)
+    }
+
+    // MARK: Publication web
+
+    @ViewBuilder
+    private var publishedLinkSection: some View {
+        if let urlString = publishedURL, let url = URL(string: urlString) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "globe").foregroundStyle(.tint)
+                    Text("Publié sur le web").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button { Task { await republishWeb() } } label: {
+                        if isExportingWeb { ProgressView().controlSize(.small) } else { Label("Republier", systemImage: "arrow.clockwise") }
+                    }
+                    .disabled(isExportingWeb || !BunnyStorageService.isConfigured)
+                    .help("Republier avec les mêmes paramètres")
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Ouvrir", systemImage: "arrow.up.right.square") }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(urlString, forType: .string)
+                    } label: { Image(systemName: "doc.on.doc") }
+                    .help("Copier le lien")
+                }
+                .controlSize(.small)
+                Link(destination: url) {
+                    Text(urlString).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.callout)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
+        }
+    }
+
+    private var webExportOptionsSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Exporter le raid en page web").font(.title3.bold())
+            Text("Génère une page d'ensemble du raid (couverture, participants, carte multi-traces) reliant une page par étape.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                GridRow {
+                    Text("Carte").gridColumnAlignment(.trailing)
+                    Picker("", selection: $webOptions.map) {
+                        ForEach(WebExportOptions.MapRendering.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                }
+                GridRow {
+                    Text("Profil").gridColumnAlignment(.trailing)
+                    Picker("", selection: $webOptions.profile) {
+                        ForEach(WebExportOptions.ProfileRendering.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                }
+                GridRow {
+                    Text("Destination").gridColumnAlignment(.trailing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Picker("", selection: $webOptions.output) {
+                            Text(WebExportOptions.Output.folder.label).tag(WebExportOptions.Output.folder)
+                            Text(WebExportOptions.Output.publishBunny.label).tag(WebExportOptions.Output.publishBunny)
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        if webOptions.output == .publishBunny, !BunnyStorageService.isConfigured {
+                            Text("⚠︎ Bunny non configuré (renseigner Secrets.xcconfig).").font(.caption2).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                GridRow {
+                    Text("Photos").gridColumnAlignment(.trailing)
+                    Toggle("Inclure les photos des étapes", isOn: $webOptions.includePhotos)
+                }
+                GridRow {
+                    Text("Notes").gridColumnAlignment(.trailing)
+                    Toggle("Inclure les notes", isOn: $webOptions.includeNotes)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Annuler") { showWebExportOptions = false }
+                Button(webOptions.output == .publishBunny ? "Publier" : "Générer") {
+                    showWebExportOptions = false
+                    Task { await exportRaidWeb() }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(webOptions.output == .publishBunny && !BunnyStorageService.isConfigured)
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
+        .onAppear { if webOptions.output == .singleFile { webOptions.output = .folder } }
+    }
+
+    private func loadPublishState() async {
+        publishedURL = try? await repository.fetchRaidWebPublishedURL(id: raid.id)
+        publishConfigJSON = try? await repository.fetchRaidWebPublishConfig(id: raid.id)
+    }
+
+    private func exportRaidWeb() async {
+        isExportingWeb = true
+        defer { isExportingWeb = false }
+        let mapLayer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        let safeName = raid.name.replacingOccurrences(of: "/", with: "-")
+        do {
+            let stagePhotos = await gatherStagePhotos()
+            let files = try await HTMLReportRenderer.renderRaid(raid: raid, members: members, repository: repository, layer: mapLayer, options: webOptions, stagePhotos: stagePhotos)
+            if webOptions.output == .publishBunny {
+                try await publishRaidToBunny(files: files)
+            } else {
+                let panel = NSSavePanel()
+                panel.title = "Exporter le raid en page web"
+                panel.nameFieldStringValue = safeName
+                guard panel.runModal() == .OK, let dir = panel.url else { return }
+                try? FileManager.default.removeItem(at: dir)
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                for (rel, data) in files {
+                    let fileURL = dir.appendingPathComponent(rel)
+                    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try data.write(to: fileURL, options: .atomic)
+                }
+                NSWorkspace.shared.activateFileViewerSelecting([dir])
+            }
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private func gatherStagePhotos() async -> [UUID: [PHAsset]] {
+        guard webOptions.includePhotos else { return [:] }
+        let status = await PhotoLibraryService.requestAccess()
+        guard status == .authorized || status == .limited else { return [:] }
+        var result: [UUID: [PHAsset]] = [:]
+        for m in members {
+            var coords: [CLLocationCoordinate2D] = []
+            if let data = try? await repository.fetchTrackData(id: m.id), !data.isEmpty, let pts = try? TrackPointCodec.decode(data) {
+                coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            }
+            result[m.id] = PhotoLibraryService.photos(start: m.startDate.addingTimeInterval(-900), end: m.endDate.addingTimeInterval(900), near: coords, maxDistance: 300)
+        }
+        return result
+    }
+
+    private func publishRaidToBunny(files: [String: Data]) async throws {
+        let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
+        try await BunnyStorageService.publish(files: files, folder: "raids/\(uuid)")
+        let url = "https://www.gpxmanagement.net/raids/\(uuid)/"
+        let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
+        try await repository.setRaidWebPublished(id: raid.id, url: url, configJSON: configJSON)
+        publishedURL = url
+        publishConfigJSON = configJSON
+    }
+
+    private func existingPublishUUID() -> String? {
+        guard let s = publishedURL, let comps = URLComponents(string: s) else { return nil }
+        return comps.path.split(separator: "/").map(String.init).last
+    }
+
+    private func republishWeb() async {
+        if let json = publishConfigJSON, let data = json.data(using: .utf8), var opts = try? JSONDecoder().decode(WebExportOptions.self, from: data) {
+            opts.output = .publishBunny
+            webOptions = opts
+        } else {
+            webOptions.output = .publishBunny
+        }
+        await exportRaidWeb()
     }
 
     // MARK: Couverture
