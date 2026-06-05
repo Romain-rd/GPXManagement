@@ -55,7 +55,7 @@ targets:
       properties:
         CFBundleDisplayName: GPXManagement
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "3"
+        CFBundleVersion: "4"
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSHumanReadableCopyright: ""
