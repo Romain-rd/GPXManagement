@@ -340,6 +340,27 @@ enum HTMLReportRenderer {
               map.fitBounds(line.getBounds(), { padding: [24, 24] });
               L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#34c759', fillOpacity: 1 }).addTo(map);
               L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
+
+              var el = document.getElementById('map');
+              function isFs(){ return document.fullscreenElement === el || document.webkitFullscreenElement === el; }
+              var FsControl = L.Control.extend({
+                options: { position: 'topright' },
+                onAdd: function(){
+                  var btn = L.DomUtil.create('a', 'leaflet-bar leaflet-control gpx-fs');
+                  btn.href = '#'; btn.title = 'Plein écran'; btn.innerHTML = '⤢';
+                  L.DomEvent.on(btn, 'click', function(e){
+                    L.DomEvent.stop(e);
+                    if (!isFs()) { (el.requestFullscreen || el.webkitRequestFullscreen).call(el); }
+                    else { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+                  });
+                  return btn;
+                }
+              });
+              map.addControl(new FsControl());
+              function onFsChange(){ setTimeout(function(){ map.invalidateSize(); map.fitBounds(line.getBounds(), { padding: [24, 24] }); }, 150); }
+              document.addEventListener('fullscreenchange', onFsChange);
+              document.addEventListener('webkitfullscreenchange', onFsChange);
+
               var cursor = null;
               window.gpxHighlight = function(lat, lon){
                 if (lat == null || lon == null) { return; }
@@ -599,6 +620,8 @@ enum HTMLReportRenderer {
         .map { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
         .map.interactive { overflow:hidden; z-index:0; }
         .leaflet-container { background:var(--card); font:inherit; }
+        .gpx-fs { font-size:18px; line-height:28px; text-align:center; width:30px; height:30px; cursor:pointer; text-decoration:none; color:#333; background:#fff; }
+        #map:fullscreen, #map:-webkit-full-screen { width:100%; height:100%; border-radius:0; aspect-ratio:auto; border:0; }
         .chart { width:100%; height:auto; border-radius:14px; border:1px solid var(--line); display:block; background:var(--card); }
         .credit { font-size:11px; color:var(--sec); margin:6px 0 0; }
         .chart-block { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
