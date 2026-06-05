@@ -174,6 +174,85 @@ public enum StatsAggregator {
     }
 }
 
+/// Statistiques d'un ensemble arbitraire d'activités (la sélection, ou la liste filtrée), sans notion de période.
+public struct SelectionStats: Sendable, Equatable {
+    public let count: Int
+    public let totalDistance: Double
+    public let totalElevationGain: Double
+    public let totalDuration: Double
+    public let totalMovingDuration: Double
+    public let avgDistance: Double
+    public let maxDistance: Double
+    public let maxElevationGain: Double
+    public let maxSlope: Double
+    public let maxSpeed: Double
+    public let firstDate: Date?
+    public let lastDate: Date?
+    public let byActivityType: [ActivityType: TypeBreakdown]
+
+    public init(count: Int, totalDistance: Double, totalElevationGain: Double, totalDuration: Double, totalMovingDuration: Double, avgDistance: Double, maxDistance: Double, maxElevationGain: Double, maxSlope: Double, maxSpeed: Double, firstDate: Date?, lastDate: Date?, byActivityType: [ActivityType: TypeBreakdown]) {
+        self.count = count
+        self.totalDistance = totalDistance
+        self.totalElevationGain = totalElevationGain
+        self.totalDuration = totalDuration
+        self.totalMovingDuration = totalMovingDuration
+        self.avgDistance = avgDistance
+        self.maxDistance = maxDistance
+        self.maxElevationGain = maxElevationGain
+        self.maxSlope = maxSlope
+        self.maxSpeed = maxSpeed
+        self.firstDate = firstDate
+        self.lastDate = lastDate
+        self.byActivityType = byActivityType
+    }
+
+    public static let zero = SelectionStats(count: 0, totalDistance: 0, totalElevationGain: 0, totalDuration: 0, totalMovingDuration: 0, avgDistance: 0, maxDistance: 0, maxElevationGain: 0, maxSlope: 0, maxSpeed: 0, firstDate: nil, lastDate: nil, byActivityType: [:])
+
+    public static func compute(_ activities: [ActivitySummary]) -> SelectionStats {
+        guard let first = activities.first else { return .zero }
+        var totalDistance = 0.0, totalGain = 0.0, totalDur = 0.0, totalMoving = 0.0
+        var maxDist = 0.0, maxGain = 0.0, maxSlope = 0.0, maxSpeed = 0.0
+        var minDate = first.startDate, maxDate = first.startDate
+        var typeMap: [ActivityType: (dist: Double, gain: Double, dur: Double, count: Int)] = [:]
+
+        for a in activities {
+            totalDistance += a.distance
+            totalGain += a.elevationGain
+            totalDur += a.duration
+            totalMoving += a.movingDuration
+            maxDist = max(maxDist, a.distance)
+            maxGain = max(maxGain, a.elevationGain)
+            maxSlope = max(maxSlope, a.maxSlope)
+            maxSpeed = max(maxSpeed, a.maxSpeed)
+            if a.startDate < minDate { minDate = a.startDate }
+            if a.startDate > maxDate { maxDate = a.startDate }
+
+            var c = typeMap[a.activityType] ?? (0, 0, 0, 0)
+            c.dist += a.distance; c.gain += a.elevationGain; c.dur += a.duration; c.count += 1
+            typeMap[a.activityType] = c
+        }
+
+        let byType = typeMap.mapValues {
+            TypeBreakdown(totalDistance: $0.dist, totalElevationGain: $0.gain, totalDuration: $0.dur, activityCount: $0.count)
+        }
+        return SelectionStats(
+            count: activities.count,
+            totalDistance: totalDistance,
+            totalElevationGain: totalGain,
+            totalDuration: totalDur,
+            totalMovingDuration: totalMoving,
+            avgDistance: totalDistance / Double(activities.count),
+            maxDistance: maxDist,
+            maxElevationGain: maxGain,
+            maxSlope: maxSlope,
+            maxSpeed: maxSpeed,
+            firstDate: minDate,
+            lastDate: maxDate,
+            byActivityType: byType
+        )
+    }
+}
+
 public struct CumulativePoint: Sendable, Equatable, Identifiable {
     public let dayOfYear: Int
     public let cumulativeValue: Double

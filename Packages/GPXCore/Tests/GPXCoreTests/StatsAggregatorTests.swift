@@ -108,4 +108,41 @@ final class YearComparisonBuilderTests: XCTestCase {
         let curve = YearComparisonBuilder.cumulative(activities: [], year: 2024, metric: .distance)
         XCTAssertEqual(curve.count, 366)
     }
+
+    // MARK: - SelectionStats
+
+    private func summary(type: ActivityType = .cyclingRoad, month: Int = 6, day: Int = 1, distance: Double = 10_000, gain: Double = 500, duration: Double = 3600, maxSlope: Double = 0, maxSpeed: Double = 0) -> ActivitySummary {
+        let d = date(2025, month, day)
+        return ActivitySummary(
+            id: UUID(), title: "t", activityType: type, startDate: d, endDate: d.addingTimeInterval(duration),
+            distance: distance, duration: duration, movingDuration: duration,
+            elevationGain: gain, elevationLoss: 0,
+            avgSpeed: 0, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: nil, maxHeartRate: nil,
+            sourceFileName: "", sourceFileFormat: .gpx, tags: [], notes: nil
+        )
+    }
+
+    func testSelectionStatsEmpty() {
+        XCTAssertEqual(SelectionStats.compute([]), .zero)
+    }
+
+    func testSelectionStatsTotalsAndExtremes() {
+        let s = SelectionStats.compute([
+            summary(type: .cyclingRoad, month: 3, distance: 40_000, gain: 800, maxSlope: 12, maxSpeed: 14),
+            summary(type: .skiingTouring, month: 5, distance: 8_000, gain: 1_200, maxSlope: 34, maxSpeed: 6),
+            summary(type: .cyclingRoad, month: 7, distance: 60_000, gain: 400, maxSlope: 9, maxSpeed: 18)
+        ])
+        XCTAssertEqual(s.count, 3)
+        XCTAssertEqual(s.totalDistance, 108_000)
+        XCTAssertEqual(s.totalElevationGain, 2_400)
+        XCTAssertEqual(s.avgDistance, 36_000, accuracy: 0.01)
+        XCTAssertEqual(s.maxDistance, 60_000)
+        XCTAssertEqual(s.maxElevationGain, 1_200)
+        XCTAssertEqual(s.maxSlope, 34)
+        XCTAssertEqual(s.maxSpeed, 18)
+        XCTAssertEqual(s.firstDate, date(2025, 3, 1))
+        XCTAssertEqual(s.lastDate, date(2025, 7, 1))
+        XCTAssertEqual(s.byActivityType[.cyclingRoad]?.activityCount, 2)
+        XCTAssertEqual(s.byActivityType[.skiingTouring]?.totalElevationGain, 1_200)
+    }
 }

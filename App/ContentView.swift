@@ -26,10 +26,13 @@ struct ContentView: View {
 
     /// Activités ciblées par le mode courant : la sélection si elle existe, sinon l'ensemble
     /// courant (étapes du raid sélectionné, sinon toutes les activités filtrées).
+    private var baseActivities: [ActivitySummary] {
+        navigation.selectedRaidId != nil ? raidMembers : listVM.visibleActivities
+    }
+
     private var targetActivities: [ActivitySummary] {
-        let base = navigation.selectedRaidId != nil ? raidMembers : listVM.visibleActivities
-        if navigation.listSelection.isEmpty { return base }
-        return base.filter { navigation.listSelection.contains($0.id) }
+        if navigation.listSelection.isEmpty { return baseActivities }
+        return baseActivities.filter { navigation.listSelection.contains($0.id) }
     }
 
     var body: some View {
@@ -125,7 +128,15 @@ struct ContentView: View {
         case .activities:
             activitiesDetail
         case .statistics:
-            StatisticsView(activities: targetActivities)
+            StatisticsView(
+                activities: targetActivities,
+                annualActivities: baseActivities,
+                selectionActive: !navigation.listSelection.isEmpty,
+                onOpenActivity: { id in
+                    navigation.listSelection = [id]
+                    navigation.visualizationMode = .activities
+                }
+            )
         case .mapOverview:
             if let repository {
                 MapOverviewView(

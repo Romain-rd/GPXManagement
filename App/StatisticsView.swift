@@ -3,46 +3,39 @@ import Charts
 import GPXCore
 
 struct StatisticsView: View {
-    let activities: [ActivitySummary]
+    let activities: [ActivitySummary]        // inspecteur : la sélection, ou la liste filtrée si rien n'est sélectionné
+    let annualActivities: [ActivitySummary]  // bilan annuel : la liste filtrée, indépendante de la sélection
+    let selectionActive: Bool
+    var onOpenActivity: (UUID) -> Void = { _ in }
 
-    @State private var selectedYear: Int
-    @State private var selectedTypes: Set<ActivityType> = []
+    enum Mode: String, CaseIterable, Identifiable {
+        case selection, annual
+        var id: String { rawValue }
+        var label: String { self == .selection ? "Sélection" : "Bilan annuel" }
+    }
+
+    @State private var mode: Mode = .selection
     @State private var selectedMetric: StatsMetric = .distance
+    @State private var selectedYear: Int
 
-    init(activities: [ActivitySummary]) {
+    init(activities: [ActivitySummary], annualActivities: [ActivitySummary], selectionActive: Bool, onOpenActivity: @escaping (UUID) -> Void = { _ in }) {
         self.activities = activities
-        let years = Set(activities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) })
+        self.annualActivities = annualActivities
+        self.selectionActive = selectionActive
+        self.onOpenActivity = onOpenActivity
+        let years = Set(annualActivities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) })
         self._selectedYear = State(initialValue: years.max() ?? Calendar.iso8601UTC.component(.year, from: Date()))
     }
 
-    private var availableYears: [Int] {
-        let years = Set(activities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) })
-        return years.sorted(by: >)
-    }
-
-    private var currentResult: StatsResult {
-        StatsAggregator.compute(activities: activities, query: StatsQuery(period: .year(selectedYear), activityTypes: selectedTypes.isEmpty ? nil : selectedTypes))
-    }
-
-    private var previousResult: StatsResult {
-        StatsAggregator.compute(activities: activities, query: StatsQuery(period: .year(selectedYear - 1), activityTypes: selectedTypes.isEmpty ? nil : selectedTypes))
-    }
+    private var selStats: SelectionStats { SelectionStats.compute(activities) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                filtersBar
-                if currentResult.activityCount == 0 {
-                    ContentUnavailableView("Aucune activité", systemImage: "tray", description: Text("Aucune donnée pour les filtres sélectionnés."))
-                        .frame(maxWidth: .infinity).padding(.vertical, 40)
-                } else {
-                    kpiCards
-                    Divider()
-                    breakdownChart
-                    Divider()
-                    cumulativeChart
-                    Divider()
-                    monthGrid
+                headerBar
+                switch mode {
+                case .selection: selectionContent
+                case .annual:    annualContent
                 }
             }
             .padding()
@@ -50,33 +43,17 @@ struct StatisticsView: View {
         .navigationTitle("Statistiques")
     }
 
-    private var filtersBar: some View {
+    private var headerBar: some View {
         HStack(spacing: 16) {
-            Picker("Année", selection: $selectedYear) {
-                ForEach(availableYears, id: \.self) { y in
-                    Text(String(y)).tag(y)
-                }
+            Picker("", selection: $mode) {
+                ForEach(Mode.allCases) { Text($0.label).tag($0) }
             }
-            .pickerStyle(.menu)
-            .frame(maxWidth: 160)
-
-            Menu {
-                Toggle("Toutes activités", isOn: Binding(
-                    get: { selectedTypes.isEmpty },
-                    set: { if $0 { selectedTypes.removeAll() } }
-                ))
-                Divider()
-                ForEach(ActivityType.allCases, id: \.self) { type in
-                    Toggle(type.displayName, isOn: Binding(
-                        get: { selectedTypes.contains(type) },
-                        set: { if $0 { selectedTypes.insert(type) } else { selectedTypes.remove(type) } }
-                    ))
-                }
-            } label: {
-                Label(selectedTypes.isEmpty ? "Toutes activités" : "\(selectedTypes.count) activité(s)", systemImage: "line.3.horizontal.decrease.circle")
-            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 240)
 
             Spacer()
+
             Picker("Métrique", selection: $selectedMetric) {
                 Text("Distance").tag(StatsMetric.distance)
                 Text("Dénivelé +").tag(StatsMetric.elevationGain)
@@ -88,7 +65,199 @@ struct StatisticsView: View {
         }
     }
 
-    private var kpiCards: some View {
+    // MARK: - Mode sélection
+
+    @ViewBuilder
+    private var selectionContent: some View {
+        if activities.isEmpty {
+            ContentUnavailableView("Aucune trace", systemImage: "tray",
+                                   description: Text("Sélectionnez des traces dans la liste, ou choisissez une catégorie dans la barre latérale."))
+                .frame(maxWidth: .infinity).padding(.vertical, 40)
+        } else {
+            selectionHeader
+            primaryKPIs
+            derivedChips
+            Divider()
+            breakdownChart(entries: selectionBreakdown, title: "Ventilation par activité")
+            Divider()
+            distributionChart
+            Divider()
+            recordsSection
+            Divider()
+            selectionCumulativeChart
+        }
+    }
+
+    private var selectionHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(selectionActive ? "\(selStats.count) sorties sélectionnées" : "\(selStats.count) sorties affichées")
+                .font(.title3.bold())
+            if let from = selStats.firstDate, let to = selStats.lastDate {
+                Text(Self.rangeLabel(from, to)).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var primaryKPIs: some View {
+        HStack(spacing: 12) {
+            kpiCard(title: "Distance", value: Self.formatDistance(selStats.totalDistance), trend: nil)
+            kpiCard(title: "Dénivelé +", value: "\(Int(selStats.totalElevationGain.rounded())) m", trend: nil)
+            kpiCard(title: "Temps mvt", value: Self.formatDuration(selStats.totalMovingDuration), trend: nil)
+            kpiCard(title: "Sorties", value: String(selStats.count), trend: nil)
+        }
+    }
+
+    private var derivedChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                statChip("Distance moy.", Self.formatDistance(selStats.avgDistance))
+                statChip("Plus longue", Self.formatDistance(selStats.maxDistance))
+                statChip("D+ max", "\(Int(selStats.maxElevationGain.rounded())) m")
+                statChip("Pente max", String(format: "%.0f°", selStats.maxSlope))
+                statChip("Vitesse max", String(format: "%.1f km/h", selStats.maxSpeed * 3.6))
+            }
+        }
+    }
+
+    private func statChip(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(value).font(.body.monospacedDigit().bold())
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+    }
+
+    // Histogramme de répartition selon la métrique (la métrique « Sorties » retombe sur la distance).
+    private var distributionMetric: StatsMetric { selectedMetric == .count ? .distance : selectedMetric }
+
+    private var distributionChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Répartition — \(Self.metricLabel(distributionMetric))").font(.headline)
+            Chart(distributionBins, id: \.label) { bin in
+                BarMark(x: .value("Tranche", bin.label), y: .value("Sorties", bin.count))
+                    .foregroundStyle(.tint)
+                    .annotation(position: .top) { Text("\(bin.count)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary) }
+            }
+            .frame(height: 180)
+        }
+    }
+
+    private var distributionBins: [(label: String, count: Int, order: Int)] {
+        let width = Self.bucketWidth(distributionMetric)
+        var bins: [Int: Int] = [:]
+        for a in activities {
+            let idx = Int(distributionMetric.value(for: a) / width)
+            bins[idx, default: 0] += 1
+        }
+        return bins.keys.sorted().map { idx in
+            (Self.bucketLabel(idx: idx, width: width, metric: distributionMetric), bins[idx] ?? 0, idx)
+        }
+    }
+
+    private var recordsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Records de la sélection").font(.headline)
+            VStack(spacing: 0) {
+                recordRow("Plus longue", systemImage: "arrow.left.and.right",
+                          activity: activities.max { $0.distance < $1.distance },
+                          value: { Self.formatDistance($0.distance) })
+                recordRow("Plus de dénivelé", systemImage: "arrow.up.forward",
+                          activity: activities.max { $0.elevationGain < $1.elevationGain },
+                          value: { "\(Int($0.elevationGain.rounded())) m" })
+                recordRow("Plus raide", systemImage: "triangle",
+                          activity: activities.max { $0.maxSlope < $1.maxSlope },
+                          value: { String(format: "%.0f°", $0.maxSlope) })
+                recordRow("Plus rapide (moy.)", systemImage: "gauge.with.dots.needle.67percent",
+                          activity: activities.max { $0.avgSpeed < $1.avgSpeed },
+                          value: { String(format: "%.1f km/h", $0.avgSpeed * 3.6) })
+            }
+            .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+        }
+    }
+
+    @ViewBuilder
+    private func recordRow(_ title: String, systemImage: String, activity: ActivitySummary?, value: (ActivitySummary) -> String) -> some View {
+        if let activity {
+            Button {
+                onOpenActivity(activity.id)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: systemImage).foregroundStyle(.tint).frame(width: 22)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(.caption).foregroundStyle(.secondary)
+                        Text(activity.title).font(.callout).lineLimit(1)
+                    }
+                    Spacer()
+                    Text(value(activity)).font(.callout.monospacedDigit().bold())
+                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var selectionCumulativeChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Cumul sur la période").font(.headline)
+            Chart(selectionCumulative, id: \.date) { p in
+                LineMark(x: .value("Date", p.date), y: .value(Self.metricLabel(selectedMetric), p.value))
+                    .foregroundStyle(.tint)
+                AreaMark(x: .value("Date", p.date), y: .value(Self.metricLabel(selectedMetric), p.value))
+                    .foregroundStyle(.tint.opacity(0.12))
+            }
+            .frame(height: 200)
+        }
+    }
+
+    private var selectionCumulative: [(date: Date, value: Double)] {
+        let sorted = activities.sorted { $0.startDate < $1.startDate }
+        var cumulative: Double = 0
+        return sorted.map { a in
+            cumulative += selectedMetric.value(for: a)
+            return (a.startDate, cumulative)
+        }
+    }
+
+    // MARK: - Mode bilan annuel
+
+    @ViewBuilder
+    private var annualContent: some View {
+        Picker("Année", selection: $selectedYear) {
+            ForEach(availableYears, id: \.self) { Text(String($0)).tag($0) }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: 160)
+
+        if currentResult.activityCount == 0 {
+            ContentUnavailableView("Aucune activité", systemImage: "tray", description: Text("Aucune donnée pour \(selectedYear)."))
+                .frame(maxWidth: .infinity).padding(.vertical, 40)
+        } else {
+            annualKPIs
+            Divider()
+            breakdownChart(entries: annualBreakdown, title: "Ventilation par activité — \(selectedYear)")
+            Divider()
+            cumulativeChart
+            Divider()
+            monthGrid
+        }
+    }
+
+    private var availableYears: [Int] {
+        Set(annualActivities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) }).sorted(by: >)
+    }
+
+    private var currentResult: StatsResult {
+        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(selectedYear)))
+    }
+
+    private var previousResult: StatsResult {
+        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(selectedYear - 1)))
+    }
+
+    private var annualKPIs: some View {
         HStack(spacing: 12) {
             kpiCard(title: "Distance", value: Self.formatDistance(currentResult.totalDistance), trend: trend(currentResult.totalDistance, previousResult.totalDistance))
             kpiCard(title: "Dénivelé +", value: "\(Int(currentResult.totalElevationGain.rounded())) m", trend: trend(currentResult.totalElevationGain, previousResult.totalElevationGain))
@@ -97,84 +266,18 @@ struct StatisticsView: View {
         }
     }
 
-    private func kpiCard(title: String, value: String, trend: Double?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title.monospacedDigit().bold())
-            if let trend, trend.isFinite {
-                let pct = (trend * 100).rounded()
-                Label("\(pct >= 0 ? "+" : "")\(Int(pct)) % vs \(selectedYear - 1)", systemImage: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.caption)
-                    .foregroundStyle(pct >= 0 ? .green : .red)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
-    }
-
-    private var breakdownChart: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ventilation par activité — \(selectedYear)").font(.headline)
-            Chart {
-                ForEach(breakdownEntries, id: \.type) { entry in
-                    BarMark(
-                        x: .value("Valeur", entry.value),
-                        y: .value("Activité", entry.type.displayName)
-                    )
-                    .foregroundStyle(by: .value("Activité", entry.type.displayName))
-                    .annotation(position: .trailing) {
-                        Text(entry.formatted).font(.caption.monospacedDigit())
-                    }
-                }
-            }
-            .frame(height: max(120, CGFloat(breakdownEntries.count) * 32))
-        }
-    }
-
-    private var breakdownEntries: [(type: ActivityType, value: Double, formatted: String)] {
-        currentResult.byActivityType.map { (type, breakdown) -> (ActivityType, Double, String) in
-            let val: Double
-            let formatted: String
-            switch selectedMetric {
-            case .distance:
-                val = breakdown.totalDistance
-                formatted = Self.formatDistance(val)
-            case .elevationGain:
-                val = breakdown.totalElevationGain
-                formatted = "\(Int(val.rounded())) m"
-            case .duration:
-                val = breakdown.totalDuration
-                formatted = Self.formatDuration(val)
-            case .count:
-                val = Double(breakdown.activityCount)
-                formatted = "\(Int(val))"
-            }
-            return (type, val, formatted)
-        }
-        .sorted { $0.1 > $1.1 }
-    }
-
     private var cumulativeChart: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(selectedYear) vs \(selectedYear - 1)").font(.headline)
             Chart {
-                ForEach(YearComparisonBuilder.cumulative(activities: filteredActivities, year: selectedYear, metric: selectedMetric)) { p in
-                    LineMark(
-                        x: .value("Jour", p.dayOfYear),
-                        y: .value(selectedMetric.rawValue, p.cumulativeValue),
-                        series: .value("Année", "\(selectedYear)")
-                    )
-                    .foregroundStyle(.tint)
+                ForEach(YearComparisonBuilder.cumulative(activities: annualActivities, year: selectedYear, metric: selectedMetric)) { p in
+                    LineMark(x: .value("Jour", p.dayOfYear), y: .value(selectedMetric.rawValue, p.cumulativeValue), series: .value("Année", "\(selectedYear)"))
+                        .foregroundStyle(.tint)
                 }
-                ForEach(YearComparisonBuilder.cumulative(activities: filteredActivities, year: selectedYear - 1, metric: selectedMetric)) { p in
-                    LineMark(
-                        x: .value("Jour", p.dayOfYear),
-                        y: .value(selectedMetric.rawValue, p.cumulativeValue),
-                        series: .value("Année", "\(selectedYear - 1)")
-                    )
-                    .foregroundStyle(.secondary)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                ForEach(YearComparisonBuilder.cumulative(activities: annualActivities, year: selectedYear - 1, metric: selectedMetric)) { p in
+                    LineMark(x: .value("Jour", p.dayOfYear), y: .value(selectedMetric.rawValue, p.cumulativeValue), series: .value("Année", "\(selectedYear - 1)"))
+                        .foregroundStyle(.secondary)
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
                 }
             }
             .chartXAxis {
@@ -198,7 +301,7 @@ struct StatisticsView: View {
                         }
                     }
                     Divider().gridCellColumns(13)
-                    ForEach(ActivityType.allCases.filter { hasActivityInYear($0) }, id: \.self) { type in
+                    ForEach(ActivityType.allCases.filter { currentResult.byActivityType[$0] != nil }, id: \.self) { type in
                         GridRow {
                             Text(type.displayName).gridColumnAlignment(.leading)
                             ForEach(1...12, id: \.self) { month in
@@ -215,13 +318,60 @@ struct StatisticsView: View {
         }
     }
 
-    private var filteredActivities: [ActivitySummary] {
-        if selectedTypes.isEmpty { return activities }
-        return activities.filter { selectedTypes.contains($0.activityType) }
+    // MARK: - Ventilation partagée
+
+    private struct BreakdownEntry { let type: ActivityType; let value: Double; let formatted: String }
+
+    private func breakdownChart(entries: [BreakdownEntry], title: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            Chart {
+                ForEach(entries, id: \.type) { entry in
+                    BarMark(x: .value("Valeur", entry.value), y: .value("Activité", entry.type.displayName))
+                        .foregroundStyle(by: .value("Activité", entry.type.displayName))
+                        .annotation(position: .trailing) {
+                            Text(entry.formatted).font(.caption.monospacedDigit())
+                        }
+                }
+            }
+            .frame(height: max(120, CGFloat(entries.count) * 32))
+        }
     }
 
-    private func hasActivityInYear(_ type: ActivityType) -> Bool {
-        currentResult.byActivityType[type] != nil
+    private var selectionBreakdown: [BreakdownEntry] { breakdownEntries(from: selStats.byActivityType) }
+    private var annualBreakdown: [BreakdownEntry] { breakdownEntries(from: currentResult.byActivityType) }
+
+    private func breakdownEntries(from byType: [ActivityType: TypeBreakdown]) -> [BreakdownEntry] {
+        byType.map { (type, bd) in
+            let val: Double
+            let formatted: String
+            switch selectedMetric {
+            case .distance:      val = bd.totalDistance;      formatted = Self.formatDistance(val)
+            case .elevationGain: val = bd.totalElevationGain; formatted = "\(Int(val.rounded())) m"
+            case .duration:      val = bd.totalDuration;      formatted = Self.formatDuration(val)
+            case .count:         val = Double(bd.activityCount); formatted = "\(Int(val))"
+            }
+            return BreakdownEntry(type: type, value: val, formatted: formatted)
+        }
+        .sorted { $0.value > $1.value }
+    }
+
+    // MARK: - Cartes & helpers
+
+    private func kpiCard(title: String, value: String, trend: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.title.monospacedDigit().bold())
+            if let trend, trend.isFinite {
+                let pct = (trend * 100).rounded()
+                Label("\(pct >= 0 ? "+" : "")\(Int(pct)) % vs \(selectedYear - 1)", systemImage: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.caption)
+                    .foregroundStyle(pct >= 0 ? .green : .red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
 
     private func monthValue(type: ActivityType, month: Int) -> String {
@@ -239,6 +389,47 @@ struct StatisticsView: View {
     private func trend(_ current: Double, _ previous: Double) -> Double? {
         guard previous > 0 else { return nil }
         return (current - previous) / previous
+    }
+
+    private static func bucketWidth(_ m: StatsMetric) -> Double {
+        switch m {
+        case .distance:      return 10_000
+        case .elevationGain: return 250
+        case .duration:      return 3_600
+        case .count:         return 10_000
+        }
+    }
+
+    private static func bucketLabel(idx: Int, width: Double, metric: StatsMetric) -> String {
+        let lo = Double(idx) * width
+        let hi = lo + width
+        switch metric {
+        case .distance:      return "\(Int(lo / 1000))–\(Int(hi / 1000))"
+        case .elevationGain: return "\(Int(lo))–\(Int(hi))"
+        case .duration:      return "\(Int(lo / 3600))–\(Int(hi / 3600))h"
+        case .count:         return "\(Int(lo / 1000))–\(Int(hi / 1000))"
+        }
+    }
+
+    private static func metricLabel(_ m: StatsMetric) -> String {
+        switch m {
+        case .distance:      return "Distance"
+        case .elevationGain: return "Dénivelé +"
+        case .duration:      return "Temps"
+        case .count:         return "Sorties"
+        }
+    }
+
+    private static let rangeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "d MMM yyyy"
+        return f
+    }()
+
+    private static func rangeLabel(_ from: Date, _ to: Date) -> String {
+        if Calendar.iso8601UTC.isDate(from, inSameDayAs: to) { return rangeFormatter.string(from: from) }
+        return "\(rangeFormatter.string(from: from)) → \(rangeFormatter.string(from: to))"
     }
 
     private static func formatDistance(_ m: Double) -> String {
