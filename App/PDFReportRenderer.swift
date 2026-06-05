@@ -118,14 +118,14 @@ enum PDFReportRenderer {
     // MARK: - Données des profils
 
     /// Regroupe les points en segments contigus de même pente (chaque run = une aire colorée distincte).
-    private static func slopeRuns(from profile: [ElevationProfilePoint]) -> ([ProfileChartSample], [String: Color]) {
+    static func slopeRuns(from profile: [ElevationProfilePoint]) -> ([ProfileChartSample], [String: Color]) {
         guard profile.count >= 2 else { return ([], [:]) }
         let categories = (0..<(profile.count - 1)).map { SlopeCategory.category(for: profile[$0].slope) }
         return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 }, key: { categories[$0].label }, color: { categories[$0].color })
     }
 
     /// Profil en fonction du temps : aires mouvement/pause + courbe de fréquence cardiaque normalisée.
-    private static func movementRuns(from profile: [ElevationProfilePoint]) -> PDFTimeProfile {
+    static func movementRuns(from profile: [ElevationProfilePoint]) -> PDFTimeProfile {
         guard profile.count >= 2 else { return .empty }
         let stamps = profile.compactMap(\.timestamp)
         guard let t0 = stamps.first, let tLast = stamps.last, tLast > t0 else { return .empty }
@@ -198,7 +198,7 @@ enum PDFReportRenderer {
         return (samples, scale)
     }
 
-    private static func boundingMapRect(_ points: [TrackPoint]) -> MKMapRect? {
+    static func boundingMapRect(_ points: [TrackPoint]) -> MKMapRect? {
         var rect = MKMapRect.null
         for p in points {
             let mp = MKMapPoint(CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))

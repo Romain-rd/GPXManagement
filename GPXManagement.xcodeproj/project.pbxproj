@@ -43,6 +43,7 @@
 		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */; };
+		E64B4322FE44A87CE52FA9CE /* HTMLReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
 		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
 		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
@@ -64,6 +65,7 @@
 /* Begin PBXFileReference section */
 		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
 		0E5DB080C9139499C7527BD6 /* ActivityRepository+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityRepository+Fetch.swift"; sourceTree = "<group>"; };
+		108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLReportRenderer.swift; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
 		1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,7 +108,7 @@
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
 		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		FD71E1EFABFA516C9DFF8B47 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
-		"TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,6 +167,7 @@
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
 				4F25EFB570B8ADC9F59F35BD /* ExportService.swift */,
 				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
+				108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */,
 				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
 				C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */,
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
@@ -213,10 +216,10 @@
 			path = Packages;
 			sourceTree = "<group>";
 		};
-		"TEMP_DF1C2B86-5FF7-4153-B54C-FF88F7B4AE1B" /* GPXManagement */ = {
+		"TEMP_A0D7F984-D73C-4D99-A9BE-81D8CEF219E3" /* GPXManagement */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */,
+				"TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */,
 			);
 			path = GPXManagement;
 			sourceTree = "<group>";
@@ -340,6 +343,7 @@
 				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
 				D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */,
 				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
+				E64B4322FE44A87CE52FA9CE /* HTMLReportRenderer.swift in Sources */,
 				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
 				DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */,
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
@@ -404,7 +408,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -492,7 +496,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4C90525C-1F8E-4651-86D4-172827EB5D5E" /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_C76349F5-3D28-477F-8B74-7907D306392C" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

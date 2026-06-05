@@ -29,6 +29,9 @@ struct ActivityDetailView: View {
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
+    @State private var showWebExportOptions = false
+    @State private var isExportingWeb = false
+    @State private var webOptions = WebExportOptions()
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -97,6 +100,17 @@ struct ActivityDetailView: View {
                 }
                 .disabled(isExportingPDF)
                 Button {
+                    showWebExportOptions = true
+                } label: {
+                    if isExportingWeb {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Exporter en page web", systemImage: "globe")
+                    }
+                }
+                .disabled(isExportingWeb)
+                .help("Génère une page web de présentation (même contenu que le détail), prête pour un CDN")
+                Button {
                     showVideoOptions = true
                 } label: {
                     if isExportingVideo {
@@ -129,6 +143,7 @@ struct ActivityDetailView: View {
             }
         }
         .sheet(isPresented: $showVideoOptions) { videoOptionsSheet }
+        .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
         .quickLookPreview($previewURL)
         .background(ShareSheetPresenter(isPresented: $isShareSheetPresented, url: shareURL))
         .alert("Export", isPresented: hasExportErrorBinding) {
@@ -701,6 +716,99 @@ struct ActivityDetailView: View {
         do {
             _ = try await ExportService.exportGPX(activity: activity, repository: repository)
         } catch ExportError.userCancelled {
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private var webExportOptionsSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Exporter en page web").font(.title3.bold())
+            Text("Génère une page de présentation reprenant le contenu du détail (carte, profil, statistiques, photos, notes), prête à déposer sur un CDN.")
+                .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
+                GridRow {
+                    Text("Carte").gridColumnAlignment(.trailing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Picker("", selection: $webOptions.map) {
+                            ForEach(WebExportOptions.MapRendering.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        .disabled(true)
+                        Text("Version interactive (Leaflet + IGN) à venir.").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                GridRow {
+                    Text("Profil").gridColumnAlignment(.trailing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Picker("", selection: $webOptions.profile) {
+                            ForEach(WebExportOptions.ProfileRendering.allCases) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        .disabled(true)
+                        Text("Version interactive à venir.").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                GridRow {
+                    Text("Format").gridColumnAlignment(.trailing)
+                    Picker("", selection: $webOptions.output) {
+                        ForEach(WebExportOptions.Output.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                }
+                GridRow {
+                    Text("Photos").gridColumnAlignment(.trailing)
+                    Toggle("Inclure les photos du parcours", isOn: $webOptions.includePhotos)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Annuler") { showWebExportOptions = false }
+                Button("Générer la page") {
+                    showWebExportOptions = false
+                    Task { await exportWeb() }
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
+    }
+
+    private func exportWeb() async {
+        isExportingWeb = true
+        defer { isExportingWeb = false }
+        let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        let photos = webOptions.includePhotos ? photoAssets : []
+        let safeName = activity.title.replacingOccurrences(of: "/", with: "-")
+        do {
+            let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos)
+            switch output {
+            case .singleFile(let html):
+                let panel = NSSavePanel()
+                panel.title = "Exporter en page web"
+                panel.nameFieldStringValue = "\(safeName).html"
+                panel.allowedContentTypes = [.html]
+                guard panel.runModal() == .OK, let url = panel.url else { return }
+                try html.write(to: url, options: .atomic)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            case .folder(let files):
+                let panel = NSSavePanel()
+                panel.title = "Exporter le dossier de la page web"
+                panel.nameFieldStringValue = safeName
+                guard panel.runModal() == .OK, let dir = panel.url else { return }
+                try? FileManager.default.removeItem(at: dir)
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                for (rel, data) in files {
+                    let fileURL = dir.appendingPathComponent(rel)
+                    try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try data.write(to: fileURL, options: .atomic)
+                }
+                NSWorkspace.shared.activateFileViewerSelecting([dir])
+            }
         } catch {
             exportError = error.localizedDescription
         }
