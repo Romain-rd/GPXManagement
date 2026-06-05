@@ -2,12 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>BunnyStorageKey</key>
-	<string>$(BUNNY_STORAGE_KEY)</string>
-	<key>BunnyStorageRegion</key>
-	<string>$(BUNNY_STORAGE_REGION)</string>
-	<key>BunnyStorageZone</key>
-	<string>$(BUNNY_STORAGE_ZONE)</string>
+	<key>BunnyApiKey</key>
+	<string>$(BUNNY_API_KEY)</string>
+	<key>BunnyStorageZoneId</key>
+	<string>$(BUNNY_STORAGE_ZONE_ID)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

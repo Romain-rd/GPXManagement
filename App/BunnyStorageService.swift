@@ -2,52 +2,83 @@ import Foundation
 
 enum BunnyStorageError: Error, LocalizedError {
     case notConfigured
+    case zoneLookupFailed(status: Int)
     case requestFailed(path: String, status: Int)
 
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Bunny n'est pas configuré (renseigner BUNNY_STORAGE_ZONE et BUNNY_STORAGE_KEY dans Secrets.xcconfig)."
+            return "Bunny n'est pas configuré (renseigner BUNNY_API_KEY et BUNNY_STORAGE_ZONE_ID dans Secrets.xcconfig)."
+        case let .zoneLookupFailed(status):
+            return "Impossible de récupérer la zone de stockage Bunny (HTTP \(status)) — vérifier la clé API de compte et l'ID de zone."
         case let .requestFailed(path, status):
             return "Échec de l'envoi vers Bunny (\(path) — HTTP \(status))."
         }
     }
 }
 
-/// Publication d'une page (dossier de fichiers) sur Bunny Storage. Identifiants lus dans Info.plist
-/// (injectés depuis Secrets.xcconfig, non versionnés).
+/// Publication d'une page (dossier de fichiers) sur Bunny Storage.
+/// La clé API de compte (générique) et l'ID de zone sont lus dans Info.plist (injectés depuis
+/// Secrets.xcconfig, non versionnés). Le nom de zone, le mot de passe Storage et le host régional
+/// sont résolus à la volée via l'API de management — pas de mot de passe Storage à stocker.
 enum BunnyStorageService {
     private static func info(_ key: String) -> String {
         (Bundle.main.object(forInfoDictionaryKey: key) as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
     }
-    private static var zone: String { info("BunnyStorageZone") }
-    private static var key: String { info("BunnyStorageKey") }
-    private static var region: String { info("BunnyStorageRegion") }
+    private static var apiKey: String { info("BunnyApiKey") }
+    private static var zoneId: String { info("BunnyStorageZoneId") }
 
     static var isConfigured: Bool {
-        !zone.isEmpty && zone != "TODO" && !key.isEmpty && key != "TODO"
+        !apiKey.isEmpty && apiKey != "TODO" && !zoneId.isEmpty && zoneId != "TODO"
     }
 
-    private static var host: String {
-        region.isEmpty ? "storage.bunnycdn.com" : "\(region).storage.bunnycdn.com"
+    private struct ResolvedZone {
+        let name: String
+        let password: String
+        let host: String
+    }
+
+    private struct ZoneInfo: Decodable {
+        let name: String
+        let password: String
+        let storageHostname: String?
+        enum CodingKeys: String, CodingKey {
+            case name = "Name", password = "Password", storageHostname = "StorageHostname"
+        }
     }
 
     /// Envoie tous les fichiers (clé = chemin relatif) sous `folder/`, après suppression du dossier existant.
     static func publish(files: [String: Data], folder: String) async throws {
         guard isConfigured else { throw BunnyStorageError.notConfigured }
-        try? await deleteFolder(folder)
+        let zone = try await resolveZone()
+        try? await deleteFolder(folder, zone: zone)
         for (rel, data) in files {
-            try await put(path: "\(folder)/\(rel)", data: data)
+            try await put(path: "\(folder)/\(rel)", data: data, zone: zone)
         }
     }
 
-    private static func put(path: String, data: Data) async throws {
-        guard let url = URL(string: "https://\(host)/\(zone)/\(path)") else {
+    private static func resolveZone() async throws -> ResolvedZone {
+        guard let url = URL(string: "https://api.bunny.net/storagezone/\(zoneId)") else {
+            throw BunnyStorageError.notConfigured
+        }
+        var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "AccessKey")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard (200..<300).contains(status) else { throw BunnyStorageError.zoneLookupFailed(status: status) }
+        let info = try JSONDecoder().decode(ZoneInfo.self, from: data)
+        let host = (info.storageHostname?.isEmpty == false) ? info.storageHostname! : "storage.bunnycdn.com"
+        return ResolvedZone(name: info.name, password: info.password, host: host)
+    }
+
+    private static func put(path: String, data: Data, zone: ResolvedZone) async throws {
+        guard let url = URL(string: "https://\(zone.host)/\(zone.name)/\(path)") else {
             throw BunnyStorageError.requestFailed(path: path, status: -1)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        request.setValue(key, forHTTPHeaderField: "AccessKey")
+        request.setValue(zone.password, forHTTPHeaderField: "AccessKey")
         request.setValue(contentType(for: path), forHTTPHeaderField: "Content-Type")
         let (_, response) = try await URLSession.shared.upload(for: request, from: data)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -56,11 +87,11 @@ enum BunnyStorageService {
         }
     }
 
-    private static func deleteFolder(_ folder: String) async throws {
-        guard let url = URL(string: "https://\(host)/\(zone)/\(folder)/") else { return }
+    private static func deleteFolder(_ folder: String, zone: ResolvedZone) async throws {
+        guard let url = URL(string: "https://\(zone.host)/\(zone.name)/\(folder)/") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        request.setValue(key, forHTTPHeaderField: "AccessKey")
+        request.setValue(zone.password, forHTTPHeaderField: "AccessKey")
         _ = try await URLSession.shared.data(for: request)
     }
 
