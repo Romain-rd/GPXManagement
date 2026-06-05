@@ -132,13 +132,15 @@ enum HTMLReportRenderer {
     private static let raidPalette = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9"]
 
     /// Génère le dossier d'un raid : page d'ensemble + une page complète par étape (réutilise `render`).
-    static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]]) async throws -> [String: Data] {
+    static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
         var files: [String: Data] = [:]
         var stageOpts = options
         stageOpts.output = .folder
 
         var stages: [RaidStage] = []
+        let total = max(members.count, 1)
         for (i, m) in members.enumerated() {
+            onProgress?(Double(i) / Double(total + 1), "Étape \(i + 1)/\(members.count) — \(m.title)")
             let out = try await render(activity: m, repository: repository, layer: layer, options: stageOpts, photos: stagePhotos[m.id] ?? [])
             if case let .folder(stageFiles) = out {
                 for (rel, data) in stageFiles { files["etape-\(i + 1)/\(rel)"] = data }
@@ -157,6 +159,7 @@ enum HTMLReportRenderer {
             if let d = p.avatarImageData { let name = "assets/avatar-\(i + 1).\(imageExt(d))"; files[name] = d; avatarRefs.append(name) } else { avatarRefs.append("") }
         }
 
+        onProgress?(Double(total) / Double(total + 1), "Page du raid…")
         let html = buildRaidHTML(raid: raid, members: members, layer: layer, coverRef: coverRef, avatarRefs: avatarRefs, stages: stages)
         files["index.html"] = html.data(using: .utf8) ?? Data()
         return files

@@ -4,6 +4,7 @@ import GPXCore
 struct ContentView: View {
     @Bindable var services: AppServices
     @State private var window: WindowModel
+    private let webProgress = WebExportProgress.shared
 
     init(services: AppServices = .shared) {
         self._services = Bindable(wrappedValue: services)
@@ -63,6 +64,11 @@ struct ContentView: View {
             }
             if window.isExportingMap {
                 exportToolbarItem
+            }
+            if webProgress.isActive {
+                ToolbarItem(placement: .automatic) {
+                    ExportProgressLabel(fraction: webProgress.fraction, status: webProgress.status, title: "Publication web")
+                }
             }
         }
         .focusedSceneValue(\.windowModel, window)
@@ -191,6 +197,7 @@ struct ContentView: View {
 struct ExportProgressLabel: View {
     let fraction: Double
     let status: String
+    var title: String = "Export de la carte"
 
     var body: some View {
         HStack(spacing: 6) {
@@ -201,7 +208,7 @@ struct ExportProgressLabel: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
-        .help("Export de la carte — \(status)")
+        .help("\(title) — \(status)")
     }
 }
 

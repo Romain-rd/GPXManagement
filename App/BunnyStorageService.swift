@@ -48,12 +48,16 @@ enum BunnyStorageService {
     }
 
     /// Envoie tous les fichiers (clé = chemin relatif) sous `folder/`, après suppression du dossier existant.
-    static func publish(files: [String: Data], folder: String) async throws {
+    static func publish(files: [String: Data], folder: String, onProgress: ((Double, String) -> Void)? = nil) async throws {
         guard isConfigured else { throw BunnyStorageError.notConfigured }
         let zone = try await resolveZone()
         try? await deleteFolder(folder, zone: zone)
+        let total = max(files.count, 1)
+        var done = 0
         for (rel, data) in files {
             try await put(path: "\(folder)/\(rel)", data: data, zone: zone)
+            done += 1
+            onProgress?(Double(done) / Double(total), "Envoi \(done)/\(total)…")
         }
     }
 

@@ -284,15 +284,21 @@ struct RaidDetailView: View {
 
     private func exportRaidWeb() async {
         isExportingWeb = true
-        defer { isExportingWeb = false }
+        let progress = WebExportProgress.shared
+        progress.begin("Préparation…")
+        defer { isExportingWeb = false; progress.end() }
         let mapLayer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
         let safeName = raid.name.replacingOccurrences(of: "/", with: "-")
         do {
+            if webOptions.includePhotos { progress.update(0, "Recherche des photos…") }
             let stagePhotos = await gatherStagePhotos()
-            let files = try await HTMLReportRenderer.renderRaid(raid: raid, members: members, repository: repository, layer: mapLayer, options: webOptions, stagePhotos: stagePhotos)
+            let files = try await HTMLReportRenderer.renderRaid(raid: raid, members: members, repository: repository, layer: mapLayer, options: webOptions, stagePhotos: stagePhotos) { f, s in
+                progress.update(f * 0.7, s)
+            }
             if webOptions.output == .publishBunny {
-                try await publishRaidToBunny(files: files)
+                try await publishRaidToBunny(files: files) { f, s in progress.update(0.7 + f * 0.3, s) }
             } else {
+                progress.update(0.9, "Écriture du dossier…")
                 let panel = NSSavePanel()
                 panel.title = "Exporter le raid en page web"
                 panel.nameFieldStringValue = safeName
@@ -315,6 +321,8 @@ struct RaidDetailView: View {
         guard webOptions.includePhotos else { return [:] }
         let status = await PhotoLibraryService.requestAccess()
         guard status == .authorized || status == .limited else { return [:] }
+        // Ne garder que les photos sélectionnées (affichées sur la carte) — pas toutes celles trouvées.
+        let hidden = Set(UserDefaults.standard.stringArray(forKey: "photosHiddenOnMap") ?? [])
         var result: [UUID: [PHAsset]] = [:]
         for m in members {
             var coords: [CLLocationCoordinate2D] = []
@@ -322,13 +330,14 @@ struct RaidDetailView: View {
                 coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
             }
             result[m.id] = PhotoLibraryService.photos(start: m.startDate.addingTimeInterval(-900), end: m.endDate.addingTimeInterval(900), near: coords, maxDistance: 300)
+                .filter { !hidden.contains($0.localIdentifier) }
         }
         return result
     }
 
-    private func publishRaidToBunny(files: [String: Data]) async throws {
+    private func publishRaidToBunny(files: [String: Data], onProgress: ((Double, String) -> Void)? = nil) async throws {
         let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
-        try await BunnyStorageService.publish(files: files, folder: "raids/\(uuid)")
+        try await BunnyStorageService.publish(files: files, folder: "raids/\(uuid)", onProgress: onProgress)
         let url = "https://www.gpxmanagement.net/raids/\(uuid)/"
         let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
         try await repository.setRaidWebPublished(id: raid.id, url: url, configJSON: configJSON)

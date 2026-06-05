@@ -91,6 +91,20 @@ final class WindowModel {
     }
 }
 
+/// Progression d'un export/publication web, affichée dans la barre d'outils (façon Photos).
+@MainActor
+@Observable
+final class WebExportProgress {
+    static let shared = WebExportProgress()
+    var isActive = false
+    var fraction: Double = 0
+    var status = ""
+
+    func begin(_ status: String) { isActive = true; fraction = 0; self.status = status }
+    func update(_ fraction: Double, _ status: String) { self.fraction = fraction; self.status = status }
+    func end() { isActive = false; fraction = 0; status = "" }
+}
+
 private struct WindowModelKey: FocusedValueKey {
     typealias Value = WindowModel
 }

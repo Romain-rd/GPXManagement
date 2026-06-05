@@ -878,12 +878,16 @@ struct ActivityDetailView: View {
 
     private func exportWeb() async {
         isExportingWeb = true
-        defer { isExportingWeb = false }
+        let progress = WebExportProgress.shared
+        progress.begin("Génération de la page…")
+        defer { isExportingWeb = false; progress.end() }
         let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
-        let photos = webOptions.includePhotos ? photoAssets : []
+        // Seules les photos sélectionnées (affichées sur la carte) sont exportées.
+        let photos = webOptions.includePhotos ? photoAssets.filter { !hiddenPhotoIDs.contains($0.localIdentifier) } : []
         let safeName = activity.title.replacingOccurrences(of: "/", with: "-")
         do {
             let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos)
+            progress.update(0.6, "Préparation des fichiers…")
             switch output {
             case .singleFile(let html):
                 let panel = NSSavePanel()
@@ -895,7 +899,7 @@ struct ActivityDetailView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             case .folder(let files):
                 if webOptions.output == .publishBunny {
-                    try await publishToBunny(files: files)
+                    try await publishToBunny(files: files) { f, s in progress.update(0.6 + f * 0.4, s) }
                 } else {
                     let panel = NSSavePanel()
                     panel.title = "Exporter le dossier de la page web"
@@ -916,9 +920,9 @@ struct ActivityDetailView: View {
         }
     }
 
-    private func publishToBunny(files: [String: Data]) async throws {
+    private func publishToBunny(files: [String: Data], onProgress: ((Double, String) -> Void)? = nil) async throws {
         let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
-        try await BunnyStorageService.publish(files: files, folder: "traces/\(uuid)")
+        try await BunnyStorageService.publish(files: files, folder: "traces/\(uuid)", onProgress: onProgress)
         let url = "https://www.gpxmanagement.net/traces/\(uuid)/"
         let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
         try await repository.setWebPublished(id: activity.id, url: url, configJSON: configJSON)
