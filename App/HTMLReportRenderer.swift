@@ -410,8 +410,8 @@ enum HTMLReportRenderer {
             </div>
           </header>
           <section class="metrics">\(cards.joined())</section>
-          \(profileSection)
           \(mapSection)
+          \(profileSection)
           \(photosSection)
           \(notesSection)
           <footer>\(sourceLine)<p class="madeby">Généré par GPXManagement</p></footer>

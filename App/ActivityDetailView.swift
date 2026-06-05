@@ -57,8 +57,8 @@ struct ActivityDetailView: View {
                 header
                 Divider()
                 metricsGrid
-                profileSection
                 mapSection
+                profileSection
                 photosSection
                 notesSection
             }
