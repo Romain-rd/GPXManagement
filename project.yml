@@ -59,6 +59,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSHumanReadableCopyright: ""
+        NSPhotoLibraryUsageDescription: "Pour afficher les photos prises pendant vos activités, à proximité de la trace enregistrée."
         StravaClientID: $(STRAVA_CLIENT_ID)
         StravaClientSecret: $(STRAVA_CLIENT_SECRET)
         NSUbiquitousContainers:
@@ -87,6 +88,7 @@ targets:
         com.apple.security.files.bookmarks.app-scope: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
+        com.apple.security.personal-information.photos-library: true
         com.apple.developer.icloud-container-identifiers:
           - iCloud.com.demoustier.GPXManagement
         com.apple.developer.icloud-services:
