@@ -283,7 +283,6 @@ struct PDFProfilesPage: View {
     let movingTime: TimeInterval
     let pausedTime: TimeInterval
 
-    private static let slopeCategories: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
     private var slopeScale: SlopeScale { activity.activityType.slopeScale }
 
     var body: some View {
@@ -354,7 +353,7 @@ struct PDFProfilesPage: View {
 
     private var slopeLegend: some View {
         HStack(spacing: 12) {
-            ForEach(Self.slopeCategories, id: \.self) { cat in
+            ForEach(slopeScale.categories, id: \.self) { cat in
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 2).fill(cat.color.opacity(0.7)).frame(width: 9, height: 9)
                     Text(slopeScale.label(for: cat)).font(.system(size: 8)).foregroundStyle(.secondary)

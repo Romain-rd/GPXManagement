@@ -432,8 +432,6 @@ enum HTMLReportRenderer {
 
     // MARK: - Données du profil interactif
 
-    private static let slopeOrder: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
-
     /// Sérialise le profil (décimé) en objet JS : altitude/pente par distance et par temps + FC, lat/lon pour la synchro carte.
     private static func profilePayloadJSON(_ profile: [ElevationProfilePoint], scale: SlopeScale) -> String {
         guard profile.count >= 2 else { return "" }
@@ -442,13 +440,14 @@ enum HTMLReportRenderer {
         func arr(_ values: [String]) -> String { "[" + values.joined(separator: ",") + "]" }
         func num(_ d: Double, _ decimals: Int) -> String { String(format: "%.\(decimals)f", d) }
 
-        let cats = slopeOrder.map { "\"\(hex($0.color))\"" }
-        let catLabels = slopeOrder.map { "\"\(scale.label(for: $0))\"" }
+        let order = scale.categories
+        let cats = order.map { "\"\(hex($0.color))\"" }
+        let catLabels = order.map { "\"\(scale.label(for: $0))\"" }
 
         // Distance / pente
         let dx = pts.map { num($0.distanceFromStart / 1000, 3) }
         let dAlt = pts.map { num($0.altitude, 1) }
-        let dCat = pts.map { String(slopeOrder.firstIndex(of: scale.category(for: $0.slope)) ?? 0) }
+        let dCat = pts.map { String(order.firstIndex(of: scale.category(for: $0.slope)) ?? 0) }
         let dLat = pts.map { num($0.latitude ?? 0, 5) }
         let dLon = pts.map { num($0.longitude ?? 0, 5) }
         let distanceObj = "{x:\(arr(dx)),alt:\(arr(dAlt)),cat:\(arr(dCat)),lat:\(arr(dLat)),lon:\(arr(dLon))}"
@@ -515,8 +514,7 @@ enum HTMLReportRenderer {
 
     private static func slopeLegendItems(distanceScale: [String: Color], scale: SlopeScale) -> [LegendItem] {
         guard !distanceScale.isEmpty else { return [] }
-        let cats: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
-        return cats.map { LegendItem(label: scale.label(for: $0), color: hex($0.color)) }
+        return scale.categories.map { LegendItem(label: scale.label(for: $0), color: hex($0.color)) }
     }
 
     private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], profilePayload: String) -> String {

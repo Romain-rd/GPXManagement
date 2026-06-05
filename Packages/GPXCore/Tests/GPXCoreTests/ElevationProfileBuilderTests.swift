@@ -134,23 +134,30 @@ final class ElevationProfileBuilderTests: XCTestCase {
     }
 
     func testSlopeCategoryRangesSkiTouringAngles() {
-        // Seuils 25/30/35° ≈ 47/58/70 % de pente.
+        // Seuils 20/25/30/35° ≈ 36/47/58/70 % de pente, 5 bandes.
         let s = SlopeScale.skiTouring
-        XCTAssertEqual(s.category(for: 40), .gentle)    // ≈ 21,8°
-        XCTAssertEqual(s.category(for: 50), .moderate)  // ≈ 26,6°
-        XCTAssertEqual(s.category(for: 65), .steep)     // ≈ 33,0°
-        XCTAssertEqual(s.category(for: 80), .veryStep)  // ≈ 38,7°
-        XCTAssertEqual(s.category(for: -40), .gentle)
-        XCTAssertEqual(s.category(for: -60), .descent)
+        XCTAssertEqual(s.category(for: 30), .gentle)    // ≈ 16,7°  < 20°
+        XCTAssertEqual(s.category(for: 40), .moderate)  // ≈ 21,8°  20–25°
+        XCTAssertEqual(s.category(for: 50), .steep)     // ≈ 26,6°  25–30°
+        XCTAssertEqual(s.category(for: 65), .veryStep)  // ≈ 33,0°  30–35°
+        XCTAssertEqual(s.category(for: 80), .extreme)   // ≈ 38,7°  > 35°
+        XCTAssertEqual(s.category(for: -30), .gentle)
+        XCTAssertEqual(s.category(for: -50), .descent)  // < -20° (≈ -36 %)
+    }
+
+    func testSlopeScaleCategories() {
+        XCTAssertEqual(SlopeScale.percent.categories, [.gentle, .moderate, .steep, .veryStep, .descent])
+        XCTAssertEqual(SlopeScale.skiTouring.categories, [.gentle, .moderate, .steep, .veryStep, .extreme, .descent])
     }
 
     func testSlopeScaleLabels() {
         XCTAssertEqual(SlopeScale.percent.label(for: .gentle), "0–4 %")
         XCTAssertEqual(SlopeScale.percent.label(for: .veryStep), "> 12 %")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .gentle), "< 25°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .moderate), "25–30°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .steep), "30–35°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .veryStep), "> 35°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .gentle), "< 20°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .moderate), "20–25°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .steep), "25–30°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .veryStep), "30–35°")
+        XCTAssertEqual(SlopeScale.skiTouring.label(for: .extreme), "> 35°")
     }
 
     func testSlopeScaleByActivityType() {

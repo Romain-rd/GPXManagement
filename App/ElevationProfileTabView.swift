@@ -10,6 +10,7 @@ extension SlopeCategory {
         case .moderate: return .yellow
         case .steep:    return .orange
         case .veryStep: return .red
+        case .extreme:  return .purple
         case .descent:  return .blue
         }
     }
@@ -103,7 +104,6 @@ struct ElevationProfileTabView: View {
     @State private var isLoading = true
     @State private var loadError: String?
 
-    private static let legendCategories: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .descent]
     private static let movingThreshold: Double = 0.5
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -153,7 +153,7 @@ struct ElevationProfileTabView: View {
     private var legendItems: [(label: String, color: Color, time: TimeInterval)] {
         switch mode {
         case .distance:
-            return Self.legendCategories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
+            return slopeScale.categories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
         case .time:
             return [
                 (MovementState.moving.label, MovementState.moving.color, movingTime),
