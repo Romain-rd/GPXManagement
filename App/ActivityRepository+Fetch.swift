@@ -195,6 +195,7 @@ extension CoreDataActivityRepository {
             activity.setValue(stats.elevationLoss, forKey: "elevationLoss")
             activity.setValue(stats.avgSpeed, forKey: "avgSpeed")
             activity.setValue(stats.maxSpeed, forKey: "maxSpeed")
+            activity.setValue(stats.maxSlope, forKey: "maxSlope")
             activity.setValue(stats.avgHeartRate, forKey: "avgHeartRate")
             activity.setValue(stats.maxHeartRate, forKey: "maxHeartRate")
             activity.setValue(stats.boundingBox.minLatitude, forKey: "minLatitude")
@@ -310,6 +311,7 @@ enum ActivitySummaryMapper {
             elevationLoss: object.value(forKey: "elevationLoss") as? Double ?? 0,
             avgSpeed: object.value(forKey: "avgSpeed") as? Double ?? 0,
             maxSpeed: object.value(forKey: "maxSpeed") as? Double ?? 0,
+            maxSlope: object.value(forKey: "maxSlope") as? Double ?? 0,
             avgHeartRate: object.value(forKey: "avgHeartRate") as? Double,
             maxHeartRate: object.value(forKey: "maxHeartRate") as? Double,
             sourceFileName: object.value(forKey: "sourceFileName") as? String ?? "",

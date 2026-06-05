@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SmartFilterField: String, Codable, CaseIterable, Sendable {
-    case activityType, date, distance, elevationGain, duration, avgSpeed, avgHeartRate, source, tag, raid, text
+    case activityType, date, distance, elevationGain, maxSlope, duration, avgSpeed, avgHeartRate, source, tag, raid, text
 }
 
 public enum SmartFilterOperator: String, Codable, Sendable {
@@ -82,7 +82,7 @@ extension SmartFilterRule {
             case .between: return year >= Swift.min(number1, number2) && year <= Swift.max(number1, number2)
             default:       return year == number1
             }
-        case .distance, .elevationGain, .duration, .avgSpeed, .avgHeartRate:
+        case .distance, .elevationGain, .maxSlope, .duration, .avgSpeed, .avgHeartRate:
             guard let value = numericValue(of: s) else { return false }
             switch op {
             case .less:    return value < number1
@@ -96,6 +96,7 @@ extension SmartFilterRule {
         switch field {
         case .distance:      return s.distance / 1000
         case .elevationGain: return s.elevationGain
+        case .maxSlope:      return s.maxSlope
         case .duration:      return s.duration / 60
         case .avgSpeed:      return s.avgSpeed * 3.6
         case .avgHeartRate:  return s.avgHeartRate

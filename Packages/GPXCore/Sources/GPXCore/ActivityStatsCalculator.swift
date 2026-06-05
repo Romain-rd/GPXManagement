@@ -24,6 +24,7 @@ public struct ActivityStats: Sendable, Equatable {
     public let elevationLoss: Double
     public let avgSpeed: Double
     public let maxSpeed: Double
+    public let maxSlope: Double
     public let avgHeartRate: Double?
     public let maxHeartRate: Double?
     public let boundingBox: BoundingBox
@@ -31,12 +32,12 @@ public struct ActivityStats: Sendable, Equatable {
     public static let zero = ActivityStats(
         distance: 0, duration: 0, movingDuration: 0,
         elevationGain: 0, elevationLoss: 0,
-        avgSpeed: 0, maxSpeed: 0,
+        avgSpeed: 0, maxSpeed: 0, maxSlope: 0,
         avgHeartRate: nil, maxHeartRate: nil,
         boundingBox: .zero
     )
 
-    public init(distance: Double, duration: Double, movingDuration: Double, elevationGain: Double, elevationLoss: Double, avgSpeed: Double, maxSpeed: Double, avgHeartRate: Double?, maxHeartRate: Double?, boundingBox: BoundingBox) {
+    public init(distance: Double, duration: Double, movingDuration: Double, elevationGain: Double, elevationLoss: Double, avgSpeed: Double, maxSpeed: Double, maxSlope: Double, avgHeartRate: Double?, maxHeartRate: Double?, boundingBox: BoundingBox) {
         self.distance = distance
         self.duration = duration
         self.movingDuration = movingDuration
@@ -44,6 +45,7 @@ public struct ActivityStats: Sendable, Equatable {
         self.elevationLoss = elevationLoss
         self.avgSpeed = avgSpeed
         self.maxSpeed = maxSpeed
+        self.maxSlope = maxSlope
         self.avgHeartRate = avgHeartRate
         self.maxHeartRate = maxHeartRate
         self.boundingBox = boundingBox
@@ -104,6 +106,7 @@ public enum ActivityStatsCalculator {
         let maxSpeed = computeMaxSpeed(cumulativeDistances: cumulativeDistances, times: times)
         let (gain, loss) = computeElevation(points: points)
         let (avgHR, maxHR) = computeHeartRate(points: points)
+        let maxSlope = computeMaxSlope(points: points)
 
         return ActivityStats(
             distance: distance,
@@ -113,10 +116,19 @@ public enum ActivityStatsCalculator {
             elevationLoss: loss,
             avgSpeed: avgSpeed,
             maxSpeed: maxSpeed,
+            maxSlope: maxSlope,
             avgHeartRate: avgHR,
             maxHeartRate: maxHR,
             boundingBox: bbox
         )
+    }
+
+    /// Pente maximale en degrés, calculée sur le profil lissé (±75 m) pour éviter les pics de bruit GPS.
+    /// Tient compte des montées comme des descentes (valeur absolue).
+    private static func computeMaxSlope(points: [TrackPoint]) -> Double {
+        let profile = ElevationProfileBuilder.build(points: points)
+        guard let maxGrade = profile.map({ abs($0.slope) }).max() else { return 0 }
+        return atan(maxGrade / 100) * 180 / .pi
     }
 
     private static func boundingBox(_ points: [TrackPoint]) -> BoundingBox {

@@ -13,6 +13,7 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
     public let elevationLoss: Double
     public let avgSpeed: Double
     public let maxSpeed: Double
+    public let maxSlope: Double
     public let avgHeartRate: Double?
     public let maxHeartRate: Double?
     public let sourceFileName: String
@@ -38,6 +39,7 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
         elevationLoss: Double,
         avgSpeed: Double,
         maxSpeed: Double,
+        maxSlope: Double = 0,
         avgHeartRate: Double?,
         maxHeartRate: Double?,
         sourceFileName: String,
@@ -59,6 +61,7 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
         self.elevationLoss = elevationLoss
         self.avgSpeed = avgSpeed
         self.maxSpeed = maxSpeed
+        self.maxSlope = maxSlope
         self.avgHeartRate = avgHeartRate
         self.maxHeartRate = maxHeartRate
         self.sourceFileName = sourceFileName
@@ -70,14 +73,14 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
     }
 
     public func updatingTitle(_ newTitle: String) -> ActivitySummary {
-        ActivitySummary(id: id, title: newTitle, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId)
+        ActivitySummary(id: id, title: newTitle, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId)
     }
 
     public func updatingNotes(_ newNotes: String?) -> ActivitySummary {
-        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: newNotes, raidId: raidId)
+        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: newNotes, raidId: raidId)
     }
 
     public func updatingActivityType(_ newType: ActivityType) -> ActivitySummary {
-        ActivitySummary(id: id, title: title, activityType: newType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId)
+        ActivitySummary(id: id, title: title, activityType: newType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId)
     }
 }

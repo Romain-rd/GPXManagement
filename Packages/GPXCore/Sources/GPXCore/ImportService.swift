@@ -294,6 +294,7 @@ public actor ImportService {
             elevationLoss: 0,
             avgSpeed: 0,
             maxSpeed: 0,
+            maxSlope: 0,
             avgHeartRate: nil,
             maxHeartRate: nil,
             boundingBox: .zero

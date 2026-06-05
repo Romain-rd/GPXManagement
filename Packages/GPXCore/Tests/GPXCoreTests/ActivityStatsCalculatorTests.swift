@@ -75,6 +75,33 @@ final class ActivityStatsCalculatorTests: XCTestCase {
         XCTAssertEqual(stats.maxHeartRate, 149)
     }
 
+    func testMaxSlopeFromSteadyGrade() {
+        // Pente constante de 50 % (montée = 0,5 × distance horizontale) → ≈ 26,57°.
+        let metersPerLon = 6_371_000.0 * .pi / 180 * cos(45.0 * .pi / 180)
+        let stepLon = 0.0002
+        let stepDist = stepLon * metersPerLon
+        var pts: [TrackPoint] = []
+        for i in 0..<200 {
+            pts.append(TrackPoint(
+                latitude: 45.0,
+                longitude: 6.0 + Double(i) * stepLon,
+                altitude: 1000.0 + Double(i) * stepDist * 0.5,
+                timestamp: Date(timeIntervalSince1970: Double(i))
+            ))
+        }
+        let stats = ActivityStatsCalculator.compute(points: pts)
+        XCTAssertEqual(stats.maxSlope, atan(0.5) * 180 / .pi, accuracy: 1.5)
+    }
+
+    func testMaxSlopeFlatIsZero() {
+        var pts: [TrackPoint] = []
+        for i in 0..<50 {
+            pts.append(TrackPoint(latitude: 45.0, longitude: 6.0 + Double(i) * 0.0002, altitude: 1000, timestamp: Date(timeIntervalSince1970: Double(i))))
+        }
+        let stats = ActivityStatsCalculator.compute(points: pts)
+        XCTAssertEqual(stats.maxSlope, 0, accuracy: 0.5)
+    }
+
     func testBoundingBox() {
         let pts = [
             TrackPoint(latitude: 45.0, longitude: 6.0),

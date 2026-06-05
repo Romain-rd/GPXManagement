@@ -126,7 +126,7 @@ struct SmartFilterEditor: View {
             }
         case .text:
             TextField("texte", text: rule.stringValue).textFieldStyle(.roundedBorder).frame(width: 180)
-        case .date, .distance, .elevationGain, .duration, .avgSpeed, .avgHeartRate:
+        case .date, .distance, .elevationGain, .maxSlope, .duration, .avgSpeed, .avgHeartRate:
             HStack(spacing: 4) {
                 TextField("", value: rule.number1, format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                 if rule.wrappedValue.op == .between {
@@ -166,6 +166,7 @@ struct SmartFilterEditor: View {
         case .date:          return "Date (année)"
         case .distance:      return "Distance"
         case .elevationGain: return "Dénivelé +"
+        case .maxSlope:      return "Pente max"
         case .duration:      return "Durée"
         case .avgSpeed:      return "Vitesse moy."
         case .avgHeartRate:  return "FC moy."
@@ -195,6 +196,7 @@ struct SmartFilterEditor: View {
         switch field {
         case .distance:      return "km"
         case .elevationGain: return "m"
+        case .maxSlope:      return "°"
         case .duration:      return "min"
         case .avgSpeed:      return "km/h"
         case .avgHeartRate:  return "bpm"

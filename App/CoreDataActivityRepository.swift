@@ -58,6 +58,7 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
             activity.setValue(payload.stats.elevationLoss, forKey: "elevationLoss")
             activity.setValue(payload.stats.avgSpeed, forKey: "avgSpeed")
             activity.setValue(payload.stats.maxSpeed, forKey: "maxSpeed")
+            activity.setValue(payload.stats.maxSlope, forKey: "maxSlope")
             activity.setValue(payload.stats.avgHeartRate, forKey: "avgHeartRate")
             activity.setValue(payload.stats.maxHeartRate, forKey: "maxHeartRate")
             activity.setValue(payload.stats.boundingBox.minLatitude, forKey: "minLatitude")
