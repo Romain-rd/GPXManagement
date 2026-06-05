@@ -33,6 +33,7 @@ struct ActivityDetailView: View {
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
     @State private var publishedURL: String?
+    @State private var publishConfigJSON: String?
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
@@ -73,13 +74,14 @@ struct ActivityDetailView: View {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
-            Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
+            Task { await loadPublishState() }
         }
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
             publishedURL = nil
-            Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
+            publishConfigJSON = nil
+            Task { await loadPublishState() }
         }
         .onChange(of: activity.title) { _, newTitle in
             if !titleFocused { titleDraft = newTitle }
@@ -237,6 +239,17 @@ struct ActivityDetailView: View {
                         .lineLimit(1).truncationMode(.middle)
                 }
                 Spacer()
+                Button {
+                    Task { await republishWeb() }
+                } label: {
+                    if isExportingWeb {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Republier", systemImage: "arrow.clockwise")
+                    }
+                }
+                .disabled(isExportingWeb || !BunnyStorageService.isConfigured)
+                .help("Republier avec les mêmes paramètres")
                 Button {
                     NSWorkspace.shared.open(url)
                 } label: {
@@ -902,8 +915,27 @@ struct ActivityDetailView: View {
         let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
         try await BunnyStorageService.publish(files: files, folder: "traces/\(uuid)")
         let url = "https://www.gpxmanagement.net/traces/\(uuid)/"
-        try await repository.setWebPublishedURL(id: activity.id, url: url)
+        let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
+        try await repository.setWebPublished(id: activity.id, url: url, configJSON: configJSON)
         publishedURL = url
+        publishConfigJSON = configJSON
+    }
+
+    private func loadPublishState() async {
+        publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id)
+        publishConfigJSON = try? await repository.fetchWebPublishConfig(id: activity.id)
+    }
+
+    /// Republie avec les paramètres de la publication d'origine (même UUID via le lien stocké).
+    private func republishWeb() async {
+        if let json = publishConfigJSON, let data = json.data(using: .utf8),
+           var opts = try? JSONDecoder().decode(WebExportOptions.self, from: data) {
+            opts.output = .publishBunny
+            webOptions = opts
+        } else {
+            webOptions.output = .publishBunny
+        }
+        await exportWeb()
     }
 
     /// UUID du dossier déjà publié (extrait du lien stocké) pour republier au même endroit.

@@ -6,18 +6,18 @@ import Photos
 import GPXCore
 import GPXMapKit
 
-struct WebExportOptions {
-    enum MapRendering: String, CaseIterable, Identifiable {
+struct WebExportOptions: Codable {
+    enum MapRendering: String, CaseIterable, Identifiable, Codable {
         case staticImage, interactive
         var id: String { rawValue }
         var label: String { self == .staticImage ? "Image statique" : "Carte interactive" }
     }
-    enum ProfileRendering: String, CaseIterable, Identifiable {
+    enum ProfileRendering: String, CaseIterable, Identifiable, Codable {
         case staticImage, interactive
         var id: String { rawValue }
         var label: String { self == .staticImage ? "Image statique" : "Graphique interactif" }
     }
-    enum Output: String, CaseIterable, Identifiable {
+    enum Output: String, CaseIterable, Identifiable, Codable {
         case singleFile, folder, publishBunny
         var id: String { rawValue }
         var label: String {
