@@ -33,6 +33,8 @@ struct ActivityDetailView: View {
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
     @State private var publishedURL: String?
+    @State private var titleDraft: String = ""
+    @FocusState private var titleFocused: Bool
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -69,13 +71,18 @@ struct ActivityDetailView: View {
         .navigationTitle(activity.title)
         .onAppear {
             notesDraft = activity.notes ?? ""
+            titleDraft = activity.title
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
             Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
         }
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
+            titleDraft = activity.title
             publishedURL = nil
             Task { publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id) }
+        }
+        .onChange(of: activity.title) { _, newTitle in
+            if !titleFocused { titleDraft = newTitle }
         }
         .toolbar {
             ToolbarItemGroup {
@@ -185,7 +192,15 @@ struct ActivityDetailView: View {
             .buttonStyle(.plain)
             .help("Changer le type d'activité")
             VStack(alignment: .leading, spacing: 3) {
-                Text(activity.title).font(.title.bold())
+                TextField("Titre", text: $titleDraft)
+                    .textFieldStyle(.plain)
+                    .font(.title.bold())
+                    .focused($titleFocused)
+                    .onSubmit { commitTitle() }
+                    .onChange(of: titleFocused) { _, focused in
+                        if !focused { commitTitle() }
+                    }
+                    .help("Renommer le tracé")
                 Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")
                     .foregroundStyle(.secondary)
                 if !activity.tags.isEmpty {
@@ -201,6 +216,13 @@ struct ActivityDetailView: View {
             }
             Spacer()
         }
+    }
+
+    private func commitTitle() {
+        let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { titleDraft = activity.title; return }
+        guard trimmed != activity.title else { return }
+        Task { await listVM.updateTitle(id: activity.id, title: trimmed) }
     }
 
     @ViewBuilder
