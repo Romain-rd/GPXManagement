@@ -33,6 +33,7 @@ struct WebExportOptions {
     var profile: ProfileRendering = .staticImage
     var output: Output = .singleFile
     var includePhotos: Bool = true
+    var includeNotes: Bool = true
 }
 
 enum HTMLReportError: Error, LocalizedError {
@@ -416,7 +417,7 @@ enum HTMLReportRenderer {
 
         // Notes + source
         var notesSection = ""
-        if let notes = activity.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+        if options.includeNotes, let notes = activity.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
             notesSection = "<section class=\"section\"><h2>Notes</h2><p class=\"notes\">\(nl2br(notes))</p></section>"
         }
         let sourceLine = "<p class=\"source\">\(esc(sourceText(activity))) · Fichier : \(esc(activity.sourceFileFormat.rawValue.uppercased())) \(esc(activity.sourceFileName))</p>"

@@ -837,6 +837,10 @@ struct ActivityDetailView: View {
                     Text("Photos").gridColumnAlignment(.trailing)
                     Toggle("Inclure les photos du parcours", isOn: $webOptions.includePhotos)
                 }
+                GridRow {
+                    Text("Notes").gridColumnAlignment(.trailing)
+                    Toggle("Inclure les notes", isOn: $webOptions.includeNotes)
+                }
             }
 
             HStack {
