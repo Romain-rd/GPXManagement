@@ -41,6 +41,8 @@ struct ActivityDetailView: View {
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
+    @AppStorage("detailMapHeight") private var mapHeight: Double = 340
+    @State private var dragAccumulator: Double = 0
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -280,13 +282,13 @@ struct ActivityDetailView: View {
 
     private var metricsGrid: some View {
         LazyVGrid(columns: columns, spacing: 12) {
-            MetricCard(icon: "ruler", value: Self.distance(activity.distance), label: "Distance", tint: .blue)
+            MetricCard(icon: "ruler", value: distanceText(activity.distance), label: "Distance", tint: .blue)
             MetricCard(icon: "arrow.up.forward", value: "\(Int(activity.elevationGain.rounded())) m", label: "Dénivelé +", tint: .green)
             MetricCard(icon: "arrow.down.forward", value: "\(Int(activity.elevationLoss.rounded())) m", label: "Dénivelé −", tint: .orange)
             MetricCard(icon: "clock", value: Self.duration(activity.duration), label: "Durée totale", tint: .purple)
             MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
-            MetricCard(icon: "speedometer", value: Self.speed(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
-            MetricCard(icon: "gauge.with.dots.needle.67percent", value: Self.speed(activity.maxSpeed), label: "Vitesse max", tint: .teal)
+            MetricCard(icon: "speedometer", value: speedText(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
+            MetricCard(icon: "gauge.with.dots.needle.67percent", value: speedText(activity.maxSpeed), label: "Vitesse max", tint: .teal)
             if let hr = activity.avgHeartRate {
                 MetricCard(icon: "heart", value: "\(Int(hr.rounded())) bpm", label: "FC moyenne", tint: .red)
             }
@@ -353,9 +355,33 @@ struct ActivityDetailView: View {
                 trackColorMode: trackColorMode,
                 onSelectPhoto: openPhoto
             )
-            .frame(height: 340)
+            .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            mapResizeHandle
         }
+    }
+
+    /// Poignée de redimensionnement de la hauteur de la carte (glisser vertical), persistée.
+    private var mapResizeHandle: some View {
+        Capsule()
+            .fill(.secondary.opacity(0.5))
+            .frame(width: 44, height: 5)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        let dy = Double(value.translation.height)
+                        mapHeight = min(900, max(180, mapHeight + dy - dragAccumulator))
+                        dragAccumulator = dy
+                    }
+                    .onEnded { _ in dragAccumulator = 0 }
+            )
+            .onHover { inside in
+                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .help("Glisser pour ajuster la hauteur de la carte")
     }
 
     private var mapLayerBinding: Binding<MapLayer> {
@@ -682,13 +708,13 @@ struct ActivityDetailView: View {
 
     private func videoSummaryLines() -> [(label: String, value: String)] {
         var lines: [(String, String)] = [
-            ("Distance", Self.distance(activity.distance)),
+            ("Distance", distanceText(activity.distance)),
             ("Durée", Self.duration(activity.duration)),
             ("En mouvement", Self.duration(activity.movingDuration)),
             ("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
             ("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
-            ("Vitesse moy.", Self.speed(activity.avgSpeed)),
-            ("Vitesse max", Self.speed(activity.maxSpeed))
+            ("Vitesse moy.", speedText(activity.avgSpeed)),
+            ("Vitesse max", speedText(activity.maxSpeed))
         ]
         if let hr = activity.avgHeartRate { lines.append(("FC moyenne", "\(Int(hr.rounded())) bpm")) }
         if let hr = activity.maxHeartRate { lines.append(("FC max", "\(Int(hr.rounded())) bpm")) }
@@ -1009,6 +1035,19 @@ struct ActivityDetailView: View {
         f.dateStyle = .long
         f.timeStyle = .short
         return f.string(from: d)
+    }
+
+    /// Distance dans l'unité de l'activité (milles nautiques pour la voile, sinon km/m).
+    private func distanceText(_ m: Double) -> String {
+        if activity.activityType.usesNauticalUnits { return String(format: "%.2f NM", m / 1852) }
+        return m >= 1000 ? String(format: "%.2f km", m / 1000) : "\(Int(m)) m"
+    }
+
+    /// Vitesse dans l'unité de l'activité (nœuds pour la voile, sinon km/h).
+    private func speedText(_ mps: Double) -> String {
+        let kmh = mps * 3.6
+        if activity.activityType.usesNauticalUnits { return String(format: "%.1f nœuds", kmh / 1.852) }
+        return String(format: "%.1f km/h", kmh)
     }
 
     private static func distance(_ m: Double) -> String {

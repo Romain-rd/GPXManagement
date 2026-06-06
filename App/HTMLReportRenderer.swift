@@ -624,15 +624,21 @@ enum HTMLReportRenderer {
         let tagsHTML = activity.tags.isEmpty ? "" :
             "<div class=\"tags\">" + activity.tags.map { "<span class=\"tag\">\(esc($0))</span>" }.joined() + "</div>"
 
-        // Métriques
+        // Métriques (unités nautiques pour la voile)
+        let usesNM = activity.activityType.usesNauticalUnits
+        let distStr = usesNM ? String(format: "%.2f NM", activity.distance / 1852) : fmtDistance(activity.distance)
+        func speedStr(_ mps: Double) -> String {
+            let kmh = mps * 3.6
+            return usesNM ? String(format: "%.1f nœuds", kmh / 1.852) : String(format: "%.1f km/h", kmh)
+        }
         var cards: [String] = [
-            metricCard("📏", "Distance", fmtDistance(activity.distance)),
+            metricCard("📏", "Distance", distStr),
             metricCard("⬆️", "Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
             metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
             metricCard("🕐", "Durée totale", fmtDuration(activity.duration)),
             metricCard("⏱️", "En mouvement", fmtDuration(activity.movingDuration)),
-            metricCard("💨", "Vitesse moy.", fmtSpeed(activity.avgSpeed)),
-            metricCard("⚡️", "Vitesse max", fmtSpeed(activity.maxSpeed))
+            metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)),
+            metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed))
         ]
         if let hr = activity.avgHeartRate { cards.append(metricCard("❤️", "FC moyenne", "\(Int(hr.rounded())) bpm")) }
         if let hr = activity.maxHeartRate { cards.append(metricCard("❤️", "FC max", "\(Int(hr.rounded())) bpm")) }
