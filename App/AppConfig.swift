@@ -6,6 +6,12 @@ enum AppConfig {
     /// Numéro de build (CFBundleVersion), affiché dans le bandeau alpha.
     static var buildNumber: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?" }
 
+    /// Version complète « 1.0 (4) » (version courte + build).
+    static var fullVersion: String {
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        return "\(short) (\(buildNumber))"
+    }
+
     /// Page de la version alpha, ouverte au clic sur le bandeau.
     static let alphaURL = URL(string: "https://www.gpxmanagement.net/alpha/")!
 
