@@ -253,7 +253,8 @@ struct ActivityListView: View {
                 }
             }
         } primaryAction: { ids in
-            // Double-clic : ouvre le détail de la trace dans une nouvelle fenêtre.
+            // Double-clic : sélectionne la trace (volet principal) ET ouvre son détail dans une nouvelle fenêtre.
+            navigation.listSelection = ids
             if let id = ids.first { openWindow(value: id) }
         }
     }
