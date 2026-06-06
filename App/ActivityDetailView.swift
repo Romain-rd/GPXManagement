@@ -68,21 +68,25 @@ struct ActivityDetailView: View {
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                Divider()
-                metricsGrid
-                publishedLinkSection
-                mapSection
-                profileSection
-                photosSection
-                notesSection
+        Group {
+            if fullscreenMap {
+                // Seul l'overlay plein écran est rendu (le contenu détail dessous n'est pas dans l'arbre → pas de re-render pendant le drag).
+                fullscreenMapOverlay
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        header
+                        Divider()
+                        metricsGrid
+                        publishedLinkSection
+                        mapSection
+                        profileSection
+                        photosSection
+                        notesSection
+                    }
+                    .padding(20)
+                }
             }
-            .padding(20)
-        }
-        .overlay {
-            if fullscreenMap { fullscreenMapOverlay }
         }
         .toolbar(fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
         .navigationTitle(activity.title)
@@ -451,8 +455,11 @@ struct ActivityDetailView: View {
                     DragGesture()
                         .onChanged { v in
                             let dy = Double(v.translation.height)
-                            fsProfileHeight = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
-                            fsProfileDrag = dy
+                            let target = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
+                            if abs(target - fsProfileHeight) >= 4 { // évite de redessiner le graphe à chaque pixel
+                                fsProfileHeight = target
+                                fsProfileDrag = dy
+                            }
                         }
                         .onEnded { _ in fsProfileDrag = 0 }
                 )
