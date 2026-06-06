@@ -82,6 +82,8 @@ struct ActivityDetailView: View {
         .overlay {
             if fullscreenMap { fullscreenMapOverlay }
         }
+        .toolbar(fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
+        .background(FullScreenWindowConfigurator(active: fullscreenMap))
         .navigationTitle(activity.title)
         .onAppear {
             notesDraft = activity.notes ?? ""
@@ -1148,6 +1150,22 @@ struct ActivityDetailView: View {
 
     private static func speed(_ mps: Double) -> String {
         String(format: "%.1f km/h", mps * 3.6)
+    }
+}
+
+/// Rend la barre de titre transparente et le contenu pleine taille pendant le plein écran carte
+/// (la carte couvre la zone de titre) ; restaure ensuite.
+private struct FullScreenWindowConfigurator: NSViewRepresentable {
+    let active: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let w = nsView.window else { return }
+            w.titlebarAppearsTransparent = active
+            w.titleVisibility = active ? .hidden : .visible
+            if active { w.styleMask.insert(.fullSizeContentView) }
+            else { w.styleMask.remove(.fullSizeContentView) }
+        }
     }
 }
 

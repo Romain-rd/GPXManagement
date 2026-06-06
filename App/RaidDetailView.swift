@@ -86,7 +86,6 @@ struct RaidDetailView: View {
                 coverBanner
                 header
                 statsGrid
-                actionBar
                 publishedLinkSection
                 participantsSection
                 mapCard
@@ -98,6 +97,7 @@ struct RaidDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .navigationTitle(raid.name)
+        .toolbar { ToolbarItemGroup { raidActions } }
         .task(id: "\(raid.id.uuidString)|\(trackColorModeRaw)") { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await loadPublishState() }
@@ -147,43 +147,34 @@ struct RaidDetailView: View {
 
     // MARK: Barre d'actions
 
-    private var actionBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                showFilmOptions = true
-            } label: {
-                Label("Film du raid…", systemImage: "film")
-            }
-            .disabled(members.isEmpty || isExportingFilm)
-
-            Button {
-                exportGroupedGPX()
-            } label: {
-                Label("Exporter les GPX…", systemImage: "square.and.arrow.up.on.square")
-            }
-            .disabled(members.isEmpty || isExportingFilm)
-
-            Button {
-                showWebExportOptions = true
-            } label: {
-                if isExportingWeb {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label("Exporter en page web…", systemImage: "globe")
-                }
-            }
-            .disabled(members.isEmpty || isExportingWeb)
-
-            Spacer()
-            if isExportingFilm {
-                ProgressView(value: filmProgress)
-                    .frame(width: 120)
-                Text(filmStatus.isEmpty ? "\(Int((filmProgress * 100).rounded())) %" : filmStatus)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+    @ViewBuilder
+    private var raidActions: some View {
+        if isExportingFilm {
+            ProgressView(value: filmProgress).frame(width: 90)
+            Text(filmStatus.isEmpty ? "\(Int((filmProgress * 100).rounded())) %" : filmStatus)
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
-        .buttonStyle(.bordered)
+        Button {
+            exportGroupedGPX()
+        } label: {
+            Label("Exporter les GPX", systemImage: "square.and.arrow.up.on.square")
+        }
+        .disabled(members.isEmpty || isExportingFilm)
+
+        Button {
+            showWebExportOptions = true
+        } label: {
+            if isExportingWeb { ProgressView().controlSize(.small) }
+            else { Label("Exporter en page web", systemImage: "globe") }
+        }
+        .disabled(members.isEmpty || isExportingWeb)
+
+        Button {
+            showFilmOptions = true
+        } label: {
+            Label("Film du raid", systemImage: "film")
+        }
+        .disabled(members.isEmpty || isExportingFilm)
     }
 
     // MARK: Publication web
