@@ -131,6 +131,16 @@ public enum ActivityType: String, Codable, CaseIterable, Sendable {
 
     /// Échelle de couleur de pente (en %, identique pour toutes les activités).
     public var slopeScale: SlopeScale { .percent }
+
+    /// Activités sur neige, pour lesquelles la pente du terrain (IGN) est pertinente.
+    public var isSnow: Bool {
+        switch self {
+        case .skiingTouring, .skiingFreeride, .skiingAlpine, .skiingNordic, .snowboard, .snowshoe:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 public enum ActivityOrigin: String, Codable, CaseIterable, Sendable {

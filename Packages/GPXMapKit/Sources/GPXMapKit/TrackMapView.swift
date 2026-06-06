@@ -127,6 +127,9 @@ public struct TrackMapView: NSViewRepresentable {
         private let onSelectPhoto: ((String) -> Void)?
         private var highlightAnnotation: HighlightAnnotation?
         private var photoAnnotations: [String: PhotoAnnotation] = [:]
+        private var slopeBands: [UUID: [SlopeBand]] = [:]
+        private var slopeSampling: UUID?
+        private var slopeTask: Task<Void, Never>?
 
         init(onSelectActivity: ((UUID) -> Void)?, onSelectPhoto: ((String) -> Void)? = nil) {
             self.onSelectActivity = onSelectActivity
@@ -226,17 +229,73 @@ public struct TrackMapView: NSViewRepresentable {
 
             var allCoords: [CLLocationCoordinate2D] = []
             for (index, track) in nonEmpty.enumerated() {
-                let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
-                polyline.activityId = track.activityId
-                polyline.activityType = track.activityType
-                polyline.color = useRotation ? MapTrackPalette.color(at: index) : track.activityType.trackColor
-                mapView.addOverlay(polyline, level: .aboveLabels)
+                let baseColor = useRotation ? MapTrackPalette.color(at: index) : track.activityType.trackColor
                 allCoords.append(contentsOf: track.coordinates)
+
+                if shouldColorBySlope(track, trackCount: nonEmpty.count),
+                   let bands = slopeBands[track.activityId], bands.count == track.coordinates.count {
+                    addSlopeSegments(track.coordinates, bands: bands, baseColor: baseColor, activityId: track.activityId, to: mapView)
+                } else {
+                    addPlainPolyline(track, baseColor: baseColor, to: mapView)
+                    if shouldColorBySlope(track, trackCount: nonEmpty.count) {
+                        scheduleSlopeSampling(track, baseColor: baseColor, mapView: mapView)
+                    }
+                }
             }
 
             if fitOnChange, !allCoords.isEmpty {
                 let rect = polylineRect(allCoords)
                 mapView.setVisibleMapRect(rect, edgePadding: NSEdgeInsets(top: 40, left: 40, bottom: 40, right: 40), animated: false)
+            }
+        }
+
+        /// La trace neige est colorée par la pente du terrain IGN seulement sur un fond IGN, et en affichage unitaire.
+        private func shouldColorBySlope(_ track: TrackOverlayInput, trackCount: Int) -> Bool {
+            currentLayer.isIGN && trackCount == 1 && track.activityType.isSnow
+        }
+
+        private func addPlainPolyline(_ track: TrackOverlayInput, baseColor: NSColor, to mapView: MKMapView) {
+            let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
+            polyline.activityId = track.activityId
+            polyline.activityType = track.activityType
+            polyline.color = baseColor
+            mapView.addOverlay(polyline, level: .aboveLabels)
+        }
+
+        /// Découpe la trace en segments contigus de même bande de pente, chacun coloré (hors `< 30°` → couleur normale).
+        private func addSlopeSegments(_ coords: [CLLocationCoordinate2D], bands: [SlopeBand], baseColor: NSColor, activityId: UUID, to mapView: MKMapView) {
+            guard coords.count >= 2 else { return }
+            var i = 0
+            while i < coords.count - 1 {
+                let band = bands[i]
+                var j = i
+                while j < coords.count - 1 && bands[j] == band { j += 1 }
+                let slice = Array(coords[i...j]) // inclut le point frontière → segments jointifs
+                let poly = IdentifiedPolyline(coordinates: slice, count: slice.count)
+                poly.activityId = activityId
+                poly.color = band.color ?? baseColor
+                mapView.addOverlay(poly, level: .aboveLabels)
+                i = j
+            }
+        }
+
+        private func scheduleSlopeSampling(_ track: TrackOverlayInput, baseColor: NSColor, mapView: MKMapView) {
+            let id = track.activityId
+            if slopeBands[id] != nil || slopeSampling == id { return }
+            slopeSampling = id
+            let coords = track.coordinates
+            slopeTask = Task { [weak self, weak mapView] in
+                let bands = await IGNSlopeSampler.shared.bands(for: coords, zoom: 16)
+                await MainActor.run { [weak self, weak mapView] in
+                    guard let self else { return }
+                    self.slopeSampling = nil
+                    guard bands.count == coords.count else { return }
+                    self.slopeBands[id] = bands
+                    guard let mapView, self.currentLayer.isIGN, self.lastTrackIds.contains(id) else { return }
+                    let toRemove = mapView.overlays.compactMap { $0 as? IdentifiedPolyline }.filter { $0.activityId == id }
+                    mapView.removeOverlays(toRemove)
+                    self.addSlopeSegments(coords, bands: bands, baseColor: baseColor, activityId: id, to: mapView)
+                }
             }
         }
 

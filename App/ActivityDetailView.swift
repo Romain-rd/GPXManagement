@@ -1033,9 +1033,31 @@ private struct ActivityMapCard: View {
                                 .padding(6)
                         }
                     }
+                    .overlay(alignment: .topTrailing) {
+                        if activityType.isSnow && layer.isIGN { slopeLegend.padding(6) }
+                    }
             }
         }
         .task(id: activityId) { await load() }
+    }
+
+    /// Légende de la pente du terrain IGN (visible quand la trace neige est colorée sur fond IGN).
+    private var slopeLegend: some View {
+        let bands: [SlopeBand] = [.d30_35, .d35_40, .d40_45, .above45]
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("Pente du terrain").font(.system(size: 9, weight: .semibold))
+            ForEach(bands, id: \.label) { band in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(band.color.map { Color(nsColor: $0) } ?? .clear)
+                        .frame(width: 10, height: 10)
+                    Text(band.label).font(.system(size: 9))
+                }
+            }
+        }
+        .padding(.horizontal, 6).padding(.vertical, 5)
+        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .foregroundStyle(.white)
     }
 
     private func load() async {
