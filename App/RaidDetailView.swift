@@ -15,7 +15,8 @@ struct RaidDetailView: View {
 
     @State private var draft: Raid
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
-    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
+    @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoadingMap = true
@@ -517,7 +518,7 @@ struct RaidDetailView: View {
                                            description: Text("Les étapes de ce raid n'ont pas de données GPS."))
                         .frame(minHeight: 320)
                 } else {
-                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayOpacity, onSelectActivity: { id in
+                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0, onSelectActivity: { id in
                         navigation.visualizationMode = .activities
                         navigation.listSelection = [id]
                     })
@@ -528,7 +529,7 @@ struct RaidDetailView: View {
             if !tracks.isEmpty {
                 HStack(spacing: 8) {
                     if layer.isIGN {
-                        SlopeOverlayControl(opacity: $slopeOverlayOpacity)
+                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                             .padding(6)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }

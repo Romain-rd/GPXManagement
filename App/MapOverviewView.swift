@@ -32,27 +32,32 @@ struct LayerPicker: View {
     }
 }
 
-/// Contrôle d'opacité de la surcouche « pentes » IGN (bouton + popover slider + légende).
-/// À n'afficher que lorsqu'un fond IGN est sélectionné.
+/// Contrôle de la surcouche « pentes » IGN (bouton + popover : interrupteur, opacité, légende).
+/// À n'afficher que lorsqu'un fond IGN est sélectionné. Désactivée par défaut.
 struct SlopeOverlayControl: View {
+    @Binding var enabled: Bool
     @Binding var opacity: Double
     @State private var show = false
 
     var body: some View {
         Button { show = true } label: {
             Label("Pentes", systemImage: "triangle.fill")
-                .foregroundStyle(opacity > 0 ? .orange : .secondary)
+                .foregroundStyle(enabled ? .orange : .secondary)
         }
         .help("Superposer la carte des pentes IGN")
         .popover(isPresented: $show, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Carte des pentes IGN").font(.headline)
+                Toggle("Afficher les pentes", isOn: $enabled)
+                    .toggleStyle(.switch)
+                    .font(.headline)
                 HStack(spacing: 8) {
                     Image(systemName: "triangle").foregroundStyle(.secondary)
-                    Slider(value: $opacity, in: 0...1)
+                    Slider(value: $opacity, in: 0.1...1)
                     Text("\(Int((opacity * 100).rounded())) %")
                         .font(.caption.monospacedDigit()).frame(width: 38, alignment: .trailing)
                 }
+                .disabled(!enabled)
+                .opacity(enabled ? 1 : 0.4)
                 Divider()
                 ForEach([SlopeBand.d30_35, .d35_40, .d40_45, .above45], id: \.label) { band in
                     HStack(spacing: 6) {
@@ -77,7 +82,8 @@ struct MapOverviewView: View {
     let onSelect: (UUID) -> Void
 
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
-    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
+    @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoading = true
@@ -105,7 +111,7 @@ struct MapOverviewView: View {
                 } else if tracks.isEmpty {
                     ContentUnavailableView("Aucune trace à afficher", systemImage: "map", description: Text(visibleActivities.isEmpty ? "Choisissez une ou plusieurs activités." : "Aucune trace GPS dans la sélection."))
                 } else {
-                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayOpacity, onSelectActivity: onSelect)
+                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0, onSelectActivity: onSelect)
                 }
             }
 
@@ -117,7 +123,7 @@ struct MapOverviewView: View {
                         .padding(.horizontal, 8)
                         .background(.thinMaterial, in: Capsule())
                     if layer.isIGN {
-                        SlopeOverlayControl(opacity: $slopeOverlayOpacity)
+                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                             .padding(6)
                             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
                     }

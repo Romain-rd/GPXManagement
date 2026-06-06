@@ -37,7 +37,8 @@ struct ActivityDetailView: View {
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
-    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
+    @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -321,7 +322,7 @@ struct ActivityDetailView: View {
                     .font(.headline)
                 Spacer()
                 if mapLayerBinding.wrappedValue.isIGN {
-                    SlopeOverlayControl(opacity: $slopeOverlayOpacity)
+                    SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                         .controlSize(.small)
                 }
                 LayerPicker(layer: mapLayerBinding)
@@ -334,7 +335,7 @@ struct ActivityDetailView: View {
                 layer: mapLayerBinding,
                 highlight: highlightedCoordinate,
                 photos: mapPhotos,
-                slopeOverlayOpacity: slopeOverlayOpacity,
+                slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
                 onSelectPhoto: openPhoto
             )
             .frame(height: 340)
