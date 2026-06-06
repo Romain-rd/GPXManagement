@@ -83,11 +83,18 @@ struct ElevationProfileTabView: View {
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
 
     private var slopeScale: SlopeScale { activityType.slopeScale }
-    private var speedInKnots: Bool { activityType == .sailing }
-    private var speedUnitLabel: String { speedInKnots ? "nœuds" : "km/h" }
+    private var speedScale: SpeedScale { activityType.speedScale }
+    private var usesNM: Bool { activityType.usesNauticalUnits }
+    private var speedUnitLabel: String { activityType.speedUnitLabel }
+    private var distanceUnitLabel: String { usesNM ? "NM" : "km" }
+    private func distanceDisplay(meters: Double) -> Double { meters / (usesNM ? 1852 : 1000) }
     private func speedDisplay(mps: Double) -> Double {
         let kmh = mps * 3.6
-        return speedInKnots ? kmh / 1.852 : kmh
+        return usesNM ? kmh / 1.852 : kmh
+    }
+    private func speedColor(_ c: SpeedCategory) -> Color {
+        let v = c.rgb
+        return Color(red: v.r, green: v.g, blue: v.b)
     }
 
     @State private var trimmedProfile: [ElevationProfilePoint] = []
@@ -170,8 +177,24 @@ struct ElevationProfileTabView: View {
                     legend
                         .padding(.horizontal)
                         .padding(.bottom, 4)
+                } else {
+                    speedLegend
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
                 }
             }
+        }
+    }
+
+    private var speedLegend: some View {
+        HStack(spacing: 14) {
+            ForEach(speedScale.categories, id: \.rawValue) { c in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 2).fill(speedColor(c).opacity(0.8)).frame(width: 11, height: 11)
+                    Text(speedScale.label(for: c)).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
         }
     }
 
@@ -237,7 +260,7 @@ struct ElevationProfileTabView: View {
 
     private var statsBar: some View {
         HStack(spacing: 24) {
-            statBlock("Distance", String(format: "%.2f km", totalKm))
+            statBlock("Distance", String(format: "%.2f %@", totalKm, distanceUnitLabel))
             if metric == .speed {
                 statBlock("Vitesse moy", String(format: "%.1f %@", avgSpeedDisplay, speedUnitLabel))
                 statBlock("Vitesse max", String(format: "%.1f %@", maxSpeedDisplay, speedUnitLabel))
@@ -391,7 +414,7 @@ struct ElevationProfileTabView: View {
 
     private func hoverHeader(_ s: HoverSample) -> String {
         if mode == .distance {
-            return String(format: "%.2f km", s.distanceKm)
+            return String(format: "%.2f %@", s.distanceKm, distanceUnitLabel)
         }
         guard let e = s.elapsed else { return "" }
         let h = Int(e) / 3600, m = (Int(e) % 3600) / 60, sec = Int(e) % 60
@@ -524,7 +547,7 @@ struct ElevationProfileTabView: View {
             areaPoints = []; linePoints = []; styleScale = [:]; totalKm = 0; hrLine = []; hoverSamples = []; selectedIndex = nil
             return
         }
-        totalKm = (profile.last?.distanceFromStart ?? 0) / 1000
+        totalKm = distanceDisplay(meters: profile.last?.distanceFromStart ?? 0)
 
         let speeds: [Double] = metric == .speed ? speedSeries(profile) : []
         func yValue(_ i: Int) -> Double {
@@ -537,8 +560,8 @@ struct ElevationProfileTabView: View {
         let xs: [Double]
         switch mode {
         case .distance:
-            xAxisLabel = "Distance (km)"
-            xs = profile.map { $0.distanceFromStart / 1000 }
+            xAxisLabel = "Distance (\(distanceUnitLabel))"
+            xs = profile.map { distanceDisplay(meters: $0.distanceFromStart) }
             hrLine = []
         case .time:
             let stamps = profile.compactMap { $0.timestamp }
@@ -558,7 +581,10 @@ struct ElevationProfileTabView: View {
         }
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
-            if metric == .speed { return ("Vitesse", .teal) } // pas de pente en mode vitesse → une seule aire colorée
+            if metric == .speed {
+                let c = speedScale.category(for: speeds.indices.contains(i) ? speeds[i] : 0)
+                return (speedScale.label(for: c), speedColor(c))
+            }
             switch mode {
             case .distance:
                 let c = slopeScale.category(for: profile[i].slope)
@@ -603,7 +629,7 @@ struct ElevationProfileTabView: View {
             let coordinate: CLLocationCoordinate2D? = (p.latitude != nil && p.longitude != nil)
                 ? CLLocationCoordinate2D(latitude: p.latitude!, longitude: p.longitude!) : nil
             let spd = speeds.indices.contains(i) ? speeds[i] : 0
-            return HoverSample(x: xs[i], distanceKm: p.distanceFromStart / 1000, altitude: p.altitude, slope: p.slope, speed: spd, plotY: yValue(i), hr: p.heartRate, elapsed: elapsed, clock: p.timestamp, moving: moving, coordinate: coordinate)
+            return HoverSample(x: xs[i], distanceKm: distanceDisplay(meters: p.distanceFromStart), altitude: p.altitude, slope: p.slope, speed: spd, plotY: yValue(i), hr: p.heartRate, elapsed: elapsed, clock: p.timestamp, moving: moving, coordinate: coordinate)
         }
         selectedIndex = nil
         highlightedCoordinate = nil

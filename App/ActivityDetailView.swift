@@ -40,6 +40,7 @@ struct ActivityDetailView: View {
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
+    @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -332,6 +333,8 @@ struct ActivityDetailView: View {
                 Label("Carte", systemImage: "map")
                     .font(.headline)
                 Spacer()
+                TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
+                    .controlSize(.small)
                 if mapLayerBinding.wrappedValue.isIGN {
                     SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                         .controlSize(.small)
@@ -347,6 +350,7 @@ struct ActivityDetailView: View {
                 highlight: highlightedCoordinate,
                 photos: mapPhotos,
                 slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
+                trackColorMode: trackColorMode,
                 onSelectPhoto: openPhoto
             )
             .frame(height: 340)
@@ -360,6 +364,8 @@ struct ActivityDetailView: View {
             set: { defaultLayerRaw = $0.rawValue }
         )
     }
+
+    private var trackColorMode: TrackColorMode { TrackColorMode(rawValue: trackColorModeRaw) ?? .uniform }
 
     private static let hiddenPhotosKey = "photosHiddenOnMap"
 
@@ -1029,6 +1035,7 @@ private struct ActivityMapCard: View {
     let highlight: CLLocationCoordinate2D?
     let photos: [PhotoMapItem]
     var slopeOverlayOpacity: Double = 0
+    var trackColorMode: TrackColorMode = .uniform
     let onSelectPhoto: (String) -> Void
 
     @State private var tracks: [TrackOverlayInput] = []
@@ -1055,9 +1062,40 @@ private struct ActivityMapCard: View {
                     .overlay(alignment: .topLeading) {
                         if slopeOverlayOpacity > 0 { slopeLegend.padding(6) }
                     }
+                    .overlay(alignment: .bottomTrailing) {
+                        if trackColorMode != .uniform { trackColorLegend.padding(6) }
+                    }
             }
         }
-        .task(id: activityId) { await load() }
+        .task(id: "\(activityId.uuidString)|\(trackColorMode.rawValue)") { await load() }
+    }
+
+    /// Légende du code couleur de la trace (vitesse ou pente).
+    @ViewBuilder
+    private var trackColorLegend: some View {
+        let items: [(String, Color)] = {
+            switch trackColorMode {
+            case .uniform: return []
+            case .slope:
+                let s = SlopeScale.percent
+                return s.categories.map { (s.label(for: $0), Color(red: $0.rgb.r, green: $0.rgb.g, blue: $0.rgb.b)) }
+            case .speed:
+                let s = activityType.speedScale
+                return s.categories.map { (s.label(for: $0), Color(red: $0.rgb.r, green: $0.rgb.g, blue: $0.rgb.b)) }
+            }
+        }()
+        VStack(alignment: .leading, spacing: 2) {
+            Text(trackColorMode == .speed ? "Vitesse" : "Pente").font(.system(size: 9, weight: .semibold))
+            ForEach(items, id: \.0) { item in
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 2).fill(item.1).frame(width: 10, height: 10)
+                    Text(item.0).font(.system(size: 9))
+                }
+            }
+        }
+        .padding(.horizontal, 6).padding(.vertical, 5)
+        .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .foregroundStyle(.white)
     }
 
     /// Légende de la pente du terrain IGN (visible quand la trace neige est colorée sur fond IGN).
@@ -1082,7 +1120,7 @@ private struct ActivityMapCard: View {
     private func load() async {
         isLoaded = false
         guard let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
-              let input = try? TrackOverlayInput.fromTrackData(data, activityId: activityId, activityType: activityType),
+              let input = try? TrackOverlayInput.fromTrackData(data, activityId: activityId, activityType: activityType, colorMode: trackColorMode),
               !input.coordinates.isEmpty else {
             tracks = []
             isLoaded = true

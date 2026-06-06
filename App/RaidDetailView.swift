@@ -17,6 +17,7 @@ struct RaidDetailView: View {
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
+    @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoadingMap = true
@@ -97,7 +98,7 @@ struct RaidDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .navigationTitle(raid.name)
-        .task(id: raid.id) { await loadMap() }
+        .task(id: "\(raid.id.uuidString)|\(trackColorModeRaw)") { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await loadPublishState() }
         .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
@@ -528,6 +529,7 @@ struct RaidDetailView: View {
             }
             if !tracks.isEmpty {
                 HStack(spacing: 8) {
+                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
                     if layer.isIGN {
                         SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                             .padding(6)
@@ -1017,12 +1019,14 @@ struct RaidDetailView: View {
         return rep.representation(using: .jpeg, properties: [.compressionFactor: quality])
     }
 
+    private var trackColorMode: TrackColorMode { TrackColorMode(rawValue: trackColorModeRaw) ?? .uniform }
+
     private func loadMap() async {
         isLoadingMap = true
         var loaded: [TrackOverlayInput] = []
         for activity in members {
             if let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
-               let overlay = try? TrackOverlayInput.fromTrackData(data, activityId: activity.id, activityType: activity.activityType),
+               let overlay = try? TrackOverlayInput.fromTrackData(data, activityId: activity.id, activityType: activity.activityType, colorMode: trackColorMode),
                !overlay.coordinates.isEmpty {
                 loaded.append(overlay)
             }

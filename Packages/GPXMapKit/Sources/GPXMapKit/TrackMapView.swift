@@ -3,21 +3,79 @@ import MapKit
 import AppKit
 import GPXCore
 
+/// Mode de coloration de la trace sur la carte.
+public enum TrackColorMode: String, Sendable, CaseIterable, Identifiable {
+    case uniform, speed, slope
+    public var id: String { rawValue }
+    public var label: String {
+        switch self {
+        case .uniform: return "Uniforme"
+        case .speed:   return "Vitesse"
+        case .slope:   return "Pente"
+        }
+    }
+}
+
 public struct TrackOverlayInput: Sendable {
     public let activityId: UUID
     public let activityType: ActivityType
     public let coordinates: [CLLocationCoordinate2D]
+    /// Couleur par coordonnée (même cardinalité que `coordinates`) si coloration vitesse/pente ; sinon nil.
+    public let segmentColors: [NSColor]?
 
-    public init(activityId: UUID, activityType: ActivityType, coordinates: [CLLocationCoordinate2D]) {
+    public init(activityId: UUID, activityType: ActivityType, coordinates: [CLLocationCoordinate2D], segmentColors: [NSColor]? = nil) {
         self.activityId = activityId
         self.activityType = activityType
         self.coordinates = coordinates
+        self.segmentColors = segmentColors
     }
 
-    public static func fromTrackData(_ data: Data, activityId: UUID, activityType: ActivityType) throws -> TrackOverlayInput {
+    public static func fromTrackData(_ data: Data, activityId: UUID, activityType: ActivityType, colorMode: TrackColorMode = .uniform) throws -> TrackOverlayInput {
         let points = try TrackPointCodec.decode(data)
         let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
-        return TrackOverlayInput(activityId: activityId, activityType: activityType, coordinates: coords)
+        let colors = Self.segmentColors(points: points, count: coords.count, activityType: activityType, mode: colorMode)
+        return TrackOverlayInput(activityId: activityId, activityType: activityType, coordinates: coords, segmentColors: colors)
+    }
+
+    private static func nsColor(_ rgb: (r: Double, g: Double, b: Double)) -> NSColor {
+        NSColor(srgbRed: rgb.r, green: rgb.g, blue: rgb.b, alpha: 1)
+    }
+
+    private static func segmentColors(points: [TrackPoint], count: Int, activityType: ActivityType, mode: TrackColorMode) -> [NSColor]? {
+        switch mode {
+        case .uniform:
+            return nil
+        case .slope:
+            let profile = ElevationProfileBuilder.build(points: points)
+            guard profile.count == count else { return nil } // alignement points↔altitude requis
+            let scale = SlopeScale.percent
+            return profile.map { nsColor(scale.category(for: $0.slope).rgb) }
+        case .speed:
+            let profile = ElevationProfileBuilder.buildMotion(points: points)
+            guard profile.count == count, count >= 2 else { return nil }
+            let scale = activityType.speedScale
+            let toDisplay: (Double) -> Double = { mps in
+                let kmh = mps * 3.6
+                return activityType.usesNauticalUnits ? kmh / 1.852 : kmh
+            }
+            // vitesse m/s lissée par point
+            var raw = [Double](repeating: 0, count: count)
+            for i in 1..<count {
+                guard let t0 = profile[i - 1].timestamp, let t1 = profile[i].timestamp else { raw[i] = raw[i - 1]; continue }
+                let dt = t1.timeIntervalSince(t0)
+                let dd = profile[i].distanceFromStart - profile[i - 1].distanceFromStart
+                raw[i] = (dt > 0 && dt <= 600) ? dd / dt : raw[i - 1]
+            }
+            raw[0] = count > 1 ? raw[1] : 0
+            let w = 5
+            return (0..<count).map { i in
+                let lo = max(0, i - w / 2), hi = min(count - 1, i + w / 2)
+                var sum = 0.0
+                for k in lo...hi { sum += raw[k] }
+                let cat = scale.category(for: toDisplay(sum / Double(hi - lo + 1)))
+                return nsColor(cat.rgb)
+            }
+        }
     }
 }
 
@@ -236,6 +294,22 @@ public struct TrackMapView: NSViewRepresentable {
             mapView.addOverlay(overlay, level: .aboveLabels)
         }
 
+        /// Trace découpée en segments contigus de même couleur (coloration vitesse/pente par point).
+        private func addColoredSegments(_ coords: [CLLocationCoordinate2D], colors: [NSColor], activityId: UUID, to mapView: MKMapView) {
+            var i = 0
+            while i < coords.count - 1 {
+                let color = colors[i]
+                var j = i
+                while j < coords.count - 1 && colors[j] == color { j += 1 }
+                let slice = Array(coords[i...j]) // inclut le point frontière → segments jointifs
+                let poly = IdentifiedPolyline(coordinates: slice, count: slice.count)
+                poly.activityId = activityId
+                poly.color = color
+                mapView.addOverlay(poly, level: .aboveLabels)
+                i = j
+            }
+        }
+
         func applyTracks(_ tracks: [TrackOverlayInput], to mapView: MKMapView, fitOnChange: Bool) {
             let existingPolylines = mapView.overlays.compactMap { $0 as? IdentifiedPolyline }
             mapView.removeOverlays(existingPolylines)
@@ -248,12 +322,16 @@ public struct TrackMapView: NSViewRepresentable {
 
             var allCoords: [CLLocationCoordinate2D] = []
             for (index, track) in nonEmpty.enumerated() {
-                let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
-                polyline.activityId = track.activityId
-                polyline.activityType = track.activityType
-                polyline.color = useRotation ? MapTrackPalette.color(at: index) : track.activityType.trackColor
-                mapView.addOverlay(polyline, level: .aboveLabels)
                 allCoords.append(contentsOf: track.coordinates)
+                if let colors = track.segmentColors, colors.count == track.coordinates.count, track.coordinates.count >= 2 {
+                    addColoredSegments(track.coordinates, colors: colors, activityId: track.activityId, to: mapView)
+                } else {
+                    let polyline = IdentifiedPolyline(coordinates: track.coordinates, count: track.coordinates.count)
+                    polyline.activityId = track.activityId
+                    polyline.activityType = track.activityType
+                    polyline.color = useRotation ? MapTrackPalette.color(at: index) : track.activityType.trackColor
+                    mapView.addOverlay(polyline, level: .aboveLabels)
+                }
             }
 
             if fitOnChange, !allCoords.isEmpty {

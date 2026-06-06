@@ -74,6 +74,27 @@ struct SlopeOverlayControl: View {
     }
 }
 
+/// Choix du mode de coloration de la trace (uniforme / vitesse / pente).
+struct TrackColorControl: View {
+    @Binding var mode: TrackColorMode
+
+    var body: some View {
+        Menu {
+            ForEach(TrackColorMode.allCases) { m in
+                Button { mode = m } label: { Label(m.label, systemImage: m == mode ? "checkmark" : "") }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "paintpalette")
+                Text("Trace : \(mode.label)")
+            }
+        }
+        .menuStyle(.borderedButton)
+        .padding(6)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 struct MapOverviewView: View {
     let activities: [ActivitySummary]
     let selectedIds: Set<UUID>
@@ -84,6 +105,7 @@ struct MapOverviewView: View {
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
+    @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoading = true
@@ -122,6 +144,7 @@ struct MapOverviewView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background(.thinMaterial, in: Capsule())
+                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
                     if layer.isIGN {
                         SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                             .padding(6)
@@ -195,8 +218,10 @@ struct MapOverviewView: View {
     }
 
     private var visibleActivitiesIDsKey: String {
-        visibleActivities.map(\.id.uuidString).sorted().joined(separator: ",")
+        visibleActivities.map(\.id.uuidString).sorted().joined(separator: ",") + "|" + trackColorModeRaw
     }
+
+    private var trackColorMode: TrackColorMode { TrackColorMode(rawValue: trackColorModeRaw) ?? .uniform }
 
     private func loadAll() async {
         isLoading = true
@@ -207,7 +232,7 @@ struct MapOverviewView: View {
         for activity in snapshot {
             do {
                 if let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty {
-                    let overlay = try TrackOverlayInput.fromTrackData(data, activityId: activity.id, activityType: activity.activityType)
+                    let overlay = try TrackOverlayInput.fromTrackData(data, activityId: activity.id, activityType: activity.activityType, colorMode: trackColorMode)
                     if !overlay.coordinates.isEmpty {
                         loaded.append(overlay)
                     }

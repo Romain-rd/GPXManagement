@@ -198,6 +198,17 @@ public enum SlopeCategory: Sendable, Hashable {
 
     /// Bandes ascendantes, de la plus douce à la plus raide (la descente est traitée à part).
     static let ascending: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep]
+
+    /// Couleur canonique RGB (0–1) — source unique pour l'app, la trace sur carte et l'export HTML.
+    public var rgb: (r: Double, g: Double, b: Double) {
+        switch self {
+        case .gentle:   return (0.20, 0.78, 0.35) // vert
+        case .moderate: return (1.00, 0.80, 0.00) // jaune
+        case .steep:    return (1.00, 0.58, 0.00) // orange
+        case .veryStep: return (1.00, 0.23, 0.19) // rouge
+        case .descent:  return (0.00, 0.48, 1.00) // bleu
+        }
+    }
 }
 
 /// Échelle de classement de la pente, en % (grade). `bounds` contient N bornes croissantes → N+1 bandes ascendantes.
