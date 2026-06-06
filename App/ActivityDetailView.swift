@@ -457,7 +457,8 @@ struct ActivityDetailView: View {
                             let dy = Double(v.translation.height)
                             let target = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
                             if abs(target - fsProfileHeight) >= 4 { // évite de redessiner le graphe à chaque pixel
-                                fsProfileHeight = target
+                                var tx = Transaction(); tx.disablesAnimations = true // pas d'animation implicite (sinon « flash »)
+                                withTransaction(tx) { fsProfileHeight = target }
                                 fsProfileDrag = dy
                             }
                         }
