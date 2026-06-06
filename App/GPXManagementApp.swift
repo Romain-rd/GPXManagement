@@ -11,17 +11,25 @@ struct GPXManagementApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(services: services)
-                .environment(\.managedObjectContext, services.persistence.container.viewContext)
-                .alphaRibbon()
+            if AppConfig.isAlphaExpired {
+                AlphaExpiredView()
+            } else {
+                ContentView(services: services)
+                    .environment(\.managedObjectContext, services.persistence.container.viewContext)
+                    .alphaRibbon()
+            }
         }
         .commands {
             AppMenuCommands(services: services)
         }
 
         Settings {
-            PreferencesView()
-                .alphaRibbon()
+            if AppConfig.isAlphaExpired {
+                AlphaExpiredView()
+            } else {
+                PreferencesView()
+                    .alphaRibbon()
+            }
         }
     }
 
@@ -65,5 +73,30 @@ extension View {
     /// Épingle le bandeau alpha dans le coin haut-droit de la vue.
     func alphaRibbon() -> some View {
         overlay(alignment: .topTrailing) { AlphaRibbon() }
+    }
+}
+
+/// Écran de blocage affiché lorsque la version alpha a expiré : l'app refuse de fonctionner.
+struct AlphaExpiredView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "hourglass.bottomhalf.filled")
+                .font(.system(size: 52))
+                .foregroundStyle(.red)
+            Text("Version alpha expirée")
+                .font(.title.bold())
+            Text("Cette version alpha de GPXManagement a expiré le \(AppConfig.alphaExpiryLabel).\nMerci d'installer une version plus récente pour continuer.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Télécharger une nouvelle version") {
+                NSWorkspace.shared.open(AppConfig.alphaURL)
+            }
+            .controlSize(.large)
+            Text("Build \(AppConfig.buildNumber)")
+                .font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(40)
+        .frame(minWidth: 420, minHeight: 320)
     }
 }
