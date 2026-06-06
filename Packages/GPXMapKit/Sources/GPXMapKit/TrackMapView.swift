@@ -191,6 +191,7 @@ public struct TrackMapView: NSViewRepresentable {
         private var photoAnnotations: [String: PhotoAnnotation] = [:]
         private var slopeOverlay: IGNTileOverlay?
         private var slopeOpacity: CGFloat = 0
+        private var lastTracksSig = ""
 
         init(onSelectActivity: ((UUID) -> Void)?, onSelectPhoto: ((String) -> Void)? = nil) {
             self.onSelectActivity = onSelectActivity
@@ -282,16 +283,28 @@ public struct TrackMapView: NSViewRepresentable {
         /// Réinséré sous les polylines pour que la trace reste visible.
         func applySlopeOverlay(opacity: Double, to mapView: MKMapView) {
             let clamped = CGFloat(max(0, min(1, opacity)))
+            let shouldShow = clamped > 0 && currentLayer.isIGN // surcouche pentes uniquement sur fond IGN
+            let present = slopeOverlay != nil && mapView.overlays.contains { ($0 as AnyObject) === (slopeOverlay as AnyObject) }
+            // Rien à faire si l'état n'a pas changé (évite de reconstruire à chaque frame pendant un drag).
+            if clamped == slopeOpacity && present == shouldShow { return }
+            slopeOpacity = clamped
             if let existing = slopeOverlay {
                 mapView.removeOverlay(existing)
                 slopeOverlay = nil
             }
-            slopeOpacity = clamped
-            guard clamped > 0, currentLayer.isIGN else { return } // surcouche pentes uniquement sur fond IGN
+            guard shouldShow else { return }
             let overlay = IGNTileOverlay(layer: .ignSlopes)
             overlay.canReplaceMapContent = false // surcouche translucide, ne masque pas le fond
             slopeOverlay = overlay
             mapView.addOverlay(overlay, level: .aboveLabels)
+        }
+
+        private func tracksSignature(_ tracks: [TrackOverlayInput]) -> String {
+            tracks.map { t in
+                let c = t.segmentColors
+                let colorKey = c == nil ? "u" : "\(c!.count):\(c!.first?.description ?? ""):\(c!.last?.description ?? "")"
+                return "\(t.activityId.uuidString)|\(t.coordinates.count)|\(colorKey)"
+            }.joined(separator: ";")
         }
 
         /// Trace découpée en segments contigus de même couleur (coloration vitesse/pente par point).
@@ -311,6 +324,12 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         func applyTracks(_ tracks: [TrackOverlayInput], to mapView: MKMapView, fitOnChange: Bool) {
+            // Ne reconstruit la trace que si elle a changé (sinon updateNSView resterait coûteux à chaque frame).
+            let sig = tracksSignature(tracks)
+            let hasPolylines = mapView.overlays.contains { $0 is IdentifiedPolyline }
+            if sig == lastTracksSig && hasPolylines { return }
+            lastTracksSig = sig
+
             let existingPolylines = mapView.overlays.compactMap { $0 as? IdentifiedPolyline }
             mapView.removeOverlays(existingPolylines)
 

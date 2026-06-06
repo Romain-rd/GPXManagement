@@ -47,6 +47,7 @@ struct ActivityDetailView: View {
     @State private var dragAccumulator: Double = 0
     @State private var fullscreenMap = false
     @State private var fsProfileHeight: Double = 200 // local à la fenêtre (non partagé)
+    @State private var fsProfileDrag: Double = 0
     @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -448,9 +449,12 @@ struct ActivityDetailView: View {
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture()
-                        .onEnded { v in
-                            fsProfileHeight = min(520, max(120, fsProfileHeight - Double(v.translation.height)))
+                        .onChanged { v in
+                            let dy = Double(v.translation.height)
+                            fsProfileHeight = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
+                            fsProfileDrag = dy
                         }
+                        .onEnded { _ in fsProfileDrag = 0 }
                 )
                 .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
             HStack(spacing: 8) {
