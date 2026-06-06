@@ -229,7 +229,7 @@ public struct TrackMapView: NSViewRepresentable {
                 slopeOverlay = nil
             }
             slopeOpacity = clamped
-            guard clamped > 0 else { return }
+            guard clamped > 0, currentLayer.isIGN else { return } // surcouche pentes uniquement sur fond IGN
             let overlay = IGNTileOverlay(layer: .ignSlopes)
             overlay.canReplaceMapContent = false // surcouche translucide, ne masque pas le fond
             slopeOverlay = overlay

@@ -71,6 +71,15 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Couche servant uniquement de surcouche (jamais comme fond) : la carte des pentes.
+    public var isOverlayOnly: Bool { self == .ignSlopes }
+
+    /// Fond valide depuis une valeur stockée — exclut les couches surcouche-seule.
+    public static func base(fromRawValue raw: String) -> MapLayer {
+        let layer = MapLayer(rawValue: raw) ?? .ignScan25
+        return layer.isOverlayOnly ? .ignScan25 : layer
+    }
+
     /// Gabarit d'URL de tuile XYZ ({z}/{x}/{y}) pour les couches non-IGN-France et non-Apple.
     public var tileURLTemplate: String? {
         switch self {

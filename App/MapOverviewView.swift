@@ -11,7 +11,7 @@ struct LayerPicker: View {
         Menu {
             ForEach(MapLayer.countryOrder, id: \.self) { country in
                 Section(country) {
-                    ForEach(MapLayer.allCases.filter { $0.country == country }) { l in
+                    ForEach(MapLayer.allCases.filter { $0.country == country && !$0.isOverlayOnly }) { l in
                         Button {
                             layer = l
                         } label: {
@@ -32,6 +32,43 @@ struct LayerPicker: View {
     }
 }
 
+/// Contrôle d'opacité de la surcouche « pentes » IGN (bouton + popover slider + légende).
+/// À n'afficher que lorsqu'un fond IGN est sélectionné.
+struct SlopeOverlayControl: View {
+    @Binding var opacity: Double
+    @State private var show = false
+
+    var body: some View {
+        Button { show = true } label: {
+            Label("Pentes", systemImage: "triangle.fill")
+                .foregroundStyle(opacity > 0 ? .orange : .secondary)
+        }
+        .help("Superposer la carte des pentes IGN")
+        .popover(isPresented: $show, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Carte des pentes IGN").font(.headline)
+                HStack(spacing: 8) {
+                    Image(systemName: "triangle").foregroundStyle(.secondary)
+                    Slider(value: $opacity, in: 0...1)
+                    Text("\(Int((opacity * 100).rounded())) %")
+                        .font(.caption.monospacedDigit()).frame(width: 38, alignment: .trailing)
+                }
+                Divider()
+                ForEach([SlopeBand.d30_35, .d35_40, .d40_45, .above45], id: \.label) { band in
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(band.color.map { Color(nsColor: $0) } ?? .clear)
+                            .frame(width: 12, height: 12)
+                        Text(band.label).font(.caption)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(width: 230)
+        }
+    }
+}
+
 struct MapOverviewView: View {
     let activities: [ActivitySummary]
     let selectedIds: Set<UUID>
@@ -40,6 +77,7 @@ struct MapOverviewView: View {
     let onSelect: (UUID) -> Void
 
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoading = true
@@ -67,7 +105,7 @@ struct MapOverviewView: View {
                 } else if tracks.isEmpty {
                     ContentUnavailableView("Aucune trace à afficher", systemImage: "map", description: Text(visibleActivities.isEmpty ? "Choisissez une ou plusieurs activités." : "Aucune trace GPS dans la sélection."))
                 } else {
-                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, onSelectActivity: onSelect)
+                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayOpacity, onSelectActivity: onSelect)
                 }
             }
 
@@ -78,6 +116,11 @@ struct MapOverviewView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background(.thinMaterial, in: Capsule())
+                    if layer.isIGN {
+                        SlopeOverlayControl(opacity: $slopeOverlayOpacity)
+                            .padding(6)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
                     LayerPicker(layer: $layer)
                 }
                 .padding(8)
@@ -85,7 +128,7 @@ struct MapOverviewView: View {
         }
         .navigationTitle("Carte d'ensemble")
         .task(id: visibleActivitiesIDsKey) { await loadAll() }
-        .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
+        .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
         .onChange(of: window.mapExportToken) { _, _ in
             guard !tracks.isEmpty else { return }

@@ -15,6 +15,7 @@ struct RaidDetailView: View {
 
     @State private var draft: Raid
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
     @State private var layer: MapLayer = .ignScan25
     @State private var tracks: [TrackOverlayInput] = []
     @State private var isLoadingMap = true
@@ -99,7 +100,7 @@ struct RaidDetailView: View {
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await loadPublishState() }
         .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
-        .onAppear { layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25 }
+        .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
         .onChange(of: coverPickerItem) { _, item in
             guard let item else { return }
@@ -516,7 +517,7 @@ struct RaidDetailView: View {
                                            description: Text("Les étapes de ce raid n'ont pas de données GPS."))
                         .frame(minHeight: 320)
                 } else {
-                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, onSelectActivity: { id in
+                    TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayOpacity, onSelectActivity: { id in
                         navigation.visualizationMode = .activities
                         navigation.listSelection = [id]
                     })
@@ -525,7 +526,15 @@ struct RaidDetailView: View {
                 }
             }
             if !tracks.isEmpty {
-                LayerPicker(layer: $layer).padding(8)
+                HStack(spacing: 8) {
+                    if layer.isIGN {
+                        SlopeOverlayControl(opacity: $slopeOverlayOpacity)
+                            .padding(6)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    LayerPicker(layer: $layer)
+                }
+                .padding(8)
             }
         }
     }
