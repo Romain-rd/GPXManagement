@@ -46,8 +46,7 @@ struct ActivityDetailView: View {
     @AppStorage("detailMapHeight") private var mapHeight: Double = 340
     @State private var dragAccumulator: Double = 0
     @State private var fullscreenMap = false
-    @AppStorage("fullscreenProfileHeight") private var fsProfileHeight: Double = 200
-    @State private var fsProfileDrag: Double = 0
+    @State private var fsProfileHeight: Double = 200 // local à la fenêtre (non partagé)
     @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -84,7 +83,6 @@ struct ActivityDetailView: View {
         .overlay {
             if fullscreenMap { fullscreenMapOverlay }
         }
-        .toolbar((fullscreenMap && isStandaloneWindow) ? .hidden : .automatic, for: .windowToolbar)
         .background {
             if isStandaloneWindow { FullScreenWindowConfigurator(active: fullscreenMap) }
         }
@@ -107,6 +105,7 @@ struct ActivityDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
+                if !fullscreenMap {
                 Button {
                     Task { await listVM.autoRename(id: activity.id) }
                 } label: {
@@ -162,10 +161,7 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
-            }
-            // Réserve l'angle haut-droit pour le bandeau Alpha (sinon il recouvre les boutons dans la fenêtre dédiée).
-            if isStandaloneWindow {
-                ToolbarItem(placement: .automatic) { Color.clear.frame(width: 140, height: 1) }
+                }
             }
         }
         .overlay {
@@ -414,15 +410,14 @@ struct ActivityDetailView: View {
             trackColorMode: trackColorMode,
             onSelectPhoto: openPhoto
         )
-        .overlay(alignment: .topLeading) { fsMapControls.padding(10) }
-        .overlay(alignment: .topTrailing) { fsTopRightButtons.padding(10) }
+        .overlay(alignment: .topLeading) { fsControlBar }
         .overlay(alignment: .bottom) { if showFsProfile { fsProfilePanel } }
         .background(Color.black)
         .ignoresSafeArea()
     }
 
-    /// Contrôles carte en plein écran : fond + couleur de trace + surcouche pentes.
-    private var fsMapControls: some View {
+    /// Barre de contrôles du plein écran (en haut-gauche, dégagée des pastilles de la fenêtre).
+    private var fsControlBar: some View {
         HStack(spacing: 8) {
             LayerPicker(layer: mapLayerBinding)
             TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
@@ -431,24 +426,23 @@ struct ActivityDetailView: View {
                     .padding(6)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
-        }
-    }
-
-    private var fsTopRightButtons: some View {
-        HStack(spacing: 10) {
             Button { showFsProfile.toggle() } label: {
-                Image(systemName: showFsProfile ? "chart.xyaxis.line" : "chart.bar.xaxis")
-                    .padding(7).background(.black.opacity(0.5), in: Circle()).foregroundStyle(.white)
+                Image(systemName: showFsProfile ? "rectangle.bottomthird.inset.filled" : "rectangle")
+                    .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain).help(showFsProfile ? "Masquer le profil" : "Afficher le profil")
             Button { fullscreenMap = false } label: {
-                Image(systemName: "xmark.circle.fill").font(.largeTitle).symbolRenderingMode(.hierarchical).foregroundStyle(.white)
+                Label("Quitter", systemImage: "arrow.down.right.and.arrow.up.left")
+                    .padding(.horizontal, 8).padding(.vertical, 6)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain).keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
         }
+        .padding(.top, 8).padding(.trailing, 12).padding(.leading, 78)
     }
 
     /// Profil en surimpression discrète, navigable (survol → marqueur sur la carte), à hauteur réglable.
+    /// La hauteur n'est appliquée qu'à la fin du glissement (la carte ne se redessine pas pendant le drag).
     private var fsProfilePanel: some View {
         VStack(spacing: 2) {
             Capsule()
@@ -456,12 +450,9 @@ struct ActivityDetailView: View {
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture()
-                        .onChanged { v in
-                            let dy = Double(v.translation.height)
-                            fsProfileHeight = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
-                            fsProfileDrag = dy
+                        .onEnded { v in
+                            fsProfileHeight = min(520, max(120, fsProfileHeight - Double(v.translation.height)))
                         }
-                        .onEnded { _ in fsProfileDrag = 0 }
                 )
                 .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
             HStack(spacing: 8) {
