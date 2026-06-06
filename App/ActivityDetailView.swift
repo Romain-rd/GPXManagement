@@ -47,7 +47,6 @@ struct ActivityDetailView: View {
     @State private var dragAccumulator: Double = 0
     @State private var fullscreenMap = false
     @State private var fsProfileHeight: Double = 200 // local à la fenêtre (non partagé)
-    @State private var fsProfileDrag: Double = 0
     @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -448,23 +447,11 @@ struct ActivityDetailView: View {
     /// La hauteur n'est appliquée qu'à la fin du glissement (la carte ne se redessine pas pendant le drag).
     private var fsProfilePanel: some View {
         VStack(spacing: 2) {
-            Capsule()
-                .fill(.secondary.opacity(0.6)).frame(width: 46, height: 5).padding(.vertical, 4)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .onChanged { v in
-                            let dy = Double(v.translation.height)
-                            let target = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
-                            if abs(target - fsProfileHeight) >= 4 { // évite de redessiner le graphe à chaque pixel
-                                var tx = Transaction(); tx.disablesAnimations = true // pas d'animation implicite (sinon « flash »)
-                                withTransaction(tx) { fsProfileHeight = target }
-                                fsProfileDrag = dy
-                            }
-                        }
-                        .onEnded { _ in fsProfileDrag = 0 }
-                )
-                .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            // Le drag est isolé dans cette sous-vue (état local) → le parent (carte + graphe) n'est pas re-rendu
+            // pendant le glissement ; la hauteur n'est appliquée qu'au lâcher.
+            ProfileResizeHandle { delta in
+                fsProfileHeight = min(520, max(120, fsProfileHeight + Double(delta)))
+            }
             HStack(spacing: 8) {
                 Picker("", selection: $profileMetric) { ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) } }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
@@ -1159,6 +1146,29 @@ struct ActivityDetailView: View {
 
     private static func speed(_ mps: Double) -> String {
         String(format: "%.1f km/h", mps * 3.6)
+    }
+}
+
+/// Poignée de redimensionnement isolée : suit le curseur pendant le drag (état local, pas de re-render
+/// du parent), et ne communique la variation de hauteur qu'au lâcher.
+private struct ProfileResizeHandle: View {
+    let onCommit: (CGFloat) -> Void // variation en points (positif = agrandir)
+    @State private var drag: CGFloat = 0
+
+    var body: some View {
+        Capsule()
+            .fill(.secondary.opacity(0.7))
+            .frame(width: 46, height: 5)
+            .padding(.vertical, 5)
+            .offset(y: drag) // retour visuel pendant le drag
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { v in drag = v.translation.height }
+                    .onEnded { v in onCommit(-v.translation.height); drag = 0 }
+            )
+            .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            .help("Glisser pour ajuster la hauteur du profil")
     }
 }
 
