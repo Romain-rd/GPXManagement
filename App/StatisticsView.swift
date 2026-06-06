@@ -113,7 +113,7 @@ struct StatisticsView: View {
                 statChip("Distance moy.", Self.formatDistance(selStats.avgDistance))
                 statChip("Plus longue", Self.formatDistance(selStats.maxDistance))
                 statChip("D+ max", "\(Int(selStats.maxElevationGain.rounded())) m")
-                statChip("Pente max", String(format: "%.0f°", selStats.maxSlope))
+                statChip("Pente max", String(format: "%.0f %%", selStats.maxSlope))
                 statChip("Vitesse max", String(format: "%.1f km/h", selStats.maxSpeed * 3.6))
             }
         }
@@ -167,7 +167,7 @@ struct StatisticsView: View {
                           value: { "\(Int($0.elevationGain.rounded())) m" })
                 recordRow("Plus raide", systemImage: "triangle",
                           activity: activities.max { $0.maxSlope < $1.maxSlope },
-                          value: { String(format: "%.0f°", $0.maxSlope) })
+                          value: { String(format: "%.0f %%", $0.maxSlope) })
                 recordRow("Plus rapide (moy.)", systemImage: "gauge.with.dots.needle.67percent",
                           activity: activities.max { $0.avgSpeed < $1.avgSpeed },
                           value: { String(format: "%.1f km/h", $0.avgSpeed * 3.6) })

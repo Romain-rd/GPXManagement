@@ -76,7 +76,7 @@ final class ActivityStatsCalculatorTests: XCTestCase {
     }
 
     func testMaxSlopeFromSteadyGrade() {
-        // Pente constante de 50 % (montée = 0,5 × distance horizontale) → ≈ 26,57°.
+        // Pente constante de 50 % (montée = 0,5 × distance horizontale) → maxSlope ≈ 50 %.
         let metersPerLon = 6_371_000.0 * .pi / 180 * cos(45.0 * .pi / 180)
         let stepLon = 0.0002
         let stepDist = stepLon * metersPerLon
@@ -90,7 +90,7 @@ final class ActivityStatsCalculatorTests: XCTestCase {
             ))
         }
         let stats = ActivityStatsCalculator.compute(points: pts)
-        XCTAssertEqual(stats.maxSlope, atan(0.5) * 180 / .pi, accuracy: 1.5)
+        XCTAssertEqual(stats.maxSlope, 50, accuracy: 3)
     }
 
     func testMaxSlopeFlatIsZero() {

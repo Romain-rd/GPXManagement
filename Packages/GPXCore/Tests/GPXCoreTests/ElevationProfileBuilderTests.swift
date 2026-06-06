@@ -133,36 +133,20 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertEqual(s.category(for: -5), .descent)
     }
 
-    func testSlopeCategoryRangesSkiTouringAngles() {
-        // Seuils 20/25/30/35° ≈ 36/47/58/70 % de pente, 5 bandes.
-        let s = SlopeScale.skiTouring
-        XCTAssertEqual(s.category(for: 30), .gentle)    // ≈ 16,7°  < 20°
-        XCTAssertEqual(s.category(for: 40), .moderate)  // ≈ 21,8°  20–25°
-        XCTAssertEqual(s.category(for: 50), .steep)     // ≈ 26,6°  25–30°
-        XCTAssertEqual(s.category(for: 65), .veryStep)  // ≈ 33,0°  30–35°
-        XCTAssertEqual(s.category(for: 80), .extreme)   // ≈ 38,7°  > 35°
-        XCTAssertEqual(s.category(for: -30), .gentle)
-        XCTAssertEqual(s.category(for: -50), .descent)  // < -20° (≈ -36 %)
-    }
-
     func testSlopeScaleCategories() {
         XCTAssertEqual(SlopeScale.percent.categories, [.gentle, .moderate, .steep, .veryStep, .descent])
-        XCTAssertEqual(SlopeScale.skiTouring.categories, [.gentle, .moderate, .steep, .veryStep, .extreme, .descent])
     }
 
     func testSlopeScaleLabels() {
         XCTAssertEqual(SlopeScale.percent.label(for: .gentle), "0–4 %")
+        XCTAssertEqual(SlopeScale.percent.label(for: .moderate), "4–8 %")
+        XCTAssertEqual(SlopeScale.percent.label(for: .steep), "8–12 %")
         XCTAssertEqual(SlopeScale.percent.label(for: .veryStep), "> 12 %")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .gentle), "< 20°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .moderate), "20–25°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .steep), "25–30°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .veryStep), "30–35°")
-        XCTAssertEqual(SlopeScale.skiTouring.label(for: .extreme), "> 35°")
+        XCTAssertEqual(SlopeScale.percent.label(for: .descent), "Descente")
     }
 
     func testSlopeScaleByActivityType() {
-        XCTAssertEqual(ActivityType.skiingTouring.slopeScale, .skiTouring)
+        XCTAssertEqual(ActivityType.skiingTouring.slopeScale, .percent)
         XCTAssertEqual(ActivityType.cyclingRoad.slopeScale, .percent)
-        XCTAssertEqual(ActivityType.skiingAlpine.slopeScale, .percent)
     }
 }

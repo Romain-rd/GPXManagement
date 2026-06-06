@@ -123,12 +123,11 @@ public enum ActivityStatsCalculator {
         )
     }
 
-    /// Pente maximale en degrés, calculée sur le profil lissé (±75 m) pour éviter les pics de bruit GPS.
+    /// Pente maximale en % (grade), calculée sur le profil lissé (±75 m) pour éviter les pics de bruit GPS.
     /// Tient compte des montées comme des descentes (valeur absolue).
     private static func computeMaxSlope(points: [TrackPoint]) -> Double {
         let profile = ElevationProfileBuilder.build(points: points)
-        guard let maxGrade = profile.map({ abs($0.slope) }).max() else { return 0 }
-        return atan(maxGrade / 100) * 180 / .pi
+        return profile.map { abs($0.slope) }.max() ?? 0
     }
 
     private static func boundingBox(_ points: [TrackPoint]) -> BoundingBox {

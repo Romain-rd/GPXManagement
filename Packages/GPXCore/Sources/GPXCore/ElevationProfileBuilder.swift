@@ -177,35 +177,20 @@ public enum SlopeCategory: Sendable, Hashable {
     case moderate
     case steep
     case veryStep
-    case extreme
     case descent
 
     /// Bandes ascendantes, de la plus douce à la plus raide (la descente est traitée à part).
-    static let ascending: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep, .extreme]
+    static let ascending: [SlopeCategory] = [.gentle, .moderate, .steep, .veryStep]
 }
 
-/// Échelle de classement de la pente. Les pentes du profil sont toujours en %, mais les seuils peuvent
-/// être exprimés en % (vélo, etc.) ou en degrés (rando à ski, référentiel avalanche 20/25/30/35°).
-/// `bounds` contient N bornes croissantes → N+1 bandes ascendantes.
+/// Échelle de classement de la pente, en % (grade). `bounds` contient N bornes croissantes → N+1 bandes ascendantes.
 public struct SlopeScale: Sendable, Equatable {
-    public enum Unit: Sendable, Equatable { case percent, degrees }
-
-    public let unit: Unit
     public let bounds: [Double]
 
-    public static let percent = SlopeScale(unit: .percent, bounds: [4, 8, 12])
-    public static let skiTouring = SlopeScale(unit: .degrees, bounds: [20, 25, 30, 35])
+    public static let percent = SlopeScale(bounds: [4, 8, 12])
 
-    public init(unit: Unit, bounds: [Double]) {
-        self.unit = unit
+    public init(bounds: [Double]) {
         self.bounds = bounds
-    }
-
-    private var percentBounds: [Double] {
-        switch unit {
-        case .percent: return bounds
-        case .degrees: return bounds.map { tan($0 * .pi / 180) * 100 }
-        }
     }
 
     /// Catégories de cette échelle dans l'ordre d'affichage (bandes ascendantes puis descente).
@@ -213,27 +198,24 @@ public struct SlopeScale: Sendable, Equatable {
         Array(SlopeCategory.ascending.prefix(bounds.count + 1)) + [.descent]
     }
 
-    public func category(for slopePercent: Double) -> SlopeCategory {
-        let b = percentBounds
-        if slopePercent < -b[0] { return .descent }
-        let absVal = abs(slopePercent)
-        for (i, bound) in b.enumerated() where absVal < bound {
+    public func category(for slope: Double) -> SlopeCategory {
+        if slope < -bounds[0] { return .descent }
+        let absVal = abs(slope)
+        for (i, bound) in bounds.enumerated() where absVal < bound {
             return SlopeCategory.ascending[i]
         }
-        return SlopeCategory.ascending[b.count]
+        return SlopeCategory.ascending[bounds.count]
     }
 
     public func label(for category: SlopeCategory) -> String {
-        if category == .descent { return "Descente" }
-        guard let idx = SlopeCategory.ascending.firstIndex(of: category) else { return "" }
-        let suffix = unit == .degrees ? "°" : " %"
+        guard let idx = SlopeCategory.ascending.firstIndex(of: category) else { return "Descente" }
         func n(_ v: Double) -> String { String(Int(v.rounded())) }
         if idx == 0 {
-            return unit == .degrees ? "< \(n(bounds[0]))\(suffix)" : "0–\(n(bounds[0]))\(suffix)"
+            return "0–\(n(bounds[0])) %"
         } else if idx >= bounds.count {
-            return "> \(n(bounds[bounds.count - 1]))\(suffix)"
+            return "> \(n(bounds[bounds.count - 1])) %"
         } else {
-            return "\(n(bounds[idx - 1]))–\(n(bounds[idx]))\(suffix)"
+            return "\(n(bounds[idx - 1]))–\(n(bounds[idx])) %"
         }
     }
 }

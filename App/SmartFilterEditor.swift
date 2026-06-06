@@ -196,7 +196,7 @@ struct SmartFilterEditor: View {
         switch field {
         case .distance:      return "km"
         case .elevationGain: return "m"
-        case .maxSlope:      return "°"
+        case .maxSlope:      return "%"
         case .duration:      return "min"
         case .avgSpeed:      return "km/h"
         case .avgHeartRate:  return "bpm"

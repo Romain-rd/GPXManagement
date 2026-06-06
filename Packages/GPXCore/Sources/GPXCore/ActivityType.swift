@@ -129,10 +129,8 @@ public enum ActivityType: String, Codable, CaseIterable, Sendable {
         allCases.first { $0.stravaSportType == raw }
     }
 
-    /// Échelle de couleur de pente. Rando à ski : seuils en degrés (25/30/35°, référentiel avalanche) ; sinon en %.
-    public var slopeScale: SlopeScale {
-        self == .skiingTouring ? .skiTouring : .percent
-    }
+    /// Échelle de couleur de pente (en %, identique pour toutes les activités).
+    public var slopeScale: SlopeScale { .percent }
 }
 
 public enum ActivityOrigin: String, Codable, CaseIterable, Sendable {

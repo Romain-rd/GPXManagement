@@ -10,7 +10,6 @@ extension SlopeCategory {
         case .moderate: return .yellow
         case .steep:    return .orange
         case .veryStep: return .red
-        case .extreme:  return .purple
         case .descent:  return .blue
         }
     }
