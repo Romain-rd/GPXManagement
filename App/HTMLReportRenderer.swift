@@ -29,8 +29,8 @@ struct WebExportOptions: Codable {
         }
     }
 
-    var map: MapRendering = .staticImage
-    var profile: ProfileRendering = .staticImage
+    var map: MapRendering = .interactive
+    var profile: ProfileRendering = .interactive
     var output: Output = .singleFile
     var includePhotos: Bool = true
     var includeNotes: Bool = true
@@ -692,12 +692,20 @@ enum HTMLReportRenderer {
             let coordsJSON = "[" + trackCoords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
             let speedColorsJSON = trackSpeedColors.isEmpty ? "null" : "[" + trackSpeedColors.map { jsString($0) }.joined(separator: ",") + "]"
             let slopeColorsJSON = trackSlopeColors.isEmpty ? "null" : "[" + trackSlopeColors.map { jsString($0) }.joined(separator: ",") + "]"
+            // Couleur de trace par défaut, adaptée au type : voile → vitesse, terrestre → pente (si dispo).
+            let defaultTrackColor: String = {
+                if activity.activityType.usesNauticalUnits { return trackSpeedColors.isEmpty ? "uniform" : "speed" }
+                if !trackSlopeColors.isEmpty { return "slope" }
+                if !trackSpeedColors.isEmpty { return "speed" }
+                return "uniform"
+            }()
             mapSection = "<section class=\"section\"><h2>Carte</h2><div id=\"map\" class=\"map interactive\"></div></section>"
             mapScript = """
             <script>
             (function(){
               var coords = \(coordsJSON);
               var trackColors = { speed: \(speedColorsJSON), slope: \(slopeColorsJSON) };
+              var defaultMode = \(jsString(defaultTrackColor));
               var accentColor = \(jsString(accent));
               var map = L.map('map', { scrollWheelZoom: false });
               L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom: \(tile.maxZoom), attribution: \(jsString(tile.attribution)) }).addTo(map);
@@ -718,11 +726,20 @@ enum HTMLReportRenderer {
                   }
                 }
               }
-              drawTrack('uniform');
+              drawTrack(defaultMode);
               var line = trackLayers[0];
               map.fitBounds(L.latLngBounds(coords), { padding: [24, 24] });
               L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#34c759', fillOpacity: 1 }).addTo(map);
               L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
+
+              // Marqueurs aux positions des photos (réutilise les vignettes de la galerie, sans dupliquer les images).
+              Array.prototype.forEach.call(document.querySelectorAll('.photo.locatable'), function(img){
+                var plat = parseFloat(img.getAttribute('data-lat')), plon = parseFloat(img.getAttribute('data-lon'));
+                if (isNaN(plat) || isNaN(plon)) return;
+                var icon = L.divIcon({ className: 'gpx-photo-pin', html: '📷', iconSize: [26,26], iconAnchor: [13,13] });
+                var mk = L.marker([plat, plon], { icon: icon }).addTo(map);
+                mk.bindPopup('<img src="' + img.src + '" style="max-width:220px;max-height:220px;border-radius:6px;display:block">', { autoPan: true });
+              });
 
               var el = document.getElementById('map');
               var fsBtn = null, pseudo = false;
@@ -762,7 +779,7 @@ enum HTMLReportRenderer {
                     [['uniform','Uniforme'],['speed','Vitesse'],['slope','Pente']].forEach(function(m){
                       if ((m[0]==='speed' && !trackColors.speed) || (m[0]==='slope' && !trackColors.slope)) return;
                       var a = L.DomUtil.create('a', '', div); a.href = '#'; a.innerHTML = m[1];
-                      if (m[0]==='uniform') a.className = 'active';
+                      if (m[0]===defaultMode) a.className = 'active';
                       L.DomEvent.on(a, 'click', function(e){ L.DomEvent.stop(e); drawTrack(m[0]); Array.prototype.forEach.call(div.children, function(c){ c.className=''; }); a.className='active'; });
                     });
                     L.DomEvent.disableClickPropagation(div);
@@ -1064,6 +1081,7 @@ enum HTMLReportRenderer {
         .gpx-trackctl a { display:inline-block; padding:4px 9px; font:12px -apple-system,sans-serif; text-decoration:none; color:#333; background:#fff; border-right:1px solid #ccc; }
         .gpx-trackctl a:last-child { border-right:none; }
         .gpx-trackctl a.active { background:#0a84ff; color:#fff; }
+        .gpx-photo-pin { font-size:18px; text-align:center; line-height:26px; cursor:pointer; filter:drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
         #map:fullscreen, #map:-webkit-full-screen { width:100%; height:100%; border-radius:0; aspect-ratio:auto; border:0; }
         #map.gpx-pseudo-fs { position:fixed !important; inset:0 !important; width:100vw !important; height:100vh !important; height:100dvh !important; border-radius:0 !important; aspect-ratio:auto !important; border:0 !important; z-index:9999 !important; }
         body.gpx-fs-lock { overflow:hidden; }

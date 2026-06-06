@@ -8,6 +8,7 @@ struct ActivityListView: View {
     @Bindable var listVM: ActivityListViewModel
     @Bindable var navigation: AppNavigationModel
     @Bindable var services: AppServices
+    @Environment(\.openWindow) private var openWindow
     @State private var isDropTargeted = false
     @State private var creatingRaidIds: Set<UUID>?
     @State private var newRaidName = ""
@@ -252,7 +253,8 @@ struct ActivityListView: View {
                 }
             }
         } primaryAction: { ids in
-            if ids.count == 1 { navigation.listSelection = ids }
+            // Double-clic : ouvre le détail de la trace dans une nouvelle fenêtre.
+            if let id = ids.first { openWindow(value: id) }
         }
     }
 

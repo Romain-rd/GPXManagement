@@ -23,6 +23,15 @@ struct GPXManagementApp: App {
             AppMenuCommands(services: services)
         }
 
+        WindowGroup(for: UUID.self) { $activityId in
+            if AppConfig.isAlphaExpired {
+                AlphaExpiredView()
+            } else if let activityId {
+                ActivityDetailWindowView(activityId: activityId)
+                    .alphaRibbon()
+            }
+        }
+
         Settings {
             if AppConfig.isAlphaExpired {
                 AlphaExpiredView()
@@ -138,6 +147,35 @@ extension View {
     /// Épingle le triangle alpha au coin haut-droit de la fenêtre, au-dessus de tout.
     func alphaRibbon() -> some View {
         background(AlphaRibbonInstaller())
+    }
+}
+
+/// Fenêtre autonome (double-clic sur une trace) affichant le détail d'une activité.
+struct ActivityDetailWindowView: View {
+    let activityId: UUID
+    @State private var model: WindowModel
+
+    init(activityId: UUID) {
+        self.activityId = activityId
+        let repo = (AppServices.shared.repository as? CoreDataActivityRepository) ?? CoreDataActivityRepository(persistence: AppServices.shared.persistence)
+        _model = State(initialValue: WindowModel(repository: repo))
+    }
+
+    var body: some View {
+        Group {
+            if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
+               let repo = AppServices.shared.repository as? CoreDataActivityRepository {
+                ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo)
+                    .navigationTitle(activity.title)
+            } else if model.listVM.allActivities.isEmpty {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ContentUnavailableView("Trace introuvable", systemImage: "exclamationmark.triangle")
+            }
+        }
+        .frame(minWidth: 720, minHeight: 640)
+        .environment(\.managedObjectContext, AppServices.shared.persistence.container.viewContext)
+        .task { await model.listVM.reload() }
     }
 }
 

@@ -43,6 +43,7 @@ struct ActivityDetailView: View {
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @AppStorage("detailMapHeight") private var mapHeight: Double = 340
     @State private var dragAccumulator: Double = 0
+    @State private var fullscreenMap = false
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -74,6 +75,9 @@ struct ActivityDetailView: View {
                 notesSection
             }
             .padding(20)
+        }
+        .overlay {
+            if fullscreenMap { fullscreenMapOverlay }
         }
         .navigationTitle(activity.title)
         .onAppear {
@@ -353,6 +357,7 @@ struct ActivityDetailView: View {
                 photos: mapPhotos,
                 slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
                 trackColorMode: trackColorMode,
+                onFullscreen: { fullscreenMap = true },
                 onSelectPhoto: openPhoto
             )
             .frame(height: mapHeight)
@@ -382,6 +387,34 @@ struct ActivityDetailView: View {
                 if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
             }
             .help("Glisser pour ajuster la hauteur de la carte")
+    }
+
+    private var fullscreenMapOverlay: some View {
+        ZStack(alignment: .topTrailing) {
+            ActivityMapCard(
+                activityId: activity.id,
+                activityType: activity.activityType,
+                repository: repository,
+                layer: mapLayerBinding,
+                highlight: highlightedCoordinate,
+                photos: mapPhotos,
+                slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
+                trackColorMode: trackColorMode,
+                onSelectPhoto: openPhoto
+            )
+            Button { fullscreenMap = false } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.largeTitle)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white)
+                    .padding(12)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help("Quitter le plein écran (Échap)")
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
     }
 
     private var mapLayerBinding: Binding<MapLayer> {
@@ -863,7 +896,7 @@ struct ActivityDetailView: View {
                         Picker("", selection: $webOptions.map) {
                             ForEach(WebExportOptions.MapRendering.allCases) { Text($0.label).tag($0) }
                         }
-                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        .pickerStyle(.segmented).labelsHidden().controlSize(.large).frame(maxWidth: .infinity)
                         if webOptions.map == .interactive {
                             Text("Carte Leaflet + tuiles IGN, chargées en ligne (nécessite une connexion).").font(.caption2).foregroundStyle(.tertiary)
                         }
@@ -875,7 +908,7 @@ struct ActivityDetailView: View {
                         Picker("", selection: $webOptions.profile) {
                             ForEach(WebExportOptions.ProfileRendering.allCases) { Text($0.label).tag($0) }
                         }
-                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        .pickerStyle(.segmented).labelsHidden().controlSize(.large).frame(maxWidth: .infinity)
                         if webOptions.profile == .interactive {
                             Text("Survol synchronisé avec la carte (si interactive), bascule distance/temps.").font(.caption2).foregroundStyle(.tertiary)
                         }
@@ -887,7 +920,7 @@ struct ActivityDetailView: View {
                         Picker("", selection: $webOptions.output) {
                             ForEach(WebExportOptions.Output.allCases) { Text($0.label).tag($0) }
                         }
-                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        .pickerStyle(.segmented).labelsHidden().controlSize(.large).frame(maxWidth: .infinity)
                         if webOptions.output == .publishBunny {
                             if BunnyStorageService.isConfigured {
                                 Text(publishedURL == nil
@@ -922,8 +955,8 @@ struct ActivityDetailView: View {
                 .disabled(webOptions.output == .publishBunny && !BunnyStorageService.isConfigured)
             }
         }
-        .padding(20)
-        .frame(width: 560)
+        .padding(24)
+        .frame(width: 660)
     }
 
     private func exportWeb() async {
@@ -1075,6 +1108,7 @@ private struct ActivityMapCard: View {
     let photos: [PhotoMapItem]
     var slopeOverlayOpacity: Double = 0
     var trackColorMode: TrackColorMode = .uniform
+    var onFullscreen: (() -> Void)? = nil
     let onSelectPhoto: (String) -> Void
 
     @State private var tracks: [TrackOverlayInput] = []
@@ -1103,6 +1137,19 @@ private struct ActivityMapCard: View {
                     }
                     .overlay(alignment: .bottomTrailing) {
                         if trackColorMode != .uniform { trackColorLegend.padding(6) }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if let onFullscreen {
+                            Button(action: onFullscreen) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .padding(7)
+                                    .background(.black.opacity(0.5), in: Circle())
+                                    .foregroundStyle(.white)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(6)
+                            .help("Carte en plein écran")
+                        }
                     }
             }
         }
