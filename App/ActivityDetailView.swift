@@ -44,6 +44,9 @@ struct ActivityDetailView: View {
     @AppStorage("detailMapHeight") private var mapHeight: Double = 340
     @State private var dragAccumulator: Double = 0
     @State private var fullscreenMap = false
+    @AppStorage("fullscreenProfileHeight") private var fsProfileHeight: Double = 200
+    @State private var fsProfileDrag: Double = 0
+    @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -390,31 +393,80 @@ struct ActivityDetailView: View {
     }
 
     private var fullscreenMapOverlay: some View {
-        ZStack(alignment: .topTrailing) {
-            ActivityMapCard(
-                activityId: activity.id,
-                activityType: activity.activityType,
-                repository: repository,
-                layer: mapLayerBinding,
-                highlight: highlightedCoordinate,
-                photos: mapPhotos,
-                slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
-                trackColorMode: trackColorMode,
-                onSelectPhoto: openPhoto
-            )
-            Button { fullscreenMap = false } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.largeTitle)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.white)
-                    .padding(12)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
-            .help("Quitter le plein écran (Échap)")
-        }
+        ActivityMapCard(
+            activityId: activity.id,
+            activityType: activity.activityType,
+            repository: repository,
+            layer: mapLayerBinding,
+            highlight: highlightedCoordinate,
+            photos: mapPhotos,
+            slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
+            trackColorMode: trackColorMode,
+            onSelectPhoto: openPhoto
+        )
+        .overlay(alignment: .topLeading) { fsMapControls.padding(10) }
+        .overlay(alignment: .topTrailing) { fsTopRightButtons.padding(10) }
+        .overlay(alignment: .bottom) { if showFsProfile { fsProfilePanel } }
         .background(Color.black)
         .ignoresSafeArea()
+    }
+
+    /// Contrôles carte en plein écran : fond + couleur de trace + surcouche pentes.
+    private var fsMapControls: some View {
+        HStack(spacing: 8) {
+            LayerPicker(layer: mapLayerBinding)
+            TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
+            if mapLayerBinding.wrappedValue.isIGN {
+                SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
+                    .padding(6)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private var fsTopRightButtons: some View {
+        HStack(spacing: 10) {
+            Button { showFsProfile.toggle() } label: {
+                Image(systemName: showFsProfile ? "chart.xyaxis.line" : "chart.bar.xaxis")
+                    .padding(7).background(.black.opacity(0.5), in: Circle()).foregroundStyle(.white)
+            }
+            .buttonStyle(.plain).help(showFsProfile ? "Masquer le profil" : "Afficher le profil")
+            Button { fullscreenMap = false } label: {
+                Image(systemName: "xmark.circle.fill").font(.largeTitle).symbolRenderingMode(.hierarchical).foregroundStyle(.white)
+            }
+            .buttonStyle(.plain).keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
+        }
+    }
+
+    /// Profil en surimpression discrète, navigable (survol → marqueur sur la carte), à hauteur réglable.
+    private var fsProfilePanel: some View {
+        VStack(spacing: 2) {
+            Capsule()
+                .fill(.secondary.opacity(0.6)).frame(width: 46, height: 5).padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture()
+                        .onChanged { v in
+                            let dy = Double(v.translation.height)
+                            fsProfileHeight = min(520, max(120, fsProfileHeight - (dy - fsProfileDrag)))
+                            fsProfileDrag = dy
+                        }
+                        .onEnded { _ in fsProfileDrag = 0 }
+                )
+                .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            HStack(spacing: 8) {
+                Picker("", selection: $profileMetric) { ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                Picker("", selection: $profileMode) { ForEach(ProfileMode.allCases) { Text($0.label).tag($0) } }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
+                .frame(height: fsProfileHeight)
+        }
+        .padding(.bottom, 6)
+        .background(.ultraThinMaterial)
     }
 
     private var mapLayerBinding: Binding<MapLayer> {
