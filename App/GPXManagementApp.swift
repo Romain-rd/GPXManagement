@@ -78,6 +78,7 @@ extension View {
 struct ActivityDetailWindowView: View {
     let activityId: UUID
     @State private var model: WindowModel
+    @State private var detailFullscreen = false
 
     init(activityId: UUID) {
         self.activityId = activityId
@@ -89,7 +90,7 @@ struct ActivityDetailWindowView: View {
         Group {
             if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
                let repo = AppServices.shared.repository as? CoreDataActivityRepository {
-                ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, isStandaloneWindow: true)
+                ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, isStandaloneWindow: true, fullscreenMap: $detailFullscreen)
                     .navigationTitle(activity.title)
             } else if model.listVM.allActivities.isEmpty {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)

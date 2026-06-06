@@ -14,6 +14,8 @@ final class WindowModel {
     var mapExportStatus: String = ""
     var isExportingPDF: Bool = false
     var exportError: String?
+    /// Carte du détail en plein écran : vide la barre d'outils (mais conserve les pastilles de la fenêtre).
+    var mapFullscreen: Bool = false
 
     private let repository: CoreDataActivityRepository
 

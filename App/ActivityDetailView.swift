@@ -12,8 +12,10 @@ struct ActivityDetailView: View {
     let activity: ActivitySummary
     @Bindable var listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
-    /// Vrai dans la fenêtre détail dédiée (double-clic) : autorise les ajustements de barre de titre en plein écran.
+    /// Vrai dans la fenêtre détail dédiée (double-clic).
     var isStandaloneWindow: Bool = false
+    /// État plein écran de la carte (partagé avec la fenêtre pour vider sa barre d'outils tout en gardant les pastilles).
+    @Binding var fullscreenMap: Bool
     @State private var notesDraft: String = ""
     @State private var shareURL: URL?
     @State private var isShareSheetPresented = false
@@ -45,7 +47,6 @@ struct ActivityDetailView: View {
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @AppStorage("detailMapHeight") private var mapHeight: Double = 340
     @State private var dragAccumulator: Double = 0
-    @State private var fullscreenMap = false
     @State private var fsProfileHeight: Double = 200 // local à la fenêtre (non partagé)
     @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
@@ -87,7 +88,6 @@ struct ActivityDetailView: View {
                 }
             }
         }
-        .toolbar(fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
         .navigationTitle(activity.title)
         .onAppear {
             notesDraft = activity.notes ?? ""

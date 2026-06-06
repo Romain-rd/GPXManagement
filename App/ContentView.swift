@@ -54,16 +54,18 @@ struct ContentView: View {
             modeContent
         }
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Mode", selection: Binding(
-                    get: { navigation.visualizationMode },
-                    set: { navigation.visualizationMode = $0 }
-                )) {
-                    ForEach(VisualizationMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.systemImage).tag(mode)
+            if !window.mapFullscreen {
+                ToolbarItem(placement: .principal) {
+                    Picker("Mode", selection: Binding(
+                        get: { navigation.visualizationMode },
+                        set: { navigation.visualizationMode = $0 }
+                    )) {
+                        ForEach(VisualizationMode.allCases) { mode in
+                            Label(mode.label, systemImage: mode.systemImage).tag(mode)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
             }
             if window.isExportingMap {
                 exportToolbarItem
@@ -160,7 +162,7 @@ struct ContentView: View {
         if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
-            ActivityDetailView(activity: activity, listVM: listVM, repository: repository)
+            ActivityDetailView(activity: activity, listVM: listVM, repository: repository, fullscreenMap: $window.mapFullscreen)
         } else if navigation.selectedRaidId != nil {
             ContentUnavailableView(
                 "Sélectionnez une étape",
