@@ -163,6 +163,10 @@ struct ActivityDetailView: View {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
             }
+            // Réserve l'angle haut-droit pour le bandeau Alpha (sinon il recouvre les boutons dans la fenêtre dédiée).
+            if isStandaloneWindow {
+                ToolbarItem(placement: .automatic) { Color.clear.frame(width: 140, height: 1) }
+            }
         }
         .overlay {
             if isExportingVideo {
