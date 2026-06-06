@@ -72,17 +72,22 @@ final class AlphaCornerView: NSView {
         NSColor.systemRed.setFill()
         tri.fill()
 
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+        shadow.shadowBlurRadius = 1.5
+        shadow.shadowOffset = NSSize(width: 0, height: -1)
         let text = "ALPHA  \(AppConfig.fullVersion)"
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .heavy),
-            .foregroundColor: NSColor.white
+            .font: NSFont.systemFont(ofSize: 12, weight: .black),
+            .foregroundColor: NSColor.white,
+            .shadow: shadow
         ]
         let astr = NSAttributedString(string: text, attributes: attrs)
         let tsize = astr.size()
         NSGraphicsContext.saveGraphicsState()
         if let ctx = NSGraphicsContext.current?.cgContext {
-            ctx.translateBy(x: s / 2, y: s / 2) // centre = milieu de l'hypoténuse
-            ctx.rotate(by: -.pi / 4)            // aligne le texte sur la diagonale « ╲ »
+            ctx.translateBy(x: s * 2 / 3, y: s * 2 / 3) // centre du triangle (centroïde) → texte plein sur le rouge
+            ctx.rotate(by: -.pi / 4)                    // aligne le texte sur la diagonale « ╲ »
             astr.draw(at: NSPoint(x: -tsize.width / 2, y: -tsize.height / 2))
         }
         NSGraphicsContext.restoreGraphicsState()
