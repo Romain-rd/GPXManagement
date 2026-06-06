@@ -12,6 +12,8 @@ struct ActivityDetailView: View {
     let activity: ActivitySummary
     @Bindable var listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
+    /// Vrai dans la fenêtre détail dédiée (double-clic) : autorise les ajustements de barre de titre en plein écran.
+    var isStandaloneWindow: Bool = false
     @State private var notesDraft: String = ""
     @State private var shareURL: URL?
     @State private var isShareSheetPresented = false
@@ -82,8 +84,10 @@ struct ActivityDetailView: View {
         .overlay {
             if fullscreenMap { fullscreenMapOverlay }
         }
-        .toolbar(fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
-        .background(FullScreenWindowConfigurator(active: fullscreenMap))
+        .toolbar((fullscreenMap && isStandaloneWindow) ? .hidden : .automatic, for: .windowToolbar)
+        .background {
+            if isStandaloneWindow { FullScreenWindowConfigurator(active: fullscreenMap) }
+        }
         .navigationTitle(activity.title)
         .onAppear {
             notesDraft = activity.notes ?? ""
