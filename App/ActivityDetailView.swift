@@ -37,6 +37,8 @@ struct ActivityDetailView: View {
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
+    @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0
+    @State private var showSlopePopover = false
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -319,6 +321,7 @@ struct ActivityDetailView: View {
                 Label("Carte", systemImage: "map")
                     .font(.headline)
                 Spacer()
+                slopeOverlayControl
                 LayerPicker(layer: mapLayerBinding)
                     .controlSize(.small)
             }
@@ -329,10 +332,44 @@ struct ActivityDetailView: View {
                 layer: mapLayerBinding,
                 highlight: highlightedCoordinate,
                 photos: mapPhotos,
+                slopeOverlayOpacity: slopeOverlayOpacity,
                 onSelectPhoto: openPhoto
             )
             .frame(height: 340)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    private var slopeOverlayControl: some View {
+        Button {
+            showSlopePopover = true
+        } label: {
+            Label("Pentes", systemImage: "triangle.fill")
+                .foregroundStyle(slopeOverlayOpacity > 0 ? .orange : .secondary)
+        }
+        .controlSize(.small)
+        .help("Superposer la carte des pentes IGN")
+        .popover(isPresented: $showSlopePopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Carte des pentes IGN").font(.headline)
+                HStack(spacing: 8) {
+                    Image(systemName: "triangle").foregroundStyle(.secondary)
+                    Slider(value: $slopeOverlayOpacity, in: 0...1)
+                    Text("\(Int((slopeOverlayOpacity * 100).rounded())) %")
+                        .font(.caption.monospacedDigit()).frame(width: 38, alignment: .trailing)
+                }
+                Divider()
+                ForEach([SlopeBand.d30_35, .d35_40, .d40_45, .above45], id: \.label) { band in
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(band.color.map { Color(nsColor: $0) } ?? .clear)
+                            .frame(width: 12, height: 12)
+                        Text(band.label).font(.caption)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(width: 230)
         }
     }
 
@@ -1010,6 +1047,7 @@ private struct ActivityMapCard: View {
     @Binding var layer: MapLayer
     let highlight: CLLocationCoordinate2D?
     let photos: [PhotoMapItem]
+    var slopeOverlayOpacity: Double = 0
     let onSelectPhoto: (String) -> Void
 
     @State private var tracks: [TrackOverlayInput] = []
@@ -1022,7 +1060,7 @@ private struct ActivityMapCard: View {
             } else if tracks.isEmpty {
                 ContentUnavailableView("Pas de tracé", systemImage: "map", description: Text("La trace ne contient pas de coordonnées."))
             } else {
-                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, photos: photos, onSelectPhoto: onSelectPhoto)
+                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, photos: photos, slopeOverlayOpacity: slopeOverlayOpacity, onSelectPhoto: onSelectPhoto)
                     .overlay(alignment: .bottomLeading) {
                         if let credit = layer.attribution {
                             Text(credit)
@@ -1033,8 +1071,8 @@ private struct ActivityMapCard: View {
                                 .padding(6)
                         }
                     }
-                    .overlay(alignment: .topTrailing) {
-                        if activityType.isSnow && layer.isIGN { slopeLegend.padding(6) }
+                    .overlay(alignment: .topLeading) {
+                        if slopeOverlayOpacity > 0 { slopeLegend.padding(6) }
                     }
             }
         }
