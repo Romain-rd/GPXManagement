@@ -413,12 +413,13 @@ struct ActivityDetailView: View {
             onSelectPhoto: openPhoto
         )
         .overlay(alignment: .topLeading) { fsControlBar }
+        .overlay(alignment: .topTrailing) { fsQuitButton }
         .overlay(alignment: .bottom) { if showFsProfile { fsProfilePanel } }
         .background(Color.black)
         .ignoresSafeArea()
     }
 
-    /// Barre de contrôles du plein écran (en haut-gauche, dégagée des pastilles de la fenêtre).
+    /// Barre de contrôles du plein écran (sous la barre de titre, pour ne pas chevaucher titre/pastilles).
     private var fsControlBar: some View {
         HStack(spacing: 8) {
             LayerPicker(layer: mapLayerBinding)
@@ -433,14 +434,18 @@ struct ActivityDetailView: View {
                     .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain).help(showFsProfile ? "Masquer le profil" : "Afficher le profil")
-            Button { fullscreenMap = false } label: {
-                Label("Quitter", systemImage: "arrow.down.right.and.arrow.up.left")
-                    .padding(.horizontal, 8).padding(.vertical, 6)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain).keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
         }
-        .padding(.top, 8).padding(.trailing, 12).padding(.leading, 78)
+        .padding(.top, 44).padding(.leading, 12)
+    }
+
+    private var fsQuitButton: some View {
+        Button { fullscreenMap = false } label: {
+            Label("Quitter", systemImage: "arrow.down.right.and.arrow.up.left")
+                .padding(.horizontal, 8).padding(.vertical, 6)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain).keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
+        .padding(.top, 8).padding(.trailing, 12)
     }
 
     /// Profil en surimpression discrète, navigable (survol → marqueur sur la carte), à hauteur réglable.
