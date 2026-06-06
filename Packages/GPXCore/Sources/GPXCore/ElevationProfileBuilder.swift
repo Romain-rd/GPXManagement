@@ -50,6 +50,23 @@ public enum ElevationProfileBuilder {
         return profile
     }
 
+    /// Profil « mouvement » construit sur TOUS les points (sans exiger d'altitude) : distance/temps/coordonnées.
+    /// Sert au profil de vitesse pour les activités sans altitude (ex. voile). Altitude=0 et pente=0.
+    public static func buildMotion(points: [TrackPoint]) -> [ElevationProfilePoint] {
+        guard points.count >= 2 else { return [] }
+        var result: [ElevationProfilePoint] = []
+        result.reserveCapacity(points.count)
+        var dist = 0.0
+        for i in 0..<points.count {
+            if i > 0 {
+                dist += haversine(lat1: points[i - 1].latitude, lon1: points[i - 1].longitude, lat2: points[i].latitude, lon2: points[i].longitude)
+            }
+            let p = points[i]
+            result.append(ElevationProfilePoint(distanceFromStart: dist, altitude: p.altitude ?? 0, slope: 0, timestamp: p.timestamp, heartRate: p.heartRate, latitude: p.latitude, longitude: p.longitude))
+        }
+        return result
+    }
+
     private static let movingSpeedThreshold: Double = 0.5
 
     /// Temps cumulé en mouvement vs à l'arrêt, calculé sur le profil non décimé.

@@ -133,6 +133,23 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertEqual(s.category(for: -5), .descent)
     }
 
+    func testBuildMotionWithoutAltitude() {
+        // Points sans altitude (ex. voile) : profil mouvement avec distance cumulée, altitude/pente à 0.
+        let pts = [
+            TrackPoint(latitude: 45.0, longitude: 6.0, altitude: nil, timestamp: Date(timeIntervalSince1970: 0)),
+            TrackPoint(latitude: 45.0, longitude: 6.001, altitude: nil, timestamp: Date(timeIntervalSince1970: 10)),
+            TrackPoint(latitude: 45.0, longitude: 6.002, altitude: nil, timestamp: Date(timeIntervalSince1970: 20))
+        ]
+        XCTAssertTrue(ElevationProfileBuilder.build(points: pts).isEmpty) // build classique exige l'altitude
+        let motion = ElevationProfileBuilder.buildMotion(points: pts)
+        XCTAssertEqual(motion.count, 3)
+        XCTAssertEqual(motion[0].distanceFromStart, 0, accuracy: 0.01)
+        XCTAssertGreaterThan(motion[2].distanceFromStart, motion[1].distanceFromStart)
+        XCTAssertEqual(motion[1].altitude, 0)
+        XCTAssertEqual(motion[1].slope, 0)
+        XCTAssertNotNil(motion[1].timestamp)
+    }
+
     func testSlopeScaleCategories() {
         XCTAssertEqual(SlopeScale.percent.categories, [.gentle, .moderate, .steep, .veryStep, .descent])
     }

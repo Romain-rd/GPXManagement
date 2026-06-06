@@ -19,7 +19,14 @@ enum ProfileMode: String, CaseIterable, Identifiable {
     case distance
     case time
     var id: String { rawValue }
-    var label: String { self == .distance ? "Distance / pente" : "Temps / mouvement" }
+    var label: String { self == .distance ? "Distance" : "Temps" }
+}
+
+enum ProfileMetric: String, CaseIterable, Identifiable {
+    case altitude
+    case speed
+    var id: String { rawValue }
+    var label: String { self == .altitude ? "Altitude" : "Vitesse" }
 }
 
 private enum MovementState {
@@ -34,14 +41,14 @@ private enum MovementState {
 private struct AreaPoint: Identifiable {
     let id: Int
     let x: Double
-    let altitude: Double
+    let y: Double
     let runKey: String
 }
 
 private struct ProfileLinePoint: Identifiable {
     let id: Int
     let x: Double
-    let altitude: Double
+    let y: Double
 }
 
 /// Point de la courbe de fréquence cardiaque. `plotY` est la FC normalisée sur l'échelle d'altitude
@@ -58,6 +65,8 @@ private struct HoverSample {
     let distanceKm: Double
     let altitude: Double
     let slope: Double
+    let speed: Double      // vitesse en unité d'affichage (km/h ou nœuds)
+    let plotY: Double      // valeur tracée sur l'axe Y (altitude ou vitesse)
     let hr: Double?
     let elapsed: TimeInterval?
     let clock: Date?
@@ -70,12 +79,22 @@ struct ElevationProfileTabView: View {
     let activityType: ActivityType
     let repository: CoreDataActivityRepository
     @Binding var mode: ProfileMode
+    @Binding var metric: ProfileMetric
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
 
     private var slopeScale: SlopeScale { activityType.slopeScale }
+    private var speedInKnots: Bool { activityType == .sailing }
+    private var speedUnitLabel: String { speedInKnots ? "nœuds" : "km/h" }
+    private func speedDisplay(mps: Double) -> Double {
+        let kmh = mps * 3.6
+        return speedInKnots ? kmh / 1.852 : kmh
+    }
 
     @State private var trimmedProfile: [ElevationProfilePoint] = []
     @State private var hasAltitude = false
+    @State private var hasSpeed = false
+    @State private var maxSpeedDisplay: Double = 0
+    @State private var avgSpeedDisplay: Double = 0
 
     @State private var areaPoints: [AreaPoint] = []
     @State private var linePoints: [ProfileLinePoint] = []
@@ -117,15 +136,20 @@ struct ElevationProfileTabView: View {
                 ProgressView("Chargement du profil…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let loadError {
                 ContentUnavailableView("Profil indisponible", systemImage: "exclamationmark.triangle", description: Text(loadError))
-            } else if !hasAltitude {
+            } else if metric == .altitude && !hasAltitude {
                 ContentUnavailableView("Pas d'altitude", systemImage: "chart.xyaxis.line", description: Text("La trace ne contient pas de données d'altitude."))
+            } else if metric == .speed && !hasSpeed {
+                ContentUnavailableView("Pas de vitesse", systemImage: "speedometer", description: Text("La trace n'a pas d'horodatage exploitable pour calculer la vitesse."))
             } else {
                 profileContent
             }
         }
         .task(id: activityId) { await load() }
-        .onChange(of: mode) { _, newMode in
-            buildChartData(from: trimmedProfile, mode: newMode)
+        .onChange(of: mode) { _, _ in
+            buildChartData(from: trimmedProfile, mode: mode)
+        }
+        .onChange(of: metric) { _, _ in
+            buildChartData(from: trimmedProfile, mode: mode)
         }
     }
 
@@ -142,9 +166,11 @@ struct ElevationProfileTabView: View {
                 chart
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.horizontal)
-                legend
-                    .padding(.horizontal)
-                    .padding(.bottom, 4)
+                if metric == .altitude {
+                    legend
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
+                }
             }
         }
     }
@@ -212,10 +238,15 @@ struct ElevationProfileTabView: View {
     private var statsBar: some View {
         HStack(spacing: 24) {
             statBlock("Distance", String(format: "%.2f km", totalKm))
-            statBlock("Alt min", "\(Int(altMin.rounded())) m")
-            statBlock("Alt max", "\(Int(altMax.rounded())) m")
-            statBlock("D+", "\(Int(dPlus.rounded())) m")
-            statBlock("D−", "\(Int(dMinus.rounded())) m")
+            if metric == .speed {
+                statBlock("Vitesse moy", String(format: "%.1f %@", avgSpeedDisplay, speedUnitLabel))
+                statBlock("Vitesse max", String(format: "%.1f %@", maxSpeedDisplay, speedUnitLabel))
+            } else {
+                statBlock("Alt min", "\(Int(altMin.rounded())) m")
+                statBlock("Alt max", "\(Int(altMax.rounded())) m")
+                statBlock("D+", "\(Int(dPlus.rounded())) m")
+                statBlock("D−", "\(Int(dMinus.rounded())) m")
+            }
             Spacer()
         }
     }
@@ -232,7 +263,7 @@ struct ElevationProfileTabView: View {
             ForEach(areaPoints) { p in
                 AreaMark(
                     x: .value("x", p.x),
-                    y: .value("Altitude", p.altitude),
+                    y: .value("y", p.y),
                     stacking: .unstacked
                 )
                 .foregroundStyle(by: .value("Segment", p.runKey))
@@ -241,7 +272,7 @@ struct ElevationProfileTabView: View {
             ForEach(linePoints) { p in
                 LineMark(
                     x: .value("x", p.x),
-                    y: .value("Altitude", p.altitude)
+                    y: .value("y", p.y)
                 )
                 .foregroundStyle(.primary)
                 .lineStyle(StrokeStyle(lineWidth: 1.2))
@@ -266,10 +297,10 @@ struct ElevationProfileTabView: View {
                     .annotation(position: .top, spacing: 4, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
                         hoverTooltip(s)
                     }
-                RuleMark(y: .value("Altitude", s.altitude))
+                RuleMark(y: .value("y", s.plotY))
                     .foregroundStyle(.secondary.opacity(0.3))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                PointMark(x: .value("x", s.x), y: .value("Altitude", s.altitude))
+                PointMark(x: .value("x", s.x), y: .value("y", s.plotY))
                     .foregroundStyle(.primary)
                     .symbolSize(45)
                 if showHR, let hr = s.hr, hr > 0 {
@@ -282,7 +313,7 @@ struct ElevationProfileTabView: View {
         .chartForegroundStyleScale(domain: scaleDomain, range: scaleRange)
         .chartLegend(.hidden)
         .chartXAxisLabel(xAxisLabel)
-        .chartYAxisLabel("Altitude (m)")
+        .chartYAxisLabel(metric == .speed ? "Vitesse (\(speedUnitLabel))" : "Altitude (m)")
         .chartYScale(domain: 0...max(yDomainHi, 1))
         .chartYAxis {
             AxisMarks(position: .leading)
@@ -323,11 +354,16 @@ struct ElevationProfileTabView: View {
     private func hoverTooltip(_ s: HoverSample) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(hoverHeader(s)).font(.caption2.bold())
-            tooltipRow("Altitude", "\(Int(s.altitude.rounded())) m", .primary)
-            if mode == .distance {
-                let cat = slopeScale.category(for: s.slope)
-                tooltipRow("Pente", String(format: "%+.0f %%", s.slope), cat.color)
+            if metric == .speed {
+                tooltipRow("Vitesse", String(format: "%.1f %@", s.speed, speedUnitLabel), .teal)
             } else {
+                tooltipRow("Altitude", "\(Int(s.altitude.rounded())) m", .primary)
+                if mode == .distance {
+                    let cat = slopeScale.category(for: s.slope)
+                    tooltipRow("Pente", String(format: "%+.0f %%", s.slope), cat.color)
+                }
+            }
+            if mode == .time {
                 if let clock = s.clock {
                     tooltipRow("Heure", Self.clockFormatter.string(from: clock), .secondary)
                 }
@@ -409,15 +445,26 @@ struct ElevationProfileTabView: View {
             }
             let trackPoints = try TrackPointCodec.decode(data)
             let raw = ElevationProfileBuilder.build(points: trackPoints)
-            let trimmed = ElevationProfileBuilder.decimate(raw, tolerance: 1.0, maxPoints: 5_000)
+            hasAltitude = !raw.isEmpty
+            // Sans altitude (ex. voile), on retombe sur un profil « mouvement » pour la vitesse.
+            let working = raw.isEmpty ? ElevationProfileBuilder.buildMotion(points: trackPoints) : raw
+            let trimmed = hasAltitude
+                ? ElevationProfileBuilder.decimate(working, tolerance: 1.0, maxPoints: 5_000)
+                : Self.capped(working, maxN: 5_000)
             let summary = computeAltStats(profile: raw)
 
-            hasAltitude = !raw.isEmpty
             trimmedProfile = trimmed
+            hasSpeed = trimmed.compactMap(\.timestamp).count >= 2
             slopeTimes = ElevationProfileBuilder.timeByCategory(raw, scale: slopeScale)
-            let movement = ElevationProfileBuilder.movementTime(raw)
+            let movement = ElevationProfileBuilder.movementTime(working)
             movingTime = movement.moving
             pausedTime = movement.paused
+
+            let speeds = speedSeries(trimmed)
+            maxSpeedDisplay = speeds.max() ?? 0
+            let totalMeters = trimmed.last?.distanceFromStart ?? 0
+            avgSpeedDisplay = movingTime > 0 ? speedDisplay(mps: totalMeters / movingTime) : 0
+
             buildChartData(from: trimmed, mode: mode)
 
             altMin = summary.altMin
@@ -433,8 +480,41 @@ struct ElevationProfileTabView: View {
     private func resetData() {
         areaPoints = []; linePoints = []; styleScale = [:]
         totalKm = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0
-        hasAltitude = false; trimmedProfile = []; hrLine = []; hoverSamples = []; selectedIndex = nil
+        hasAltitude = false; hasSpeed = false; maxSpeedDisplay = 0; avgSpeedDisplay = 0
+        trimmedProfile = []; hrLine = []; hoverSamples = []; selectedIndex = nil
         highlightedCoordinate = nil
+    }
+
+    /// Sous-échantillonnage uniforme (pour les profils sans altitude, où Douglas-Peucker ne convient pas).
+    private static func capped(_ a: [ElevationProfilePoint], maxN: Int) -> [ElevationProfilePoint] {
+        guard a.count > maxN else { return a }
+        let step = Int((Double(a.count) / Double(maxN)).rounded(.up))
+        var r = stride(from: 0, to: a.count, by: step).map { a[$0] }
+        if let last = a.last, r.last?.distanceFromStart != last.distanceFromStart { r.append(last) }
+        return r
+    }
+
+    /// Vitesse (unité d'affichage) lissée par point, dérivée de distance/temps. 0 si pas d'horodatage exploitable.
+    private func speedSeries(_ profile: [ElevationProfilePoint]) -> [Double] {
+        let n = profile.count
+        guard n >= 2 else { return Array(repeating: 0, count: n) }
+        var raw = [Double](repeating: 0, count: n)
+        for i in 1..<n {
+            guard let t0 = profile[i - 1].timestamp, let t1 = profile[i].timestamp else { raw[i] = raw[i - 1]; continue }
+            let dt = t1.timeIntervalSince(t0)
+            let dd = profile[i].distanceFromStart - profile[i - 1].distanceFromStart
+            raw[i] = (dt > 0 && dt <= 600) ? dd / dt : raw[i - 1] // ignore les gros trous (>10 min)
+        }
+        raw[0] = n > 1 ? raw[1] : 0
+        let w = 5
+        var smoothed = [Double](repeating: 0, count: n)
+        for i in 0..<n {
+            let lo = max(0, i - w / 2), hi = min(n - 1, i + w / 2)
+            var sum = 0.0
+            for k in lo...hi { sum += raw[k] }
+            smoothed[i] = sum / Double(hi - lo + 1)
+        }
+        return smoothed.map { speedDisplay(mps: $0) }
     }
 
     /// Construit les données du graphique selon le mode : axe distance + couleur de pente, ou axe temps
@@ -445,7 +525,14 @@ struct ElevationProfileTabView: View {
             return
         }
         totalKm = (profile.last?.distanceFromStart ?? 0) / 1000
-        yDomainHi = (profile.map(\.altitude).max() ?? 1) * 1.05
+
+        let speeds: [Double] = metric == .speed ? speedSeries(profile) : []
+        func yValue(_ i: Int) -> Double {
+            metric == .speed ? (speeds.indices.contains(i) ? speeds[i] : 0) : profile[i].altitude
+        }
+        yDomainHi = metric == .speed
+            ? (speeds.max() ?? 1) * 1.1
+            : (profile.map(\.altitude).max() ?? 1) * 1.05
 
         let xs: [Double]
         switch mode {
@@ -471,6 +558,7 @@ struct ElevationProfileTabView: View {
         }
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
+            if metric == .speed { return ("Vitesse", .teal) } // pas de pente en mode vitesse → une seule aire colorée
             switch mode {
             case .distance:
                 let c = slopeScale.category(for: profile[i].slope)
@@ -482,7 +570,7 @@ struct ElevationProfileTabView: View {
         }
 
         linePoints = profile.enumerated().map { idx, p in
-            ProfileLinePoint(id: idx, x: xs[idx], altitude: p.altitude)
+            ProfileLinePoint(id: idx, x: xs[idx], y: yValue(idx))
         }
 
         var points: [AreaPoint] = []
@@ -499,7 +587,7 @@ struct ElevationProfileTabView: View {
             let key = String(format: "%05d", runIndex)
             scale[key] = style.color
             for k in s...(e + 1) {
-                points.append(AreaPoint(id: rowId, x: xs[k], altitude: profile[k].altitude, runKey: key))
+                points.append(AreaPoint(id: rowId, x: xs[k], y: yValue(k), runKey: key))
                 rowId += 1
             }
             runIndex += 1
@@ -514,7 +602,8 @@ struct ElevationProfileTabView: View {
             let moving: Bool? = (mode == .time) ? (movementState(profile, at: i) == .moving) : nil
             let coordinate: CLLocationCoordinate2D? = (p.latitude != nil && p.longitude != nil)
                 ? CLLocationCoordinate2D(latitude: p.latitude!, longitude: p.longitude!) : nil
-            return HoverSample(x: xs[i], distanceKm: p.distanceFromStart / 1000, altitude: p.altitude, slope: p.slope, hr: p.heartRate, elapsed: elapsed, clock: p.timestamp, moving: moving, coordinate: coordinate)
+            let spd = speeds.indices.contains(i) ? speeds[i] : 0
+            return HoverSample(x: xs[i], distanceKm: p.distanceFromStart / 1000, altitude: p.altitude, slope: p.slope, speed: spd, plotY: yValue(i), hr: p.heartRate, elapsed: elapsed, clock: p.timestamp, moving: moving, coordinate: coordinate)
         }
         selectedIndex = nil
         highlightedCoordinate = nil

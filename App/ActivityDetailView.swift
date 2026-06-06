@@ -18,6 +18,7 @@ struct ActivityDetailView: View {
     @State private var exportError: String?
     @State private var isExportingPDF = false
     @State private var profileMode: ProfileMode = .distance
+    @State private var profileMetric: ProfileMetric = .altitude
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
     @State private var photoAssets: [PHAsset] = []
     @State private var photoMapItems: [PhotoMapItem] = []
@@ -297,9 +298,16 @@ struct ActivityDetailView: View {
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("Profil altimétrique", systemImage: "chart.xyaxis.line")
+                Label(profileMetric == .speed ? "Profil de vitesse" : "Profil altimétrique",
+                      systemImage: profileMetric == .speed ? "speedometer" : "chart.xyaxis.line")
                     .font(.headline)
                 Spacer()
+                Picker("", selection: $profileMetric) {
+                    ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
                 Picker("", selection: $profileMode) {
                     ForEach(ProfileMode.allCases) { m in
                         Text(m.label).tag(m)
@@ -309,9 +317,12 @@ struct ActivityDetailView: View {
                 .labelsHidden()
                 .fixedSize()
             }
-            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, highlightedCoordinate: $highlightedCoordinate)
+            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
                 .frame(height: 280)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+        }
+        .onChange(of: activity.id, initial: true) {
+            profileMetric = activity.activityType == .sailing ? .speed : .altitude
         }
     }
 
