@@ -36,6 +36,7 @@ struct ActivityDetailView: View {
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
+    @State private var videoPublish = false
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
@@ -730,6 +731,15 @@ struct ActivityDetailView: View {
                 Text("Fond de carte").font(.callout)
                 LayerPicker(layer: videoMapLayerBinding)
                 Spacer()
+                Text("Destination").font(.callout)
+                Picker("", selection: $videoPublish) {
+                    Text("Fichier").tag(false)
+                    Text("GPXManagement.net").tag(true)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+            }
+            if videoPublish && !BunnyStorageService.isConfigured {
+                Text("⚠︎ Bunny non configuré (renseigner Secrets.xcconfig).").font(.caption2).foregroundStyle(.orange)
             }
             Text("Glissez les zones pour les déplacer, la poignée (coin) pour les redimensionner. Carton titre+date au début, résumé à la fin.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -738,12 +748,13 @@ struct ActivityDetailView: View {
                 Button("Réinitialiser") { currentLayout = VideoLayout.defaultLayout(for: videoFormat) }
                 Spacer()
                 Button("Annuler") { showVideoOptions = false }
-                Button("Créer la vidéo") {
+                Button(videoPublish ? "Créer et publier" : "Créer la vidéo") {
                     showVideoOptions = false
                     persistCurrentLayout()
-                    exportVideo()
+                    exportVideo(publish: videoPublish)
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(videoPublish && !BunnyStorageService.isConfigured)
             }
         }
         .padding(20)
@@ -825,16 +836,22 @@ struct ActivityDetailView: View {
         return lines
     }
 
-    private func exportVideo() {
+    private func exportVideo(publish: Bool) {
         let quality = VideoQuality(rawValue: videoQualityRaw) ?? .hd720
         let dims = videoFormat.dimensions(base: quality.base)
         let layout = currentLayout
 
-        let panel = NSSavePanel()
-        panel.title = "Enregistrer la vidéo du parcours"
-        panel.allowedContentTypes = [.mpeg4Movie]
-        panel.nameFieldStringValue = activity.title.replacingOccurrences(of: "/", with: "-") + ".mp4"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let url: URL
+        if publish {
+            url = FileManager.default.temporaryDirectory.appendingPathComponent("film-\(UUID().uuidString).mp4")
+        } else {
+            let panel = NSSavePanel()
+            panel.title = "Enregistrer la vidéo du parcours"
+            panel.allowedContentTypes = [.mpeg4Movie]
+            panel.nameFieldStringValue = activity.title.replacingOccurrences(of: "/", with: "-") + ".mp4"
+            guard panel.runModal() == .OK, let chosen = panel.url else { return }
+            url = chosen
+        }
 
         let config = VideoConfig(
             width: dims.width,
@@ -877,13 +894,64 @@ struct ActivityDetailView: View {
 
             do {
                 try await TrackVideoExporter.export(points: points, media: media, config: config, to: url) { fraction in
-                    Task { @MainActor in videoProgress = fraction }
+                    Task { @MainActor in videoProgress = publish ? fraction * 0.5 : fraction }
                 }
-                NSWorkspace.shared.activateFileViewerSelecting([url])
+                if publish {
+                    await publishVideo(localURL: url)
+                    try? FileManager.default.removeItem(at: url)
+                } else {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
             } catch {
                 exportError = error.localizedDescription
             }
         }
+    }
+
+    /// Upload le film sur Bunny Storage + une page wrapper `<video>`, puis ouvre/copie l'URL publique.
+    private func publishVideo(localURL: URL) async {
+        guard let data = try? Data(contentsOf: localURL) else { exportError = "Vidéo introuvable après le rendu."; return }
+        let folder = "films/\(activity.id.uuidString.lowercased())"
+        let html = Self.videoPageHTML(title: activity.title, dateText: Self.formatDate(activity.startDate))
+        let files: [String: Data] = ["film.mp4": data, "index.html": Data(html.utf8)]
+        do {
+            try await BunnyStorageService.publish(files: files, folder: folder) { f, s in
+                Task { @MainActor in videoProgress = 0.5 + f * 0.5 }
+            }
+            let urlStr = "https://www.gpxmanagement.net/\(folder)/"
+            if let u = URL(string: urlStr) {
+                NSWorkspace.shared.open(u)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(urlStr, forType: .string)
+            }
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    /// Page HTML minimale hébergeant le film (lecteur natif).
+    private static func videoPageHTML(title: String, dateText: String) -> String {
+        let safe = title.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+        return """
+        <!doctype html><html lang="fr"><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(safe)</title>
+        <style>
+          :root { color-scheme: dark; }
+          body { margin:0; background:#0b0b0c; color:#eee; font:15px -apple-system,system-ui,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+          header { padding:14px 18px; }
+          h1 { font-size:18px; margin:0; }
+          .date { color:#9a9a9e; font-size:13px; margin-top:2px; }
+          main { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+          video { max-width:100%; max-height:84vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.5); background:#000; }
+          footer { padding:10px 18px; color:#6a6a6e; font-size:12px; }
+        </style></head>
+        <body>
+          <header><h1>\(safe)</h1><div class="date">\(safe.isEmpty ? "" : dateText)</div></header>
+          <main><video src="film.mp4" controls playsinline preload="metadata"></video></main>
+          <footer>GPXManagement</footer>
+        </body></html>
+        """
     }
 
     /// Construit les vignettes à placer sur la carte (coordonnée GPS + miniature) depuis les photos trouvées.

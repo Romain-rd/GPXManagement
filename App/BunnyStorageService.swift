@@ -121,6 +121,8 @@ enum BunnyStorageService {
         case "jpg", "jpeg": return "image/jpeg"
         case "css":  return "text/css"
         case "js":   return "application/javascript"
+        case "mp4":  return "video/mp4"
+        case "mov":  return "video/quicktime"
         default:     return "application/octet-stream"
         }
     }
