@@ -1434,8 +1434,12 @@ enum PhotoLibraryService {
         let result = PHAsset.fetchAssets(with: options)
         var out: [PHAsset] = []
         result.enumerateObjects { asset, _, _ in
-            guard let location = asset.location else { return }
-            if samples.contains(where: { $0.distance(from: location) <= maxDistance }) {
+            if let location = asset.location {
+                if samples.contains(where: { $0.distance(from: location) <= maxDistance }) {
+                    out.append(asset)
+                }
+            } else {
+                // Média sans géolocalisation (fréquent pour les vidéos) : retenu sur le seul critère temporel.
                 out.append(asset)
             }
         }
