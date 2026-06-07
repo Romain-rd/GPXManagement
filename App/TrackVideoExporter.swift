@@ -419,7 +419,7 @@ enum TrackVideoExporter {
 
         // Carton de fin (titre + résumé des métriques) — optionnel.
         if config.showOutro {
-            let outro = drawCard(background: background, title: config.title, subtitle: nil, lines: config.summary, width: width, height: height, scale: scale)
+            let outro = drawCard(background: background, title: config.title, subtitle: nil, lines: config.summary, width: width, height: height, scale: scale, footer: "Réalisé avec GPXManagement.net")
             for _ in 0..<Int(outroSeconds * Double(fps)) { autoreleasepool { append(outro) } }
         }
 
@@ -699,7 +699,7 @@ enum TrackVideoExporter {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    private static func drawCard(background: NSImage, title: String, subtitle: String?, lines: [(label: String, value: String)], width: Int, height: Int, scale: Double) -> CGImage {
+    private static func drawCard(background: NSImage, title: String, subtitle: String?, lines: [(label: String, value: String)], width: Int, height: Int, scale: Double, footer: String? = nil) -> CGImage {
         let rep = bitmap(width: width, height: height)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -772,6 +772,12 @@ enum TrackVideoExporter {
                 labelStr.draw(at: NSPoint(x: cellX, y: cellTop - labelStr.size().height - 4 * scale))
                 valueStr.draw(at: NSPoint(x: cellX, y: cellTop - labelStr.size().height - valueStr.size().height - 8 * scale))
             }
+        }
+        // Crédit (dernier plan) — discret, centré en bas de l'écran.
+        if let footer, !footer.isEmpty {
+            let footFont = NSFont.systemFont(ofSize: 20 * scale, weight: .medium)
+            let footStr = NSAttributedString(string: footer, attributes: [.font: footFont, .foregroundColor: NSColor(white: 0.85, alpha: 1)])
+            footStr.draw(at: NSPoint(x: W / 2 - footStr.size().width / 2, y: 46 * scale))
         }
         NSGraphicsContext.restoreGraphicsState()
         return rep.cgImage!

@@ -41,6 +41,7 @@ struct ActivityDetailView: View {
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
     @State private var publishedURL: String?
+    @State private var filmPublishedURL: String?
     @State private var publishConfigJSON: String?
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
@@ -82,6 +83,7 @@ struct ActivityDetailView: View {
                         Divider()
                         metricsGrid
                         publishedLinkSection
+                        filmLinkSection
                         mapSection
                         profileSection
                         photosSection
@@ -250,6 +252,41 @@ struct ActivityDetailView: View {
         guard !trimmed.isEmpty else { titleDraft = activity.title; return }
         guard trimmed != activity.title else { return }
         Task { await listVM.updateTitle(id: activity.id, title: trimmed) }
+    }
+
+    @ViewBuilder
+    private var filmLinkSection: some View {
+        if let urlString = filmPublishedURL, let url = URL(string: urlString) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "film").foregroundStyle(.tint)
+                    Text("Film publié").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        videoPublish = true
+                        showVideoOptions = true
+                    } label: {
+                        Label("Recréer", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(isExportingVideo || !BunnyStorageService.isConfigured)
+                    .help("Recréer et republier le film")
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Ouvrir", systemImage: "arrow.up.right.square") }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(urlString, forType: .string)
+                    } label: { Image(systemName: "doc.on.doc") }
+                    .help("Copier le lien")
+                }
+                .controlSize(.small)
+                Link(destination: url) {
+                    Text(urlString).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.callout)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
+        }
     }
 
     @ViewBuilder
@@ -919,6 +956,8 @@ struct ActivityDetailView: View {
                 Task { @MainActor in videoProgress = 0.5 + f * 0.5 }
             }
             let urlStr = "https://www.gpxmanagement.net/\(folder)/"
+            try? await repository.setFilmPublished(id: activity.id, url: urlStr)
+            filmPublishedURL = urlStr
             if let u = URL(string: urlStr) {
                 NSWorkspace.shared.open(u)
                 NSPasteboard.general.clearContents()
@@ -1147,6 +1186,7 @@ struct ActivityDetailView: View {
     private func loadPublishState() async {
         publishedURL = try? await repository.fetchWebPublishedURL(id: activity.id)
         publishConfigJSON = try? await repository.fetchWebPublishConfig(id: activity.id)
+        filmPublishedURL = try? await repository.fetchFilmPublishedURL(id: activity.id)
     }
 
     /// Republie avec les paramètres de la publication d'origine (même UUID via le lien stocké).

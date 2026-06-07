@@ -26,6 +26,8 @@ struct RaidDetailView: View {
     @State private var editingParticipant: RaidParticipant?
     @State private var isAddingParticipant = false
     @State private var showFilmOptions = false
+    @State private var filmPublish = false
+    @State private var filmPublishedURL: String?
     @State private var isExportingFilm = false
     @State private var filmProgress: Double = 0
     @State private var filmStatus = ""
@@ -87,6 +89,7 @@ struct RaidDetailView: View {
                 header
                 statsGrid
                 publishedLinkSection
+                filmLinkSection
                 participantsSection
                 mapCard
                 stepsSection
@@ -178,6 +181,41 @@ struct RaidDetailView: View {
     }
 
     // MARK: Publication web
+
+    @ViewBuilder
+    private var filmLinkSection: some View {
+        if let urlString = filmPublishedURL, let url = URL(string: urlString) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "film").foregroundStyle(.tint)
+                    Text("Film publié").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        filmPublish = true
+                        showFilmOptions = true
+                    } label: {
+                        Label("Recréer", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(isExportingFilm || !BunnyStorageService.isConfigured)
+                    .help("Recréer et republier le film")
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Ouvrir", systemImage: "arrow.up.right.square") }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(urlString, forType: .string)
+                    } label: { Image(systemName: "doc.on.doc") }
+                    .help("Copier le lien")
+                }
+                .controlSize(.small)
+                Link(destination: url) {
+                    Text(urlString).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.callout)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
+        }
+    }
 
     @ViewBuilder
     private var publishedLinkSection: some View {
@@ -273,6 +311,7 @@ struct RaidDetailView: View {
     private func loadPublishState() async {
         publishedURL = try? await repository.fetchRaidWebPublishedURL(id: raid.id)
         publishConfigJSON = try? await repository.fetchRaidWebPublishConfig(id: raid.id)
+        filmPublishedURL = try? await repository.fetchRaidFilmPublishedURL(id: raid.id)
     }
 
     private func exportRaidWeb() async {
@@ -322,7 +361,7 @@ struct RaidDetailView: View {
             if let data = try? await repository.fetchTrackData(id: m.id), !data.isEmpty, let pts = try? TrackPointCodec.decode(data) {
                 coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
             }
-            result[m.id] = PhotoLibraryService.photos(start: m.startDate.addingTimeInterval(-900), end: m.endDate.addingTimeInterval(900), near: coords, maxDistance: 300)
+            result[m.id] = PhotoLibraryService.photos(start: m.startDate.addingTimeInterval(-1800), end: m.endDate.addingTimeInterval(1800), near: coords, maxDistance: 300)
                 .filter { !hidden.contains($0.localIdentifier) }
         }
         return result
@@ -745,13 +784,26 @@ struct RaidDetailView: View {
             }
             Toggle("Profil + fréquence cardiaque", isOn: $raidVideoHeartRateOn)
             Toggle("Carton de titre par étape", isOn: $raidVideoStageCardsOn)
+            HStack(spacing: 8) {
+                Text("Destination")
+                Picker("", selection: $filmPublish) {
+                    Text("Fichier").tag(false)
+                    Text("GPXManagement.net").tag(true)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                if filmPublish && !BunnyStorageService.isConfigured {
+                    Text("⚠︎ Bunny non configuré").font(.caption2).foregroundStyle(.orange)
+                }
+                Spacer()
+            }
             Text("Les photos et vidéos géolocalisées proches de chaque étape sont ajoutées automatiquement. L'intro et la fin reprennent la couverture et les participants.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button("Annuler") { showFilmOptions = false }
-                Button("Générer") { showFilmOptions = false; generateRaidFilm() }
+                Button(filmPublish ? "Générer et publier" : "Générer") { showFilmOptions = false; generateRaidFilm(publish: filmPublish) }
                     .buttonStyle(.borderedProminent)
+                    .disabled(filmPublish && !BunnyStorageService.isConfigured)
             }
         }
         .padding(20)
@@ -770,18 +822,24 @@ struct RaidDetailView: View {
         ]
     }
 
-    private func generateRaidFilm() {
+    private func generateRaidFilm(publish: Bool) {
         let quality = VideoQuality(rawValue: raidVideoQualityRaw) ?? .hd720
         let format = VideoFormat(rawValue: raidVideoFormatRaw) ?? .landscape
         let dims = format.dimensions(base: quality.base)
         let mapLayer = MapLayer(rawValue: raidVideoMapLayerRaw) ?? .ignScan25
         let transition = MediaTransition(rawValue: raidVideoTransitionRaw) ?? .fade
 
-        let panel = NSSavePanel()
-        panel.title = "Enregistrer le film du raid"
-        panel.allowedContentTypes = [.mpeg4Movie]
-        panel.nameFieldStringValue = raid.name.replacingOccurrences(of: "/", with: "-") + ".mp4"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let url: URL
+        if publish {
+            url = FileManager.default.temporaryDirectory.appendingPathComponent("raid-film-\(UUID().uuidString).mp4")
+        } else {
+            let panel = NSSavePanel()
+            panel.title = "Enregistrer le film du raid"
+            panel.allowedContentTypes = [.mpeg4Movie]
+            panel.nameFieldStringValue = raid.name.replacingOccurrences(of: "/", with: "-") + ".mp4"
+            guard panel.runModal() == .OK, let chosen = panel.url else { return }
+            url = chosen
+        }
 
         let memberList = members
         let cover = draft.coverImageData.flatMap { NSImage(data: $0) }
@@ -806,8 +864,8 @@ struct RaidDetailView: View {
                 if status == .authorized || status == .limited {
                     let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
                     let assets = PhotoLibraryService.photos(
-                        start: member.startDate.addingTimeInterval(-900),
-                        end: member.endDate.addingTimeInterval(900),
+                        start: member.startDate.addingTimeInterval(-1800),
+                        end: member.endDate.addingTimeInterval(1800),
                         near: coords, maxDistance: 300
                     )
                     for asset in assets {
@@ -838,13 +896,67 @@ struct RaidDetailView: View {
             filmStatus = "Rendu de la vidéo…"
             do {
                 try await RaidVideoExporter.export(stages: stages, config: config, to: url) { f in
-                    Task { @MainActor in filmProgress = f }
+                    Task { @MainActor in filmProgress = publish ? f * 0.5 : f }
                 }
-                NSWorkspace.shared.activateFileViewerSelecting([url])
+                if publish {
+                    filmStatus = "Publication…"
+                    await publishRaidFilm(localURL: url)
+                    try? FileManager.default.removeItem(at: url)
+                } else {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
             } catch {
                 exportError = error.localizedDescription
             }
         }
+    }
+
+    /// Upload le film de raid sur Bunny Storage + une page wrapper `<video>`, puis ouvre/copie l'URL publique.
+    private func publishRaidFilm(localURL: URL) async {
+        guard let data = try? Data(contentsOf: localURL) else { exportError = "Vidéo introuvable après le rendu."; return }
+        let folder = "films/raid-\(raid.id.uuidString.lowercased())"
+        let html = Self.videoPageHTML(title: raid.name, dateText: dateRangeText ?? "")
+        let files: [String: Data] = ["film.mp4": data, "index.html": Data(html.utf8)]
+        do {
+            try await BunnyStorageService.publish(files: files, folder: folder) { f, s in
+                Task { @MainActor in filmProgress = 0.5 + f * 0.5; filmStatus = s }
+            }
+            let urlStr = "https://www.gpxmanagement.net/\(folder)/"
+            try? await repository.setRaidFilmPublished(id: raid.id, url: urlStr)
+            filmPublishedURL = urlStr
+            if let u = URL(string: urlStr) {
+                NSWorkspace.shared.open(u)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(urlStr, forType: .string)
+            }
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    /// Page HTML minimale hébergeant le film de raid (lecteur natif).
+    private static func videoPageHTML(title: String, dateText: String) -> String {
+        let safe = title.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+        return """
+        <!doctype html><html lang="fr"><head><meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>\(safe)</title>
+        <style>
+          :root { color-scheme: dark; }
+          body { margin:0; background:#0b0b0c; color:#eee; font:15px -apple-system,system-ui,sans-serif; display:flex; flex-direction:column; min-height:100vh; }
+          header { padding:14px 18px; }
+          h1 { font-size:18px; margin:0; }
+          .date { color:#9a9a9e; font-size:13px; margin-top:2px; }
+          main { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+          video { max-width:100%; max-height:84vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.5); background:#000; }
+          footer { padding:10px 18px; color:#6a6a6e; font-size:12px; }
+        </style></head>
+        <body>
+          <header><h1>\(safe)</h1><div class="date">\(dateText)</div></header>
+          <main><video src="film.mp4" controls playsinline preload="metadata"></video></main>
+          <footer>GPXManagement</footer>
+        </body></html>
+        """
     }
 
     private func exportGroupedGPX() {

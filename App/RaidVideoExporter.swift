@@ -200,6 +200,10 @@ enum RaidVideoExporter {
             if !config.participants.isEmpty {
                 drawParticipants(config.participants, baselineY: H * 0.12, width: W, scale: scale)
             }
+            // Crédit (dernier plan) — discret, centré en bas.
+            let footFont = NSFont.systemFont(ofSize: 20 * scale, weight: .medium)
+            let footStr = NSAttributedString(string: "Réalisé avec GPXManagement.net", attributes: [.font: footFont, .foregroundColor: NSColor(white: 0.85, alpha: 1)])
+            footStr.draw(at: NSPoint(x: (W - footStr.size().width) / 2, y: 18 * scale))
         }
     }
 

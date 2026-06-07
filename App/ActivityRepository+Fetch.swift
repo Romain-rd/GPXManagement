@@ -282,6 +282,30 @@ extension CoreDataActivityRepository {
             }
         }
     }
+
+    func fetchFilmPublishedURL(id: UUID) async throws -> String? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "filmPublishedURL") as? String
+        }
+    }
+
+    func setFilmPublished(id: UUID, url: String) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(url, forKey: "filmPublishedURL")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
 }
 
 enum ActivitySummaryMapper {
@@ -402,6 +426,30 @@ extension CoreDataActivityRepository {
             if let object = try context.fetch(fetch).first {
                 object.setValue(url, forKey: "webPublishedURL")
                 object.setValue(configJSON, forKey: "webPublishConfig")
+                object.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
+    func fetchRaidFilmPublishedURL(id: UUID) async throws -> String? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "filmPublishedURL") as? String
+        }
+    }
+
+    func setRaidFilmPublished(id: UUID, url: String) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let object = try context.fetch(fetch).first {
+                object.setValue(url, forKey: "filmPublishedURL")
                 object.setValue(Date(), forKey: "updatedAt")
                 try context.save()
             }
