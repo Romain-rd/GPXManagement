@@ -1342,6 +1342,15 @@ enum PhotoLibraryService {
         return out
     }
 
+    /// Bascule le statut « favori » de la photo dans la photothèque. Renvoie true si appliqué.
+    static func setFavorite(_ asset: PHAsset, _ favorite: Bool) async -> Bool {
+        await withCheckedContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest(for: asset).isFavorite = favorite
+            } completionHandler: { success, _ in continuation.resume(returning: success) }
+        }
+    }
+
     static func fullImage(for asset: PHAsset) async -> NSImage? {
         await withCheckedContinuation { continuation in
             let options = PHImageRequestOptions()
@@ -1599,6 +1608,7 @@ private struct PhotoThumbnail: View {
     let onDelete: () -> Void
     @State private var image: NSImage?
     @State private var hovering = false
+    @State private var isFavorite = false
 
     private var canEdit: Bool { asset.mediaType == .image || asset.mediaType == .video }
 
@@ -1657,12 +1667,31 @@ private struct PhotoThumbnail: View {
                 .help("Modifier…")
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            // Favori dans Photos (toujours visible si favori, sinon au survol).
+            if isFavorite || hovering {
+                Button {
+                    let target = !isFavorite
+                    Task { if await PhotoLibraryService.setFavorite(asset, target) { isFavorite = target } }
+                } label: {
+                    Image(systemName: isFavorite ? "heart.fill" : "heart")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isFavorite ? Color.red : Color.white)
+                        .padding(4)
+                        .background(Circle().fill(.black.opacity(0.3)))
+                }
+                .buttonStyle(.plain)
+                .padding(3)
+                .help(isFavorite ? "Retirer des favoris (Photos)" : "Marquer comme favori (Photos)")
+            }
+        }
         .onHover { hovering = $0 }
         .contextMenu {
             if canEdit { Button("Modifier…") { onEdit() } }
             if isAppCreated { Button("Supprimer", role: .destructive) { onDelete() } }
         }
         .task(id: asset.localIdentifier) {
+            isFavorite = asset.isFavorite
             image = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 200, height: 200))
         }
     }
