@@ -1351,6 +1351,30 @@ enum PhotoLibraryService {
         }
     }
 
+    /// Exporte la vidéo d'un PHAsset en mp4 (qualité moyenne) → Data, pour l'inclure dans l'export web.
+    static func exportVideo(for asset: PHAsset) async -> Data? {
+        await withCheckedContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.isNetworkAccessAllowed = true
+            options.deliveryMode = .mediumQualityFormat
+            PHImageManager.default().requestExportSession(forVideo: asset, options: options, exportPreset: AVAssetExportPresetMediumQuality) { session, _ in
+                guard let session else { continuation.resume(returning: nil); return }
+                let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+                session.outputURL = tmp
+                session.outputFileType = .mp4
+                session.shouldOptimizeForNetworkUse = true
+                session.exportAsynchronously {
+                    if session.status == .completed, let data = try? Data(contentsOf: tmp) {
+                        try? FileManager.default.removeItem(at: tmp)
+                        continuation.resume(returning: data)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+        }
+    }
+
     static func fullImage(for asset: PHAsset) async -> NSImage? {
         await withCheckedContinuation { continuation in
             let options = PHImageRequestOptions()

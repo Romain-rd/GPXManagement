@@ -94,9 +94,14 @@ enum HTMLReportRenderer {
         var photoItems: [PhotoItem] = []
         if options.includePhotos {
             for asset in photos {
-                if let image = await PhotoLibraryService.fullImage(for: asset), let jpeg = image.jpeg(quality: 0.82) {
-                    let coord = asset.location?.coordinate
-                    photoItems.append(PhotoItem(data: jpeg, lat: coord?.latitude, lon: coord?.longitude))
+                let coord = asset.location?.coordinate
+                if asset.mediaType == .video {
+                    if let mp4 = await PhotoLibraryService.exportVideo(for: asset) {
+                        let poster = await PhotoLibraryService.fullImage(for: asset)?.jpeg(quality: 0.8)
+                        photoItems.append(PhotoItem(data: mp4, isVideo: true, poster: poster, lat: coord?.latitude, lon: coord?.longitude))
+                    }
+                } else if let image = await PhotoLibraryService.fullImage(for: asset), let jpeg = image.jpeg(quality: 0.82) {
+                    photoItems.append(PhotoItem(data: jpeg, isVideo: false, poster: nil, lat: coord?.latitude, lon: coord?.longitude))
                 }
             }
         }
@@ -116,7 +121,14 @@ enum HTMLReportRenderer {
             if let map = mapPNG { files["images/carte.png"] = map }
             if let d = distancePNG { files["images/profil-distance.png"] = d }
             if let t = timePNG { files["images/profil-temps.png"] = t }
-            for (i, item) in photoItems.enumerated() { files["images/photo-\(i + 1).jpg"] = item.data }
+            for (i, item) in photoItems.enumerated() {
+                if item.isVideo {
+                    files["images/video-\(i + 1).mp4"] = item.data
+                    if let poster = item.poster { files["images/poster-\(i + 1).jpg"] = poster }
+                } else {
+                    files["images/photo-\(i + 1).jpg"] = item.data
+                }
+            }
             return .folder(files: files)
         }
     }
@@ -592,7 +604,7 @@ enum HTMLReportRenderer {
 
     // MARK: - Construction du HTML
 
-    private struct PhotoItem { let data: Data; let lat: Double?; let lon: Double? }
+    private struct PhotoItem { let data: Data; let isVideo: Bool; let poster: Data?; let lat: Double?; let lon: Double? }
 
     private struct HTMLAssets {
         let map: Data?
@@ -732,13 +744,14 @@ enum HTMLReportRenderer {
               L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#34c759', fillOpacity: 1 }).addTo(map);
               L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#ff3b30', fillOpacity: 1 }).addTo(map);
 
-              // Marqueurs aux positions des photos (réutilise les vignettes de la galerie, sans dupliquer les images).
-              Array.prototype.forEach.call(document.querySelectorAll('.photo.locatable'), function(img){
-                var plat = parseFloat(img.getAttribute('data-lat')), plon = parseFloat(img.getAttribute('data-lon'));
+              // Marqueurs aux positions des médias (réutilise les vignettes de la galerie, sans dupliquer les images).
+              Array.prototype.forEach.call(document.querySelectorAll('.media.locatable'), function(el){
+                var plat = parseFloat(el.getAttribute('data-lat')), plon = parseFloat(el.getAttribute('data-lon'));
                 if (isNaN(plat) || isNaN(plon)) return;
+                var thumb = el.querySelector('img');
                 var icon = L.divIcon({ className: 'gpx-photo-pin', html: '📷', iconSize: [26,26], iconAnchor: [13,13] });
                 var mk = L.marker([plat, plon], { icon: icon }).addTo(map);
-                mk.bindPopup('<img src="' + img.src + '" style="max-width:220px;max-height:220px;border-radius:6px;display:block">', { autoPan: true });
+                if (thumb) mk.bindPopup('<img src="' + thumb.src + '" style="max-width:220px;max-height:220px;border-radius:6px;display:block">', { autoPan: true });
               });
 
               var el = document.getElementById('map');
@@ -819,17 +832,22 @@ enum HTMLReportRenderer {
         var photoScript = ""
         if !assets.photos.isEmpty {
             let grid = assets.photos.enumerated().map { i, item -> String in
-                let src = inline ? "data:image/jpeg;base64,\(item.data.base64EncodedString())" : "images/photo-\(i + 1).jpg"
-                if interactiveMap, let lat = item.lat, let lon = item.lon {
-                    let attrs = " data-lat=\"\(String(format: "%.6f", lat))\" data-lon=\"\(String(format: "%.6f", lon))\" title=\"Voir où la photo a été prise\""
-                    return "<img class=\"photo locatable\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\"\(attrs)>"
+                let loc = (item.lat != nil && item.lon != nil)
+                let locAttrs = loc ? " data-lat=\"\(String(format: "%.6f", item.lat!))\" data-lon=\"\(String(format: "%.6f", item.lon!))\"" : ""
+                let locClass = loc ? " locatable" : ""
+                if item.isVideo {
+                    let videoSrc = inline ? "data:video/mp4;base64,\(item.data.base64EncodedString())" : "images/video-\(i + 1).mp4"
+                    let poster = item.poster.map { inline ? "data:image/jpeg;base64,\($0.base64EncodedString())" : "images/poster-\(i + 1).jpg" } ?? ""
+                    return "<a class=\"media video\(locClass)\" data-type=\"video\" data-src=\"\(videoSrc)\"\(locAttrs) title=\"Lire la vidéo\"><img class=\"photo\" src=\"\(poster)\" alt=\"Vidéo \(i + 1)\" loading=\"lazy\"><span class=\"playbadge\">▶</span></a>"
                 }
-                return "<img class=\"photo\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\">"
+                let src = inline ? "data:image/jpeg;base64,\(item.data.base64EncodedString())" : "images/photo-\(i + 1).jpg"
+                return "<a class=\"media\(locClass)\" data-type=\"image\" data-src=\"\(src)\"\(locAttrs) title=\"Agrandir\"><img class=\"photo\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\"></a>"
             }.joined()
             photosSection = "<section class=\"section\"><h2>Photos</h2><div class=\"photos\">\(grid)</div></section>"
-            if interactiveMap, assets.photos.contains(where: { $0.lat != nil }) {
-                photoScript = "<script>\n\(photoMapJS)\n</script>"
-            }
+                + "<div id=\"lightbox\" class=\"lightbox\"><span class=\"lb-close\">✕</span><div class=\"lb-content\"></div></div>"
+            var scripts = lightboxJS
+            if interactiveMap, assets.photos.contains(where: { $0.lat != nil }) { scripts += "\n" + photoMapJS }
+            photoScript = "<script>\n\(scripts)\n</script>"
         }
 
         // Notes + source
@@ -1028,15 +1046,31 @@ enum HTMLReportRenderer {
 
     private static let photoMapJS = """
     (function(){
-      var imgs = Array.prototype.slice.call(document.querySelectorAll('.photo.locatable'));
-      imgs.forEach(function(img){
-        var lat = parseFloat(img.getAttribute('data-lat'));
-        var lon = parseFloat(img.getAttribute('data-lon'));
-        img.addEventListener('mouseenter', function(){ if (window.gpxShowPhoto) window.gpxShowPhoto(lat, lon, false); });
-        img.addEventListener('click', function(){
-          if (window.gpxShowPhoto) window.gpxShowPhoto(lat, lon, true);
-          var m = document.getElementById('map');
-          if (m) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var items = Array.prototype.slice.call(document.querySelectorAll('.media.locatable'));
+      items.forEach(function(el){
+        var lat = parseFloat(el.getAttribute('data-lat'));
+        var lon = parseFloat(el.getAttribute('data-lon'));
+        el.addEventListener('mouseenter', function(){ if (window.gpxShowPhoto) window.gpxShowPhoto(lat, lon, false); });
+      });
+    })();
+    """
+
+    /// Lightbox : clic sur une vignette → photo agrandie ou vidéo lisible en plein cadre.
+    private static let lightboxJS = """
+    (function(){
+      var lb = document.getElementById('lightbox'); if (!lb) return;
+      var content = lb.querySelector('.lb-content');
+      function close(){ content.innerHTML = ''; lb.classList.remove('open'); }
+      lb.addEventListener('click', function(e){ if (e.target === lb || e.target.classList.contains('lb-close')) close(); });
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+      Array.prototype.forEach.call(document.querySelectorAll('.media'), function(el){
+        el.addEventListener('click', function(e){
+          e.preventDefault();
+          var type = el.getAttribute('data-type'), src = el.getAttribute('data-src');
+          content.innerHTML = (type === 'video')
+            ? '<video src="' + src + '" controls autoplay playsinline></video>'
+            : '<img src="' + src + '" alt="">';
+          lb.classList.add('open');
         });
       });
     })();
@@ -1099,7 +1133,14 @@ enum HTMLReportRenderer {
         #profile { width:100%; height:300px; display:block; cursor:crosshair; }
         .tip { position:absolute; pointer-events:none; background:rgba(0,0,0,0.82); color:#fff; font-size:12px; padding:6px 9px; border-radius:8px; transform:translate(-50%,-115%); white-space:nowrap; opacity:0; transition:opacity .08s; z-index:5; }
         .photos { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
-        .photo { width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; border:1px solid var(--line); }
+        .photo { width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; border:1px solid var(--line); display:block; }
+        .media { position:relative; display:block; cursor:pointer; }
+        .media:hover .photo { filter:brightness(0.92); }
+        .playbadge { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:46px; height:46px; line-height:46px; text-align:center; font-size:18px; color:#fff; background:rgba(0,0,0,0.5); border-radius:50%; }
+        .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.88); display:none; align-items:center; justify-content:center; z-index:9999; }
+        .lightbox.open { display:flex; }
+        .lightbox .lb-content img, .lightbox .lb-content video { max-width:92vw; max-height:92vh; border-radius:8px; box-shadow:0 8px 40px rgba(0,0,0,0.5); }
+        .lb-close { position:absolute; top:16px; right:20px; color:#fff; font-size:26px; cursor:pointer; opacity:0.85; }
         .photo.locatable { cursor:pointer; transition:transform .1s, box-shadow .1s; }
         .photo.locatable:hover { transform:scale(1.03); box-shadow:0 0 0 2px var(--accent); }
         .notes { white-space:normal; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:0; }
