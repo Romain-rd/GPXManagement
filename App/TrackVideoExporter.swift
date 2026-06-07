@@ -199,7 +199,7 @@ enum TrackVideoExporter {
     private static let introSeconds = 3.0
     private static let outroSeconds = 5.0
 
-    private static let animSeconds = 0.4
+    private static let animSeconds = 1.0
 
     private struct Hud { let time: Date?; let altitude: Double?; let slope: Double?; let speed: Double?; let heart: Double? }
     private struct ProfileOverlay { let image: NSImage; let rect: CGRect; let indicatorX: CGFloat; let indicatorY: CGFloat; let pad: CGFloat }
