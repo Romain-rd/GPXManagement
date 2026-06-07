@@ -92,7 +92,7 @@ enum HTMLReportRenderer {
         var photoItems: [PhotoItem] = []
         if options.includePhotos {
             for asset in photos {
-                let coord = asset.location?.coordinate
+                let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points)
                 if asset.mediaType == .video {
                     if let mp4 = await PhotoLibraryService.exportVideo(for: asset) {
                         let poster = await PhotoLibraryService.fullImage(for: asset)?.jpeg(quality: 0.8)

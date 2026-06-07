@@ -869,14 +869,14 @@ struct RaidDetailView: View {
                         near: coords, maxDistance: 300
                     )
                     for asset in assets {
-                        guard let location = asset.location else { continue }
+                        guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
                         let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                         if asset.mediaType == .video {
                             if let av = await PhotoLibraryService.avAsset(for: asset) {
-                                media.append(.video(asset: av, thumbnail: thumb, coordinate: location.coordinate))
+                                media.append(.video(asset: av, thumbnail: thumb, coordinate: coord))
                             }
                         } else if let image = await PhotoLibraryService.fullImage(for: asset) {
-                            media.append(.photo(image: image, thumbnail: thumb, coordinate: location.coordinate))
+                            media.append(.photo(image: image, thumbnail: thumb, coordinate: coord))
                         }
                     }
                 }

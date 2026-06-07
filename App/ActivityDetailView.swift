@@ -918,14 +918,14 @@ struct ActivityDetailView: View {
             // Médias sélectionnés (épingle active) et géolocalisés.
             var media: [TrackVideoMedia] = []
             for asset in photoAssets where isPhotoShown(asset.localIdentifier) {
-                guard let location = asset.location else { continue }
+                guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
                 let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                 if asset.mediaType == .video {
                     if let av = await PhotoLibraryService.avAsset(for: asset) {
-                        media.append(.video(asset: av, thumbnail: thumb, coordinate: location.coordinate))
+                        media.append(.video(asset: av, thumbnail: thumb, coordinate: coord))
                     }
                 } else if let image = await PhotoLibraryService.fullImage(for: asset) {
-                    media.append(.photo(image: image, thumbnail: thumb, coordinate: location.coordinate))
+                    media.append(.photo(image: image, thumbnail: thumb, coordinate: coord))
                 }
             }
 
@@ -995,11 +995,16 @@ struct ActivityDetailView: View {
 
     /// Construit les vignettes à placer sur la carte (coordonnée GPS + miniature) depuis les photos trouvées.
     private func buildPhotoMapItems(_ assets: [PHAsset]) async {
+        var points: [TrackPoint] = []
+        if let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+           let decoded = try? TrackPointCodec.decode(data) {
+            points = decoded
+        }
         var items: [PhotoMapItem] = []
         for asset in assets {
-            guard let location = asset.location else { continue }
+            guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
             let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 120, height: 120))
-            items.append(PhotoMapItem(id: asset.localIdentifier, coordinate: location.coordinate, image: thumb, isVideo: asset.mediaType == .video))
+            items.append(PhotoMapItem(id: asset.localIdentifier, coordinate: coord, image: thumb, isVideo: asset.mediaType == .video))
         }
         photoMapItems = items
     }
@@ -1444,6 +1449,21 @@ enum PhotoLibraryService {
             }
         }
         return out
+    }
+
+    /// Coordonnée d'un média : sa géolocalisation si présente, sinon le point du tracé le plus proche dans le temps.
+    static func resolvedCoordinate(for asset: PHAsset, in points: [TrackPoint]) -> CLLocationCoordinate2D? {
+        if let location = asset.location { return location.coordinate }
+        guard let date = asset.creationDate else { return nil }
+        var best: (delta: TimeInterval, coord: CLLocationCoordinate2D)?
+        for p in points {
+            guard let t = p.timestamp else { continue }
+            let delta = abs(t.timeIntervalSince(date))
+            if best == nil || delta < best!.delta {
+                best = (delta, CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
+            }
+        }
+        return best?.coord
     }
 
     /// Bascule le statut « favori » de la photo dans la photothèque. Renvoie true si appliqué.
