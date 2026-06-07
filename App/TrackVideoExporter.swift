@@ -629,8 +629,8 @@ enum TrackVideoExporter {
         NSColor.white.setFill(); NSBezierPath(ovalIn: dot.insetBy(dx: -2 * scale, dy: -2 * scale)).fill()
         NSColor.systemRed.setFill(); NSBezierPath(ovalIn: dot).fill()
         if let profile { drawProfile(profile, scale: scale) }
-        overlay(rect)
         drawHud(hud, scale: scale, bottomY: hudBottom)
+        overlay(rect)
         NSGraphicsContext.restoreGraphicsState()
         return rep.cgImage!
     }
