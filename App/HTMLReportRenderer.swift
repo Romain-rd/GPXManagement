@@ -18,11 +18,10 @@ struct WebExportOptions: Codable {
         var label: String { self == .staticImage ? "Image statique" : "Graphique interactif" }
     }
     enum Output: String, CaseIterable, Identifiable, Codable {
-        case singleFile, folder, publishBunny
+        case folder, publishBunny
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .singleFile:   return "Fichier unique"
             case .folder:       return "Dossier"
             case .publishBunny: return "GPXManagement.net"
             }
@@ -31,7 +30,7 @@ struct WebExportOptions: Codable {
 
     var map: MapRendering = .interactive
     var profile: ProfileRendering = .interactive
-    var output: Output = .singleFile
+    var output: Output = .folder
     var includePhotos: Bool = true
     var includeNotes: Bool = true
 }
@@ -51,7 +50,6 @@ enum HTMLReportError: Error, LocalizedError {
 @MainActor
 enum HTMLReportRenderer {
     enum Output {
-        case singleFile(html: Data)
         case folder(files: [String: Data]) // contient "index.html"
     }
 
@@ -112,11 +110,7 @@ enum HTMLReportRenderer {
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
                              layer: layer, trackCoords: trackCoords, trackSpeedColors: trackColors.speed, trackSlopeColors: trackColors.slope, profilePayload: profilePayload)
 
-        switch options.output {
-        case .singleFile:
-            guard let data = html.data(using: .utf8) else { throw HTMLReportError.renderFailed }
-            return .singleFile(html: data)
-        case .folder, .publishBunny:
+        do {
             var files: [String: Data] = ["index.html": html.data(using: .utf8) ?? Data()]
             if let map = mapPNG { files["images/carte.png"] = map }
             if let d = distancePNG { files["images/profil-distance.png"] = d }
@@ -622,14 +616,12 @@ enum HTMLReportRenderer {
 
     private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String) -> String {
         let accent = hex(activity.activityType.trackColor)
-        let inline = options.output == .singleFile
         let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
         let interactiveProfile = options.profile == .interactive && !profilePayload.isEmpty
 
         func imgTag(_ data: Data?, file: String, mime: String, alt: String, cssClass: String) -> String {
-            guard let data else { return "" }
-            let src = inline ? "data:\(mime);base64,\(data.base64EncodedString())" : file
-            return "<img class=\"\(cssClass)\" src=\"\(src)\" alt=\"\(esc(alt))\" loading=\"lazy\">"
+            guard data != nil else { return "" }
+            return "<img class=\"\(cssClass)\" src=\"\(file)\" alt=\"\(esc(alt))\" loading=\"lazy\">"
         }
 
         // En-tête
@@ -836,11 +828,11 @@ enum HTMLReportRenderer {
                 let locAttrs = loc ? " data-lat=\"\(String(format: "%.6f", item.lat!))\" data-lon=\"\(String(format: "%.6f", item.lon!))\"" : ""
                 let locClass = loc ? " locatable" : ""
                 if item.isVideo {
-                    let videoSrc = inline ? "data:video/mp4;base64,\(item.data.base64EncodedString())" : "images/video-\(i + 1).mp4"
-                    let poster = item.poster.map { inline ? "data:image/jpeg;base64,\($0.base64EncodedString())" : "images/poster-\(i + 1).jpg" } ?? ""
+                    let videoSrc = "images/video-\(i + 1).mp4"
+                    let poster = item.poster != nil ? "images/poster-\(i + 1).jpg" : ""
                     return "<a class=\"media video\(locClass)\" data-type=\"video\" data-src=\"\(videoSrc)\"\(locAttrs) title=\"Lire la vidéo\"><img class=\"photo\" src=\"\(poster)\" alt=\"Vidéo \(i + 1)\" loading=\"lazy\"><span class=\"playbadge\">▶</span></a>"
                 }
-                let src = inline ? "data:image/jpeg;base64,\(item.data.base64EncodedString())" : "images/photo-\(i + 1).jpg"
+                let src = "images/photo-\(i + 1).jpg"
                 return "<a class=\"media\(locClass)\" data-type=\"image\" data-src=\"\(src)\"\(locAttrs) title=\"Agrandir\"><img class=\"photo\" src=\"\(src)\" alt=\"Photo \(i + 1)\" loading=\"lazy\"></a>"
             }.joined()
             photosSection = "<section class=\"section\"><h2>Photos</h2><div class=\"photos\">\(grid)</div></section>"

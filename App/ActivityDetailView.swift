@@ -1043,14 +1043,6 @@ struct ActivityDetailView: View {
             let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos)
             progress.update(0.6, "Préparation des fichiers…")
             switch output {
-            case .singleFile(let html):
-                let panel = NSSavePanel()
-                panel.title = "Exporter en page web"
-                panel.nameFieldStringValue = "\(safeName).html"
-                panel.allowedContentTypes = [.html]
-                guard panel.runModal() == .OK, let url = panel.url else { return }
-                try html.write(to: url, options: .atomic)
-                NSWorkspace.shared.activateFileViewerSelecting([url])
             case .folder(let files):
                 if webOptions.output == .publishBunny {
                     try await publishToBunny(files: files) { f, s in progress.update(0.6 + f * 0.4, s) }

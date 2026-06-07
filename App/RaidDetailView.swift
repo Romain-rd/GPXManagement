@@ -268,7 +268,6 @@ struct RaidDetailView: View {
         }
         .padding(20)
         .frame(width: 560)
-        .onAppear { if webOptions.output == .singleFile { webOptions.output = .folder } }
     }
 
     private func loadPublishState() async {
