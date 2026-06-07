@@ -27,10 +27,12 @@ struct ActivityDetailView: View {
     @State private var photoAssets: [PHAsset] = []
     @State private var photoMapItems: [PhotoMapItem] = []
     @State private var previewURL: URL?
-    @State private var hiddenPhotoIDs: Set<String> = []
+    @State private var hiddenPhotoIDs: Set<String> = []   // photos explicitement désélectionnées
+    @State private var shownPhotoIDs: Set<String> = []     // photos explicitement sélectionnées
     @State private var editingMedia: EditingMedia?
     @State private var photosReload = 0
     @AppStorage("appCreatedAssets") private var appCreatedAssetsJSON = ""
+    @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -93,6 +95,7 @@ struct ActivityDetailView: View {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
+            shownPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.shownPhotosKey) ?? [])
             Task { await loadPublishState() }
         }
         .onChange(of: activity.id) { _, _ in
@@ -482,10 +485,18 @@ struct ActivityDetailView: View {
     private var trackColorMode: TrackColorMode { TrackColorMode(rawValue: trackColorModeRaw) ?? .uniform }
 
     private static let hiddenPhotosKey = "photosHiddenOnMap"
+    private static let shownPhotosKey = "photosShownExplicit"
+
+    /// État de sélection d'une photo : explicite (montrée/cachée) sinon valeur par défaut (préférence).
+    private func isPhotoShown(_ id: String) -> Bool {
+        if shownPhotoIDs.contains(id) { return true }
+        if hiddenPhotoIDs.contains(id) { return false }
+        return photosSelectedByDefault
+    }
 
     private var mapPhotos: [PhotoMapItem] {
         guard photosOnMapEnabled else { return [] }
-        return photoMapItems.filter { !hiddenPhotoIDs.contains($0.id) }
+        return photoMapItems.filter { isPhotoShown($0.id) }
     }
 
     private var photosSection: some View {
@@ -497,7 +508,7 @@ struct ActivityDetailView: View {
             assets: $photoAssets,
             showOnMap: $photosOnMapEnabled,
             reloadToken: photosReload,
-            isShownOnMap: { !hiddenPhotoIDs.contains($0) },
+            isShownOnMap: { isPhotoShown($0) },
             isAppCreated: { appCreatedAssets.contains($0) },
             onToggleMap: togglePhotoOnMap,
             onSelect: previewPhoto,
@@ -525,8 +536,13 @@ struct ActivityDetailView: View {
     }
 
     private func togglePhotoOnMap(_ id: String) {
-        if hiddenPhotoIDs.contains(id) { hiddenPhotoIDs.remove(id) } else { hiddenPhotoIDs.insert(id) }
+        if isPhotoShown(id) {
+            hiddenPhotoIDs.insert(id); shownPhotoIDs.remove(id)
+        } else {
+            shownPhotoIDs.insert(id); hiddenPhotoIDs.remove(id)
+        }
         UserDefaults.standard.set(Array(hiddenPhotoIDs), forKey: Self.hiddenPhotosKey)
+        UserDefaults.standard.set(Array(shownPhotoIDs), forKey: Self.shownPhotosKey)
     }
 
     // MARK: - Édition des médias
@@ -847,7 +863,7 @@ struct ActivityDetailView: View {
 
             // Médias sélectionnés (épingle active) et géolocalisés.
             var media: [TrackVideoMedia] = []
-            for asset in photoAssets where !hiddenPhotoIDs.contains(asset.localIdentifier) {
+            for asset in photoAssets where isPhotoShown(asset.localIdentifier) {
                 guard let location = asset.location else { continue }
                 let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                 if asset.mediaType == .video {
@@ -1021,7 +1037,7 @@ struct ActivityDetailView: View {
         defer { isExportingWeb = false; progress.end() }
         let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
         // Seules les photos sélectionnées (affichées sur la carte) sont exportées.
-        let photos = webOptions.includePhotos ? photoAssets.filter { !hiddenPhotoIDs.contains($0.localIdentifier) } : []
+        let photos = webOptions.includePhotos ? photoAssets.filter { isPhotoShown($0.localIdentifier) } : []
         let safeName = activity.title.replacingOccurrences(of: "/", with: "-")
         do {
             let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos)
@@ -1562,10 +1578,10 @@ private struct ActivityPhotosSection: View {
            let points = try? TrackPointCodec.decode(data) {
             coordinates = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
         }
-        // Petite marge temporelle (clocs appareil photo ≠ GPS) ; la proximité géographique cadre le résultat.
+        // Marge temporelle ±30 min (photos prises juste avant/après) ; la proximité géographique cadre le résultat.
         assets = PhotoLibraryService.photos(
-            start: start.addingTimeInterval(-900),
-            end: end.addingTimeInterval(900),
+            start: start.addingTimeInterval(-1800),
+            end: end.addingTimeInterval(1800),
             near: coordinates,
             maxDistance: 300
         )

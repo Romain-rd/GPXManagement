@@ -23,15 +23,25 @@ struct PreferencesView: View {
 
 struct GeneralPreferencesView: View {
     @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignScan25.rawValue
+    @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
 
     var body: some View {
         Form {
-            Picker("Couche carte par défaut", selection: $mapLayer) {
-                ForEach(MapLayer.allCases) { layer in
-                    Text(layer.displayName).tag(layer.rawValue)
+            Section("Carte") {
+                Picker("Couche carte par défaut", selection: $mapLayer) {
+                    ForEach(MapLayer.allCases.filter { !$0.isOverlayOnly }) { layer in
+                        Text(layer.displayName).tag(layer.rawValue)
+                    }
                 }
             }
+            Section("Photos") {
+                Toggle("Photos sélectionnées par défaut", isOn: $photosSelectedByDefault)
+                Text("À la première mise en relation d'une activité avec des photos proches (±30 min), elles sont affichées par défaut. Décochez pour qu'elles soient masquées tant que vous ne les sélectionnez pas.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .formStyle(.grouped)
         .padding()
     }
 }
