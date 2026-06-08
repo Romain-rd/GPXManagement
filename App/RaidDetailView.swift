@@ -15,6 +15,7 @@ struct RaidDetailView: View {
     @Bindable var window: WindowModel
 
     @State private var draft: Raid
+    @State private var hoveredStageId: UUID?
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
@@ -630,10 +631,37 @@ struct RaidDetailView: View {
             }
             .buttonStyle(.plain)
             .help("Modifier la disposition (profil / photos) de cette étape")
+
+            // Bouton de retrait, révélé au survol de la ligne (le menu contextuel reste disponible).
+            Button(role: .destructive) {
+                Task { await listVM.removeFromRaid(activityIds: [activity.id]) }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Retirer cette étape du raid")
+            .opacity(hoveredStageId == activity.id ? 1 : 0)
+            .allowsHitTesting(hoveredStageId == activity.id)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+        .onHover { inside in
+            if inside { hoveredStageId = activity.id }
+            else if hoveredStageId == activity.id { hoveredStageId = nil }
+        }
+        .contextMenu {
+            Button {
+                navigation.visualizationMode = .activities
+                navigation.listSelection = [activity.id]
+            } label: { Label("Ouvrir l'étape", systemImage: "arrow.up.right.square") }
+            Divider()
+            Button(role: .destructive) {
+                Task { await listVM.removeFromRaid(activityIds: [activity.id]) }
+            } label: { Label("Retirer du raid", systemImage: "minus.circle") }
+        }
     }
 
     private var layoutEditorSheet: some View {
