@@ -2,6 +2,21 @@ import XCTest
 @testable import GPXCore
 
 final class ActivityStatsCalculatorTests: XCTestCase {
+    func testLongPausesCountsOnlyStopsOver5Min() {
+        func at(_ lat: Double, _ sec: Double) -> TrackPoint {
+            TrackPoint(latitude: lat, longitude: 6.0, altitude: nil, timestamp: Date(timeIntervalSince1970: sec))
+        }
+        let pts = [
+            at(45.0000, 0),    // départ
+            at(45.0003, 10),   // déplacement (~33 m en 10 s)
+            at(45.0003, 370),  // arrêt 360 s au même point → pause ≥ 5 min
+            at(45.0006, 380),  // repart
+            at(45.0006, 500),  // arrêt 120 s → trop court, pas une pause
+            at(45.0009, 510),  // repart
+        ]
+        XCTAssertEqual(ActivityStatsCalculator.longPausesDuration(points: pts), 360)
+    }
+
     func testEmptyPointsReturnsZero() {
         let stats = ActivityStatsCalculator.compute(points: [])
         XCTAssertEqual(stats, .zero)

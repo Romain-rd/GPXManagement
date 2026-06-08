@@ -208,4 +208,23 @@ public enum ActivityStatsCalculator {
         let maxHR = hrs.max() ?? 0
         return (avg, maxHR)
     }
+
+    /// Temps total des « vraies » pauses : arrêts continus (vitesse ≤ seuil mouvement) d'au moins `minSeconds`.
+    /// Les ralentissements/arrêts brefs (feu rouge, photo) ne sont pas comptés.
+    public static func longPausesDuration(points: [TrackPoint], minSeconds: Double = 300) -> TimeInterval {
+        guard points.count > 1 else { return 0 }
+        var total: TimeInterval = 0
+        var currentStop: TimeInterval = 0
+        func flush() { if currentStop >= minSeconds { total += currentStop }; currentStop = 0 }
+        for i in 1..<points.count {
+            guard let t1 = points[i - 1].timestamp, let t2 = points[i].timestamp else { flush(); continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0 else { continue }
+            let segment = haversine(lat1: points[i - 1].latitude, lon1: points[i - 1].longitude,
+                                    lat2: points[i].latitude, lon2: points[i].longitude)
+            if segment / dt <= movingThreshold { currentStop += dt } else { flush() }
+        }
+        flush()
+        return total
+    }
 }

@@ -56,6 +56,7 @@ struct ActivityDetailView: View {
     @State private var climbCount: Int? // nombre de montées (escalade), calculé depuis le profil d'altitude
     @State private var ascentTime: TimeInterval? // temps en montée (activités de déplacement avec dénivelé)
     @State private var descentTime: TimeInterval?
+    @State private var pausedTime: TimeInterval? // temps des pauses ≥ 5 min
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -367,10 +368,9 @@ struct ActivityDetailView: View {
             MetricCard(icon: "clock", value: Self.duration(activity.duration), label: "Durée totale", tint: .purple)
             if movement && activity.movingDuration > 0 {
                 MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
-                let paused = activity.duration - activity.movingDuration
-                if paused > 30 {
-                    MetricCard(icon: "pause.circle", value: Self.duration(paused), label: "En pause", tint: .gray)
-                }
+            }
+            if let pause = pausedTime {
+                MetricCard(icon: "pause.circle", value: Self.duration(pause), label: "En pause", tint: .gray)
             }
             if let up = ascentTime {
                 MetricCard(icon: "arrow.up.forward.circle", value: Self.duration(up), label: "Temps en montée", tint: .green)
@@ -792,7 +792,9 @@ struct ActivityDetailView: View {
             let (up, down) = ElevationProfileBuilder.ascentDescentTime(ElevationProfileBuilder.build(points: points))
             ascentTime = up > 0 ? up : nil
             descentTime = down > 0 ? down : nil
-        } else { ascentTime = nil; descentTime = nil }
+            let pause = ActivityStatsCalculator.longPausesDuration(points: points) // arrêts ≥ 5 min
+            pausedTime = pause > 0 ? pause : nil
+        } else { ascentTime = nil; descentTime = nil; pausedTime = nil }
     }
 
     private func loadTracePreview() async {
