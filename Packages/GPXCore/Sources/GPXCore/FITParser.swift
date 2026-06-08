@@ -149,8 +149,10 @@ public struct FITParser: Sendable {
         let lon = fields[1]?.semicircleValue
         guard let lat, let lon else { return nil }
 
+        // Altitude : champ 2 (altitude) ou, à défaut, champ 78 (enhanced_altitude, utilisé par beaucoup
+        // d'appareils récents — Apple Watch / Redpoint…). Même échelle (×5, offset 500 m).
         let altitude: Double?
-        if let raw = fields[2]?.doubleValue {
+        if let raw = fields[2]?.doubleValue ?? fields[78]?.doubleValue {
             altitude = (raw / 5.0) - 500.0
         } else {
             altitude = nil
