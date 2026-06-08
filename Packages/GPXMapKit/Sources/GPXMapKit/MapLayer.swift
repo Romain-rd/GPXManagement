@@ -14,6 +14,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
     case osm                = "osm"
     case openTopoMap        = "opentopomap"
     case cyclOSM            = "cyclosm"
+    case esriTopo           = "esri_topo"
     case esriImagery        = "esri_imagery"
     // Espagne (IGN ES — WMTS KVP)
     case ignEsTopo          = "ign_es_mtn"
@@ -38,6 +39,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         case .osm:              return "OpenStreetMap"
         case .openTopoMap:      return "OpenTopoMap"
         case .cyclOSM:          return "CyclOSM (vélo)"
+        case .esriTopo:         return "Esri — Carte topo (monde)"
         case .esriImagery:      return "Esri — Satellite"
         case .ignEsTopo:        return "IGN España — Topo (MTN)"
         case .ignEsOrtho:       return "IGN España — Orthophotos"
@@ -52,7 +54,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .ignScan25, .ignPlanV2, .ignTopoModern, .ignSlopes, .ignOrthophotos: return "France"
         case .mapkitStandard, .mapkitSatellite:                                    return "Apple"
-        case .osm, .openTopoMap, .cyclOSM, .esriImagery:                           return "Monde"
+        case .osm, .openTopoMap, .cyclOSM, .esriTopo, .esriImagery:                return "Monde"
         case .ignEsTopo, .ignEsOrtho:                                              return "Espagne"
         case .swissTopo, .swissImage:                                              return "Suisse"
         case .ngiTopo:                                                             return "Belgique"
@@ -86,6 +88,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         case .osm:           return "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         case .openTopoMap:   return "https://a.tile.opentopomap.org/{z}/{x}/{y}.png"
         case .cyclOSM:       return "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png"
+        case .esriTopo:      return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
         case .esriImagery:   return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         case .ignEsTopo:     return "https://www.ign.es/wmts/mapa-raster?service=WMTS&request=GetTile&version=1.0.0&layer=MTN&style=default&format=image/jpeg&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}"
         case .ignEsOrtho:    return "https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&layer=OI.OrthoimageCoverage&style=default&format=image/jpeg&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}"
@@ -103,6 +106,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         case .osm:           return "© OpenStreetMap contributors"
         case .openTopoMap:   return "© OpenTopoMap (CC-BY-SA) · © OpenStreetMap"
         case .cyclOSM:       return "CyclOSM · © OpenStreetMap contributors"
+        case .esriTopo:      return "© Esri — World Topo Map · contributeurs"
         case .esriImagery:   return "© Esri, Maxar, Earthstar Geographics"
         case .ignEsTopo, .ignEsOrtho: return "© Instituto Geográfico Nacional de España"
         case .swissTopo, .swissImage: return "© swisstopo"
@@ -166,6 +170,7 @@ public enum MapLayer: String, CaseIterable, Identifiable, Sendable {
         case .osm:              return 19
         case .openTopoMap:      return 17
         case .cyclOSM:          return 18
+        case .esriTopo:         return 19
         case .esriImagery:      return 19
         case .ignEsTopo:        return 17
         case .ignEsOrtho:       return 19

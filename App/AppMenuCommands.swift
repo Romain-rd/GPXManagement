@@ -1,5 +1,6 @@
 import SwiftUI
 import GPXCore
+import GPXMapKit
 
 struct AppMenuCommands: Commands {
     @Bindable var services: AppServices
@@ -64,6 +65,12 @@ struct AppMenuCommands: Commands {
                 .keyboardShortcut("2", modifiers: .command)
             Button("Vue d'ensemble") { window?.navigation.visualizationMode = .mapOverview }
                 .keyboardShortcut("3", modifiers: .command)
+            Divider()
+            Button("Recharger les cartes") {
+                NotificationCenter.default.post(name: .reloadMapTiles, object: nil)
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .help("Re-télécharge les tuiles des cartes visibles (utile si une carte ne s'est pas chargée)")
         }
 
         // Menu Activité : actions sur la sélection (fenêtre active).
@@ -71,7 +78,7 @@ struct AppMenuCommands: Commands {
             Button("Renommer d'après le parcours") {
                 window?.renameSelectedFromRoute()
             }
-            .keyboardShortcut("r", modifiers: .command)
+            .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(!(window?.hasSelection ?? false))
 
             Menu("Changer le type") {

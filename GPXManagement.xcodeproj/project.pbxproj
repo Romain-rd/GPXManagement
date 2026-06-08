@@ -146,6 +146,7 @@
 				F8D3C5F1C21B7CF9AA48F4A5 /* Packages */,
 				9A14BC8D83C80C5B09244DF9 /* Tests */,
 				93E8E9B8009CA324990F9289 /* Products */,
+				7A119CCC2FD6AB1D00784708 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -192,6 +193,14 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		7A119CCC2FD6AB1D00784708 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_0F59A14B-37B7-4AD0-AC99-FEDC2DEDEF63" /* Secrets.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		93E8E9B8009CA324990F9289 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -217,14 +226,6 @@
 				90D3C33FF122DE77F1F8FC03 /* GPXStrava */,
 			);
 			path = Packages;
-			sourceTree = "<group>";
-		};
-		"TEMP_0978A178-D1D2-4147-9F2A-8CB2E014845D" /* GPXManagement */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_0F59A14B-37B7-4AD0-AC99-FEDC2DEDEF63" /* Secrets.xcconfig */,
-			);
-			path = GPXManagement;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -449,7 +450,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				DEVELOPMENT_TEAM = 43KVS4Z3H9;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -537,7 +538,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				DEVELOPMENT_TEAM = 43KVS4Z3H9;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

@@ -94,6 +94,11 @@ public struct PhotoMapItem: Identifiable {
 }
 
 @MainActor
+public extension Notification.Name {
+    /// Force le rechargement des tuiles de toutes les cartes visibles (déclenché par Cmd+R).
+    static let reloadMapTiles = Notification.Name("GPXReloadMapTiles")
+}
+
 public final class MapViewProxy {
     public weak var mapView: MKMapView?
     public init() {}
@@ -137,6 +142,7 @@ public struct TrackMapView: NSViewRepresentable {
         mapView.isZoomEnabled = true
         mapView.isScrollEnabled = true
         proxy?.mapView = mapView
+        context.coordinator.mapView = mapView
         configure(mapView: mapView, layer: layer)
         if onSelectActivity != nil {
             let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
@@ -167,8 +173,7 @@ public struct TrackMapView: NSViewRepresentable {
             mapView.preferredConfiguration = MKHybridMapConfiguration()
         default:
             mapView.preferredConfiguration = MKStandardMapConfiguration()
-            // canReplaceMapContent=true → la tuile sert de fond et masque les labels Apple ;
-            // les polylines (ajoutées ensuite, même niveau) se dessinent par-dessus.
+            // canReplaceMapContent=true → la tuile sert de fond et masque les labels Apple.
             let overlay: MKTileOverlay
             if let template = layer.tileURLTemplate {
                 let tile = MKTileOverlay(urlTemplate: template)
@@ -178,13 +183,16 @@ public struct TrackMapView: NSViewRepresentable {
             } else {
                 overlay = IGNTileOverlay(layer: layer)
             }
-            mapView.addOverlay(overlay, level: .aboveLabels)
+            // Inséré tout en bas du niveau pour rester sous les tracés (sinon, en changeant de fond,
+            // la nouvelle tuile recouvrirait la trace déjà ajoutée et la masquerait).
+            mapView.insertOverlay(overlay, at: 0, level: .aboveLabels)
         }
     }
 
     public final class Coordinator: NSObject, MKMapViewDelegate, NSGestureRecognizerDelegate {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
+        weak var mapView: MKMapView?
         private let onSelectActivity: ((UUID) -> Void)?
         private let onSelectPhoto: ((String) -> Void)?
         private var highlightAnnotation: HighlightAnnotation?
@@ -196,6 +204,21 @@ public struct TrackMapView: NSViewRepresentable {
         init(onSelectActivity: ((UUID) -> Void)?, onSelectPhoto: ((String) -> Void)? = nil) {
             self.onSelectActivity = onSelectActivity
             self.onSelectPhoto = onSelectPhoto
+            super.init()
+            NotificationCenter.default.addObserver(self, selector: #selector(reloadFromNotification), name: .reloadMapTiles, object: nil)
+        }
+
+        deinit { NotificationCenter.default.removeObserver(self) }
+
+        @objc private func reloadFromNotification() { reloadTiles() }
+
+        /// Force MapKit à re-télécharger les tuiles (les tuiles en échec/blanches sont refetch), sans
+        /// retirer les tracés ni la surcouche pentes.
+        func reloadTiles() {
+            guard let mapView else { return }
+            for overlay in mapView.overlays where overlay is MKTileOverlay {
+                (mapView.renderer(for: overlay) as? MKTileOverlayRenderer)?.reloadData()
+            }
         }
 
         /// Vignettes des photos prises le long du parcours, placées à leur position GPS.
