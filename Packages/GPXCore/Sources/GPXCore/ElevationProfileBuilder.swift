@@ -112,6 +112,25 @@ public enum ElevationProfileBuilder {
         return paused
     }
 
+    /// Plages temporelles continues de pause, calculées sur le profil **plein**.
+    /// À utiliser pour colorier un profil décimé (la décimation Douglas-Peucker fausse la détection par rayon).
+    public static func pausedTimeRanges(_ profile: [ElevationProfilePoint], pauseMinSeconds: Double, pauseRadiusMeters: Double) -> [ClosedRange<Date>] {
+        let flags = pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        var ranges: [ClosedRange<Date>] = []
+        let n = flags.count
+        var s = 0
+        while s < n {
+            guard flags[s] else { s += 1; continue }
+            var e = s
+            while e + 1 < n, flags[e + 1] { e += 1 }
+            if let start = profile[s].timestamp, let end = profile[e + 1].timestamp, end >= start {
+                ranges.append(start...end)
+            }
+            s = e + 1
+        }
+        return ranges
+    }
+
     /// Répartition du temps en 4 seaux disjoints (somme = temps écoulé) : montée, descente, plat, pause.
     /// Le reste (hors pause) est classé par pente lissée (zone morte `flatPercent` autour de 0 = plat).
     public static func timeBreakdown(_ profile: [ElevationProfilePoint],

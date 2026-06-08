@@ -504,9 +504,12 @@ enum HTMLReportRenderer {
         let cats = order.map { "\"\(hex($0.color))\"" }
         let catLabels = order.map { "\"\(scale.label(for: $0))\"" }
 
-        // Pauses (mêmes que l'app/profil) → marquées par point pour le coloriage gris dans les deux modes.
-        let pausedFlags = ElevationProfileBuilder.pausedSegmentFlags(pts, pauseMinSeconds: PDFReportRenderer.pauseMinSeconds, pauseRadiusMeters: PDFReportRenderer.pauseRadiusMeters)
-        func isPausedPt(_ i: Int) -> Bool { i < pausedFlags.count && pausedFlags[i] }
+        // Pauses calculées sur le profil PLEIN (la décimation fausse la détection par rayon) → plages temporelles, classement par point.
+        let pausedRanges = ElevationProfileBuilder.pausedTimeRanges(profile, pauseMinSeconds: PDFReportRenderer.pauseMinSeconds, pauseRadiusMeters: PDFReportRenderer.pauseRadiusMeters)
+        func isPausedPt(_ i: Int) -> Bool {
+            guard !pausedRanges.isEmpty, let t = pts[i].timestamp else { return false }
+            return pausedRanges.contains { $0.contains(t) }
+        }
         let pausedArr = pts.indices.map { isPausedPt($0) ? "1" : "0" }
 
         // Vitesse (unité d'affichage) + catégorie par point

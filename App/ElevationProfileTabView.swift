@@ -111,6 +111,8 @@ struct ElevationProfileTabView: View {
     @State private var slopeTimes: [SlopeCategory: TimeInterval] = [:]
     @State private var movingTime: TimeInterval = 0
     @State private var pausedTime: TimeInterval = 0
+    // Plages temporelles de pause calculées sur le profil plein (mêmes que la légende) → coloriage cohérent du graphe décimé.
+    @State private var pausedRanges: [ClosedRange<Date>] = []
     @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
     @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
 
@@ -485,6 +487,7 @@ struct ElevationProfileTabView: View {
             let bd = ElevationProfileBuilder.timeBreakdown(working, pauseMinSeconds: minSec, pauseRadiusMeters: pauseRadiusMeters)
             movingTime = bd.ascending + bd.descending + bd.flat
             pausedTime = bd.paused
+            pausedRanges = ElevationProfileBuilder.pausedTimeRanges(working, pauseMinSeconds: minSec, pauseRadiusMeters: pauseRadiusMeters)
 
             let speeds = speedSeries(trimmed)
             maxSpeedDisplay = speeds.max() ?? 0
@@ -505,7 +508,7 @@ struct ElevationProfileTabView: View {
 
     private func resetData() {
         areaPoints = []; linePoints = []; styleScale = [:]
-        totalKm = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0
+        totalKm = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0; pausedRanges = []
         hasAltitude = false; hasSpeed = false; maxSpeedDisplay = 0; avgSpeedDisplay = 0
         trimmedProfile = []; hrLine = []; hoverSamples = []; selectedIndex = nil
         highlightedCoordinate = nil
@@ -583,9 +586,14 @@ struct ElevationProfileTabView: View {
             buildHeartRate(from: profile, xs: xs)
         }
 
-        // La pause est une notion temporelle : on ne la matérialise qu'en mode temps (en distance, à l'arrêt la distance n'avance pas).
-        let pausedFlags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters)
-        func isPaused(_ i: Int) -> Bool { mode == .time && i < pausedFlags.count && pausedFlags[i] }
+        // La pause est temporelle : on la matérialise en mode temps, d'après les plages calculées sur le profil plein
+        // (sinon la décimation Douglas-Peucker fausse la détection sur le profil affiché).
+        func isPaused(_ i: Int) -> Bool {
+            guard mode == .time, !pausedRanges.isEmpty, i + 1 < profile.count,
+                  let ta = profile[i].timestamp, let tb = profile[i + 1].timestamp else { return false }
+            let mid = Date(timeIntervalSince1970: (ta.timeIntervalSince1970 + tb.timeIntervalSince1970) / 2)
+            return pausedRanges.contains { $0.contains(mid) }
+        }
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
             if isPaused(i) { return (MovementState.paused.label, MovementState.paused.color) }
