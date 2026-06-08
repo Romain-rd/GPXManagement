@@ -559,13 +559,19 @@ struct ElevationProfileTabView: View {
         }
         totalKm = distanceDisplay(meters: profile.last?.distanceFromStart ?? 0)
 
-        // En pause, la vitesse réelle est nulle (le jitter GPS produit une vitesse fantôme distance/temps) → on la force à 0.
-        func isPausedPoint(_ i: Int) -> Bool {
-            guard mode == .time, !pausedRanges.isEmpty, let t = profile[i].timestamp else { return false }
-            return pausedRanges.contains { $0.contains(t) }
+        // Un segment [i,i+1] du profil affiché (décimé) est « en pause » s'il chevauche une plage de pause
+        // calculée sur le profil plein. Robuste à la décimation, qui peut supprimer le point de début de pause.
+        func isPaused(_ i: Int) -> Bool {
+            guard mode == .time, !pausedRanges.isEmpty, i + 1 < profile.count,
+                  let ta = profile[i].timestamp, let tb = profile[i + 1].timestamp else { return false }
+            return pausedRanges.contains { ta < $0.upperBound && $0.lowerBound < tb }
         }
+        // En pause, la vitesse réelle est nulle (jitter GPS = vitesse fantôme) → 0 aux deux extrémités des segments en pause
+        // (la courbe forme une bande plate à zéro, pas une rampe inclinée vers le point de fin de pause).
         var speeds: [Double] = metric == .speed ? speedSeries(profile) : []
-        if metric == .speed { for i in speeds.indices where isPausedPoint(i) { speeds[i] = 0 } }
+        if metric == .speed {
+            for k in speeds.indices where isPaused(k) || (k > 0 && isPaused(k - 1)) { speeds[k] = 0 }
+        }
         func yValue(_ i: Int) -> Double {
             metric == .speed ? (speeds.indices.contains(i) ? speeds[i] : 0) : profile[i].altitude
         }
@@ -594,15 +600,6 @@ struct ElevationProfileTabView: View {
                 return lastX
             }
             buildHeartRate(from: profile, xs: xs)
-        }
-
-        // La pause est temporelle : on la matérialise en mode temps, d'après les plages calculées sur le profil plein
-        // (sinon la décimation Douglas-Peucker fausse la détection sur le profil affiché).
-        func isPaused(_ i: Int) -> Bool {
-            guard mode == .time, !pausedRanges.isEmpty, i + 1 < profile.count,
-                  let ta = profile[i].timestamp, let tb = profile[i + 1].timestamp else { return false }
-            let mid = Date(timeIntervalSince1970: (ta.timeIntervalSince1970 + tb.timeIntervalSince1970) / 2)
-            return pausedRanges.contains { $0.contains(mid) }
         }
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {

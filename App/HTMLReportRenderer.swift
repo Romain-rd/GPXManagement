@@ -504,11 +504,15 @@ enum HTMLReportRenderer {
         let cats = order.map { "\"\(hex($0.color))\"" }
         let catLabels = order.map { "\"\(scale.label(for: $0))\"" }
 
-        // Pauses calculées sur le profil PLEIN (la décimation fausse la détection par rayon) → plages temporelles, classement par point.
+        // Pauses calculées sur le profil PLEIN (la décimation fausse la détection par rayon) → plages temporelles.
+        // Un point est « en pause » s'il borde un segment du profil décimé qui chevauche une plage → bande plate à zéro.
         let pausedRanges = ElevationProfileBuilder.pausedTimeRanges(profile, pauseMinSeconds: PDFReportRenderer.pauseMinSeconds, pauseRadiusMeters: PDFReportRenderer.pauseRadiusMeters)
+        func segOverlapsPause(_ a: Int, _ b: Int) -> Bool {
+            guard !pausedRanges.isEmpty, let ta = pts[a].timestamp, let tb = pts[b].timestamp else { return false }
+            return pausedRanges.contains { ta < $0.upperBound && $0.lowerBound < tb }
+        }
         func isPausedPt(_ i: Int) -> Bool {
-            guard !pausedRanges.isEmpty, let t = pts[i].timestamp else { return false }
-            return pausedRanges.contains { $0.contains(t) }
+            (i + 1 < pts.count && segOverlapsPause(i, i + 1)) || (i > 0 && segOverlapsPause(i - 1, i))
         }
         let pausedArr = pts.indices.map { isPausedPt($0) ? "1" : "0" }
 
