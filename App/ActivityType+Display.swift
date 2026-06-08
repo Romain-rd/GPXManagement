@@ -60,4 +60,17 @@ extension ActivityType {
         case .other:            return "Autre"
         }
     }
+
+    /// Distance et vitesse ont-elles du sens ? Non pour l'escalade, la muscu, les sports de salle/raquette
+    /// (sur place / sans déplacement mesurable). Les cartes correspondantes sont alors masquées.
+    var tracksDistanceAndSpeed: Bool {
+        switch self {
+        case .climbing, .strengthTraining, .crossfit, .elliptical, .stairStepper,
+             .hiit, .pilates, .yoga, .workout,
+             .badminton, .tennis, .tableTennis, .pickleball, .racquetball, .squash:
+            return false
+        default:
+            return true
+        }
+    }
 }

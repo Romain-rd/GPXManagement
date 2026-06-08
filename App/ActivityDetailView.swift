@@ -349,14 +349,29 @@ struct ActivityDetailView: View {
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
-            MetricCard(icon: "ruler", value: distanceText(activity.distance), label: "Distance", tint: .blue)
-            MetricCard(icon: "arrow.up.forward", value: "\(Int(activity.elevationGain.rounded())) m", label: "Dénivelé +", tint: .green)
-            MetricCard(icon: "arrow.down.forward", value: "\(Int(activity.elevationLoss.rounded())) m", label: "Dénivelé −", tint: .orange)
+        // Affichage adapté au type et aux données : on masque les métriques sans objet (distance/vitesse
+        // pour l'escalade, la muscu…) ou sans valeur (dénivelé/vitesse à 0).
+        let movement = activity.activityType.tracksDistanceAndSpeed
+        return LazyVGrid(columns: columns, spacing: 12) {
+            if movement && activity.distance > 0 {
+                MetricCard(icon: "ruler", value: distanceText(activity.distance), label: "Distance", tint: .blue)
+            }
+            if activity.elevationGain > 0 {
+                MetricCard(icon: "arrow.up.forward", value: "\(Int(activity.elevationGain.rounded())) m", label: "Dénivelé +", tint: .green)
+            }
+            if activity.elevationLoss > 0 {
+                MetricCard(icon: "arrow.down.forward", value: "\(Int(activity.elevationLoss.rounded())) m", label: "Dénivelé −", tint: .orange)
+            }
             MetricCard(icon: "clock", value: Self.duration(activity.duration), label: "Durée totale", tint: .purple)
-            MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
-            MetricCard(icon: "speedometer", value: speedText(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
-            MetricCard(icon: "gauge.with.dots.needle.67percent", value: speedText(activity.maxSpeed), label: "Vitesse max", tint: .teal)
+            if movement && activity.movingDuration > 0 {
+                MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
+            }
+            if movement && activity.avgSpeed > 0 {
+                MetricCard(icon: "speedometer", value: speedText(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
+            }
+            if movement && activity.maxSpeed > 0 {
+                MetricCard(icon: "gauge.with.dots.needle.67percent", value: speedText(activity.maxSpeed), label: "Vitesse max", tint: .teal)
+            }
             if let hr = activity.avgHeartRate {
                 MetricCard(icon: "heart", value: "\(Int(hr.rounded())) bpm", label: "FC moyenne", tint: .red)
             }

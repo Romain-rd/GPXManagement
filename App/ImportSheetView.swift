@@ -1,6 +1,20 @@
 import SwiftUI
 import GPXCore
 
+extension ImportProposal {
+    private static let titleDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .long; f.timeStyle = .none
+        return f
+    }()
+
+    /// Titre par défaut : le vrai nom du fichier (rare en FIT), sinon « Type — date » (ex. « Escalade — 15 avril 2026 »).
+    func defaultTitle(for type: ActivityType) -> String {
+        if let name = parsed.name, !name.isEmpty { return name }
+        let date = parsed.startDate ?? parsed.summary?.startDate ?? Date()
+        return "\(type.displayName) — \(Self.titleDateFormatter.string(from: date))"
+    }
+}
+
 struct ImportSheetView: View {
     @Bindable var services: AppServices
     @State private var editedTitle: String = ""
@@ -173,8 +187,8 @@ struct ImportSheetView: View {
 
     private func prefill() {
         if let p = currentProposal {
-            editedTitle = p.suggestedTitle
             editedType = p.suggestedActivityType ?? .cyclingRoad
+            editedTitle = p.defaultTitle(for: editedType)
         }
     }
 

@@ -229,7 +229,7 @@ final class AppServices {
                 }
                 let type = proposal.suggestedActivityType ?? fallbackType
                 if proposal.suggestedActivityType == nil { fallbackUsed += 1 }
-                _ = try await importer.confirmImport(proposal, activityType: type, title: proposal.suggestedTitle)
+                _ = try await importer.confirmImport(proposal, activityType: type, title: proposal.defaultTitle(for: type))
                 imported += 1
                 if imported % 25 == 0 {
                     importedCount += 1
@@ -257,7 +257,7 @@ final class AppServices {
         for proposal in snapshot {
             let type = proposal.suggestedActivityType ?? defaultActivityType
             do {
-                _ = try await importer.confirmImport(proposal, activityType: type, title: proposal.suggestedTitle)
+                _ = try await importer.confirmImport(proposal, activityType: type, title: proposal.defaultTitle(for: type))
                 pendingImports.removeAll { $0.sourceURL == proposal.sourceURL }
                 importedCount += 1
             } catch {
