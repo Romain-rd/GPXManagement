@@ -89,7 +89,7 @@ public enum ElevationProfileBuilder {
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
     /// Marque les segments appartenant à une pause longue : rester dans `pauseRadiusMeters` pendant ≥ `pauseMinSeconds`
     /// (robuste au jitter GPS à l'arrêt). Retourne un drapeau par segment (taille = profile.count − 1).
-    static func pausedSegmentFlags(_ profile: [ElevationProfilePoint], pauseMinSeconds: Double, pauseRadiusMeters: Double) -> [Bool] {
+    public static func pausedSegmentFlags(_ profile: [ElevationProfilePoint], pauseMinSeconds: Double, pauseRadiusMeters: Double) -> [Bool] {
         let n = profile.count
         guard n > 1 else { return [] }
         func dist(_ a: Int, _ b: Int) -> Double? {

@@ -131,7 +131,6 @@ struct ElevationProfileTabView: View {
     @State private var isLoading = true
     @State private var loadError: String?
 
-    private static let movingThreshold: Double = 0.5
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "fr_FR")
@@ -586,7 +585,12 @@ struct ElevationProfileTabView: View {
             buildHeartRate(from: profile, xs: xs)
         }
 
+        // Segments de pause (mêmes que les cartes/légende) → coloriés « Pause » (gris) dans tous les modes.
+        let pausedFlags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters)
+        func isPaused(_ i: Int) -> Bool { i < pausedFlags.count && pausedFlags[i] }
+
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
+            if isPaused(i) { return (MovementState.paused.label, MovementState.paused.color) }
             if metric == .speed {
                 let c = speedScale.category(for: speeds.indices.contains(i) ? speeds[i] : 0)
                 return (speedScale.label(for: c), speedColor(c))
@@ -596,8 +600,7 @@ struct ElevationProfileTabView: View {
                 let c = slopeScale.category(for: profile[i].slope)
                 return (slopeScale.label(for: c), c.color)
             case .time:
-                let st = movementState(profile, at: i)
-                return (st.label, st.color)
+                return (MovementState.moving.label, MovementState.moving.color)
             }
         }
 
@@ -631,7 +634,7 @@ struct ElevationProfileTabView: View {
         let t0 = (mode == .time) ? profile.compactMap(\.timestamp).first : nil
         hoverSamples = profile.enumerated().map { i, p in
             let elapsed: TimeInterval? = (mode == .time) ? (p.timestamp.flatMap { ts in t0.map { ts.timeIntervalSince($0) } }) : nil
-            let moving: Bool? = (mode == .time) ? (movementState(profile, at: i) == .moving) : nil
+            let moving: Bool? = (mode == .time) ? !isPaused(i) : nil
             let coordinate: CLLocationCoordinate2D? = (p.latitude != nil && p.longitude != nil)
                 ? CLLocationCoordinate2D(latitude: p.latitude!, longitude: p.longitude!) : nil
             let spd = speeds.indices.contains(i) ? speeds[i] : 0
@@ -662,13 +665,6 @@ struct ElevationProfileTabView: View {
         hrLine = line
     }
 
-    private func movementState(_ profile: [ElevationProfilePoint], at i: Int) -> MovementState {
-        guard i + 1 < profile.count, let a = profile[i].timestamp, let b = profile[i + 1].timestamp else { return .paused }
-        let dt = b.timeIntervalSince(a)
-        guard dt > 0 else { return .paused }
-        let dd = profile[i + 1].distanceFromStart - profile[i].distanceFromStart
-        return dd / dt > Self.movingThreshold ? .moving : .paused
-    }
 
     private func computeAltStats(profile: [ElevationProfilePoint]) -> (altMin: Double, altMax: Double, dPlus: Double, dMinus: Double) {
         guard !profile.isEmpty else { return (0, 0, 0, 0) }
