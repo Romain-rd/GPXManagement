@@ -90,6 +90,11 @@ struct SidebarView: View {
                     }
                         .badge(listVM.count(for: filter))
                         .tag(SidebarDestination.smartFilter(filter.id))
+                        // Double-clic → éditeur (façon boîtes intelligentes de Mail) ; le clic simple sélectionne
+                        // toujours (simultaneousGesture ne capture pas la sélection de la List).
+                        .simultaneousGesture(TapGesture(count: 2).onEnded {
+                            navigation.editingSmartFilter = filter
+                        })
                         .contextMenu {
                             Button("Modifier…") { navigation.editingSmartFilter = filter }
                             Button("Supprimer", role: .destructive) {
