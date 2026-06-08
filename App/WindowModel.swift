@@ -14,8 +14,12 @@ final class WindowModel {
     var mapExportStatus: String = ""
     var isExportingPDF: Bool = false
     var exportError: String?
-    /// Carte du détail en plein écran : vide la barre d'outils (mais conserve les pastilles de la fenêtre).
+    /// Carte du détail/vue d'ensemble en plein écran (barre de titre transparente, pastilles conservées).
     var mapFullscreen: Bool = false
+    /// Carte d'un raid en plein écran : overlay couvrant la fenêtre (la carte du raid est dans la colonne du milieu).
+    var fullscreenRaidId: UUID? = nil
+    /// Une carte est en mode immersif (détail/overview ou raid).
+    var isMapImmersive: Bool { mapFullscreen || fullscreenRaidId != nil }
 
     private let repository: CoreDataActivityRepository
 

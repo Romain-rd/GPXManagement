@@ -12,6 +12,7 @@ struct RaidDetailView: View {
     let listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     let navigation: AppNavigationModel
+    @Bindable var window: WindowModel
 
     @State private var draft: Raid
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
@@ -62,11 +63,12 @@ struct RaidDetailView: View {
         stageLayouts[id] ?? VideoLayout.defaultLayout(for: filmFormat)
     }
 
-    init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel) {
+    init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel, window: WindowModel) {
         self.raid = raid
         self.listVM = listVM
         self.repository = repository
         self.navigation = navigation
+        self.window = window
         _draft = State(initialValue: raid)
     }
 
@@ -557,14 +559,13 @@ struct RaidDetailView: View {
                 }
             }
             if !tracks.isEmpty {
-                HStack(spacing: 8) {
-                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
-                    if layer.isIGN {
-                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
-                            .padding(6)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    LayerPicker(layer: $layer)
+                MapControlCluster(
+                    layer: $layer,
+                    trackColorMode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }),
+                    slopeEnabled: $slopeOverlayEnabled,
+                    slopeOpacity: $slopeOverlayOpacity
+                ) {
+                    MapFullscreenButton(isFullscreen: false) { window.fullscreenRaidId = raid.id }
                 }
                 .padding(8)
             }

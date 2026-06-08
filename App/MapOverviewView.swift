@@ -159,6 +159,8 @@ struct MapOverviewView: View {
     let repository: CoreDataActivityRepository
     @Bindable var window: WindowModel
     let onSelect: (UUID) -> Void
+    /// Force le rendu plein écran (utilisé quand la vue sert d'overlay carte d'un raid).
+    var forceFullscreen: Bool = false
 
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
@@ -177,7 +179,7 @@ struct MapOverviewView: View {
         return activities.filter { selectedIds.contains($0.id) }
     }
 
-    private var isFullscreen: Bool { window.mapFullscreen }
+    private var isFullscreen: Bool { window.mapFullscreen || forceFullscreen }
 
     private var trackColorBinding: Binding<TrackColorMode> {
         Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue })

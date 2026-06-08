@@ -48,7 +48,7 @@ struct ContentView: View {
             if let raidId = navigation.selectedRaidId,
                let raid = listVM.raids.first(where: { $0.id == raidId }),
                let repository {
-                RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation)
+                RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window)
                     .id(raid.id)
                     .navigationSplitViewColumnWidth(min: 340, ideal: 400)
             } else {
@@ -59,7 +59,7 @@ struct ContentView: View {
             modeContent
         }
         .toolbar {
-            if !window.mapFullscreen {
+            if !window.isMapImmersive {
                 ToolbarItem(placement: .principal) {
                     Picker("Mode", selection: Binding(
                         get: { navigation.visualizationMode },
@@ -75,7 +75,7 @@ struct ContentView: View {
                 // En plein écran : bouton de sortie en haut-droite, dans la toolbar (au-dessus de la carte
                 // → reçoit le clic, contrairement à un overlay dessiné sous la barre transparente).
                 ToolbarItem(placement: .automatic) {
-                    Button { window.mapFullscreen = false } label: {
+                    Button { window.mapFullscreen = false; window.fullscreenRaidId = nil } label: {
                         Image(systemName: "arrow.down.right.and.arrow.up.left")
                     }
                     .help("Quitter le plein écran (Échap)")
@@ -93,7 +93,9 @@ struct ContentView: View {
         }
         // Plein écran carte façon Plan.app : barre de titre transparente (pastilles flottantes conservées) ;
         // titre vidé + recherche retirée côté vues, contrôles décalés sous la barre d'outils (qui reste présente).
-        .toolbarBackground(window.mapFullscreen ? .hidden : .automatic, for: .windowToolbar)
+        .toolbarBackground(window.isMapImmersive ? .hidden : .automatic, for: .windowToolbar)
+        // Carte d'un raid en plein écran : overlay couvrant toute la fenêtre (réutilise la vue d'ensemble).
+        .overlay { raidFullscreenOverlay }
         .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()
@@ -139,6 +141,26 @@ struct ContentView: View {
             ToolbarItem(placement: .automatic) {
                 ExportProgressLabel(fraction: window.mapExportFraction, status: window.mapExportStatus)
             }
+        }
+    }
+
+    /// Overlay plein écran de la carte d'un raid : réutilise la vue d'ensemble sur les étapes du raid.
+    @ViewBuilder
+    private var raidFullscreenOverlay: some View {
+        if window.fullscreenRaidId != nil, let repository {
+            MapOverviewView(
+                activities: raidMembers,
+                selectedIds: [],
+                repository: repository,
+                window: window,
+                onSelect: { id in
+                    navigation.listSelection = [id]
+                    navigation.visualizationMode = .activities
+                    window.fullscreenRaidId = nil
+                },
+                forceFullscreen: true
+            )
+            .ignoresSafeArea()
         }
     }
 
