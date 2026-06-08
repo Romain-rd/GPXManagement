@@ -4,6 +4,7 @@ import GPXCore
 struct ContentView: View {
     @Bindable var services: AppServices
     @State private var window: WindowModel
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     private let webProgress = WebExportProgress.shared
 
     init(services: AppServices = .shared) {
@@ -36,7 +37,11 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        // En plein écran carte on force le repli sidebar + liste (la carte occupe tout) ; sinon visibilité normale.
+        NavigationSplitView(columnVisibility: Binding(
+            get: { window.mapFullscreen ? .detailOnly : columnVisibility },
+            set: { columnVisibility = $0 }
+        )) {
             SidebarView(navigation: navigation, listVM: listVM)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } content: {
@@ -47,7 +52,7 @@ struct ContentView: View {
                     .id(raid.id)
                     .navigationSplitViewColumnWidth(min: 340, ideal: 400)
             } else {
-                ActivityListView(listVM: listVM, navigation: navigation, services: services)
+                ActivityListView(listVM: listVM, navigation: navigation, services: services, searchDisabled: window.mapFullscreen)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 340)
             }
         } detail: {
@@ -76,6 +81,9 @@ struct ContentView: View {
                 }
             }
         }
+        // Plein écran carte façon Plan.app : barre de titre transparente (les pastilles flottent sur la
+        // carte), titre vidé et recherche retirée côté vues ; le repli des colonnes est forcé ci-dessus.
+        .toolbarBackground(window.mapFullscreen ? .hidden : .automatic, for: .windowToolbar)
         .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()

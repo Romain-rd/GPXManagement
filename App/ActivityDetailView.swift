@@ -93,7 +93,11 @@ struct ActivityDetailView: View {
                 }
             }
         }
-        .navigationTitle(activity.title)
+        // Titre vidé en plein écran pour ne pas chevaucher les contrôles flottants (barre transparente).
+        .navigationTitle(fullscreenMap ? "" : activity.title)
+        // Fenêtre autonome : barre de titre transparente en plein écran → la carte passe dessous et les
+        // pastilles flottent (la fenêtre principale gère la même chose côté ContentView).
+        .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
         .onAppear {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
@@ -453,11 +457,20 @@ struct ActivityDetailView: View {
             trackColorMode: trackColorMode,
             onSelectPhoto: openPhoto
         )
+        .overlay(alignment: .top) { fsTopScrim }
         .overlay(alignment: .topLeading) { fsControlBar }
         .overlay(alignment: .topTrailing) { fsQuitButton }
         .overlay(alignment: .bottom) { if showFsProfile { fsProfilePanel } }
-        .background(Color.black)
+        // Carte bord-à-bord façon Plan.app : elle passe sous la barre de titre rendue transparente
+        // (cf. .toolbarBackground(.hidden) côté fenêtre), les pastilles flottent par-dessus.
         .ignoresSafeArea()
+    }
+
+    /// Léger dégradé en haut pour garder pastilles + contrôles lisibles sur fond IGN clair.
+    private var fsTopScrim: some View {
+        LinearGradient(colors: [.black.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom)
+            .frame(height: 96)
+            .allowsHitTesting(false)
     }
 
     /// Barre de contrôles du plein écran (sous la barre de titre, pour ne pas chevaucher titre/pastilles).
@@ -476,7 +489,8 @@ struct ActivityDetailView: View {
             }
             .buttonStyle(.plain).help(showFsProfile ? "Masquer le profil" : "Afficher le profil")
         }
-        .padding(.top, 44).padding(.leading, 12)
+        // Décalé à droite des 3 pastilles flottantes de la fenêtre (coin haut-gauche).
+        .padding(.top, 8).padding(.leading, 80)
     }
 
     private var fsQuitButton: some View {

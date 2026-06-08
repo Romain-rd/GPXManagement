@@ -4,10 +4,22 @@ import UniformTypeIdentifiers
 import GPXCore
 import GPXMapKit
 
+private extension View {
+    @ViewBuilder
+    func conditionalSearchable(active: Bool, text: Binding<String>, prompt: String) -> some View {
+        if active {
+            searchable(text: text, prompt: prompt)
+        } else {
+            self
+        }
+    }
+}
+
 struct ActivityListView: View {
     @Bindable var listVM: ActivityListViewModel
     @Bindable var navigation: AppNavigationModel
     @Bindable var services: AppServices
+    var searchDisabled: Bool = false
     @Environment(\.openWindow) private var openWindow
     @State private var isDropTargeted = false
     @State private var creatingRaidIds: Set<UUID>?
@@ -21,7 +33,7 @@ struct ActivityListView: View {
             }
             list
         }
-        .searchable(text: $listVM.searchText, prompt: "Rechercher (titre, notes, tags)")
+        .conditionalSearchable(active: !searchDisabled, text: $listVM.searchText, prompt: "Rechercher (titre, notes, tags)")
         .overlay {
             if isDropTargeted {
                 dropOverlay
