@@ -111,6 +111,8 @@ struct ElevationProfileTabView: View {
     @State private var slopeTimes: [SlopeCategory: TimeInterval] = [:]
     @State private var movingTime: TimeInterval = 0
     @State private var pausedTime: TimeInterval = 0
+    @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
+    @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
 
     @State private var hrLine: [HRPoint] = []
     @State private var hrMin: Double = 0
@@ -151,7 +153,7 @@ struct ElevationProfileTabView: View {
                 profileContent
             }
         }
-        .task(id: activityId) { await load() }
+        .task(id: "\(activityId)-\(pauseThresholdMinutes)-\(pauseRadiusMeters)") { await load() }
         .onChange(of: mode) { _, _ in
             buildChartData(from: trimmedProfile, mode: mode)
         }
@@ -201,7 +203,9 @@ struct ElevationProfileTabView: View {
     private var legendItems: [(label: String, color: Color, time: TimeInterval)] {
         switch mode {
         case .distance:
-            return slopeScale.categories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
+            var items = slopeScale.categories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
+            if pausedTime > 0 { items.append((MovementState.paused.label, MovementState.paused.color, pausedTime)) }
+            return items
         case .time:
             return [
                 (MovementState.moving.label, MovementState.moving.color, movingTime),
@@ -478,10 +482,12 @@ struct ElevationProfileTabView: View {
 
             trimmedProfile = trimmed
             hasSpeed = trimmed.compactMap(\.timestamp).count >= 2
-            slopeTimes = ElevationProfileBuilder.timeByCategory(raw, scale: slopeScale)
-            let movement = ElevationProfileBuilder.movementTime(working)
-            movingTime = movement.moving
-            pausedTime = movement.paused
+            // Mêmes pauses que les cartes du détail (rayon + durée paramétrables) → temps cohérents.
+            let minSec = pauseThresholdMinutes * 60
+            slopeTimes = ElevationProfileBuilder.slopeTimesAndPause(raw, scale: slopeScale, pauseMinSeconds: minSec, pauseRadiusMeters: pauseRadiusMeters).byCategory
+            let bd = ElevationProfileBuilder.timeBreakdown(working, pauseMinSeconds: minSec, pauseRadiusMeters: pauseRadiusMeters)
+            movingTime = bd.ascending + bd.descending + bd.flat
+            pausedTime = bd.paused
 
             let speeds = speedSeries(trimmed)
             maxSpeedDisplay = speeds.max() ?? 0

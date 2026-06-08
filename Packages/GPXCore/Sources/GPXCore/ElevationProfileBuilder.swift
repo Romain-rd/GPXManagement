@@ -87,22 +87,16 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
-    /// Répartition du temps en 4 seaux disjoints (somme = temps écoulé) : pause, montée, descente, plat.
-    /// Une pause = rester dans `pauseRadiusMeters` pendant ≥ `pauseMinSeconds` (robuste au jitter). Le reste
-    /// est classé par pente lissée (zone morte `flatPercent` autour de 0 = plat).
-    public static func timeBreakdown(_ profile: [ElevationProfilePoint],
-                                     pauseMinSeconds: Double = 300, pauseRadiusMeters: Double = 40,
-                                     flatPercent: Double = 1.0) -> (ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval, paused: TimeInterval) {
+    /// Marque les segments appartenant à une pause longue : rester dans `pauseRadiusMeters` pendant ≥ `pauseMinSeconds`
+    /// (robuste au jitter GPS à l'arrêt). Retourne un drapeau par segment (taille = profile.count − 1).
+    static func pausedSegmentFlags(_ profile: [ElevationProfilePoint], pauseMinSeconds: Double, pauseRadiusMeters: Double) -> [Bool] {
         let n = profile.count
-        guard n > 1 else { return (0, 0, 0, 0) }
-
+        guard n > 1 else { return [] }
         func dist(_ a: Int, _ b: Int) -> Double? {
             guard let la = profile[a].latitude, let lo = profile[a].longitude,
                   let lb = profile[b].latitude, let lob = profile[b].longitude else { return nil }
             return haversine(lat1: la, lon1: lo, lat2: lb, lon2: lob)
         }
-
-        // Segments appartenant à une pause longue (rester dans le rayon ≥ minSeconds).
         var paused = [Bool](repeating: false, count: n - 1)
         var i = 0
         while i < n - 1 {
@@ -115,7 +109,17 @@ public enum ElevationProfileBuilder {
                 i += 1
             }
         }
+        return paused
+    }
 
+    /// Répartition du temps en 4 seaux disjoints (somme = temps écoulé) : montée, descente, plat, pause.
+    /// Le reste (hors pause) est classé par pente lissée (zone morte `flatPercent` autour de 0 = plat).
+    public static func timeBreakdown(_ profile: [ElevationProfilePoint],
+                                     pauseMinSeconds: Double = 300, pauseRadiusMeters: Double = 40,
+                                     flatPercent: Double = 1.0) -> (ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval, paused: TimeInterval) {
+        let n = profile.count
+        guard n > 1 else { return (0, 0, 0, 0) }
+        let paused = pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
         var asc: TimeInterval = 0, desc: TimeInterval = 0, flat: TimeInterval = 0, pau: TimeInterval = 0
         for s in 0..<(n - 1) {
             guard let t1 = profile[s].timestamp, let t2 = profile[s + 1].timestamp else { continue }
@@ -128,6 +132,26 @@ public enum ElevationProfileBuilder {
             else { flat += dt }
         }
         return (asc, desc, flat, pau)
+    }
+
+    /// Temps par catégorie de pente **hors pauses** + temps total des pauses (mêmes pauses que `timeBreakdown`).
+    /// Pour la légende du profil : les bandes de pente + la pause somment au temps total écoulé.
+    public static func slopeTimesAndPause(_ profile: [ElevationProfilePoint], scale: SlopeScale = .percent,
+                                          pauseMinSeconds: Double = 300, pauseRadiusMeters: Double = 40)
+        -> (byCategory: [SlopeCategory: TimeInterval], paused: TimeInterval) {
+        let n = profile.count
+        guard n > 1 else { return ([:], 0) }
+        let paused = pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        var byCat: [SlopeCategory: TimeInterval] = [:]
+        var pau: TimeInterval = 0
+        for s in 0..<(n - 1) {
+            guard let t1 = profile[s].timestamp, let t2 = profile[s + 1].timestamp else { continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0 else { continue }
+            if paused[s] { pau += dt; continue }
+            byCat[scale.category(for: profile[s].slope), default: 0] += dt
+        }
+        return (byCat, pau)
     }
 
     public static func timeByCategory(_ profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> [SlopeCategory: TimeInterval] {
