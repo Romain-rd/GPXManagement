@@ -22,6 +22,7 @@ public enum ActivitySource: Hashable, Sendable, Identifiable {
     case fitbit
     case stryd
     case scenic
+    case redpoint
     case other(String)
     case unknown
 
@@ -59,6 +60,7 @@ public enum ActivitySource: Hashable, Sendable, Identifiable {
         case has("fitbit"):                       self = .fitbit
         case has("stryd"):                        self = .stryd
         case has("scenic"):                       self = .scenic
+        case has("redpoint"):                     self = .redpoint
         default:                                  self = .other(trimmed)
         }
     }
@@ -83,6 +85,7 @@ public enum ActivitySource: Hashable, Sendable, Identifiable {
         case .fitbit:       return "Fitbit"
         case .stryd:        return "Stryd"
         case .scenic:       return "Scenic"
+        case .redpoint:     return "Redpoint"
         case .other(let raw): return raw
         case .unknown:      return "Inconnue"
         }
@@ -102,6 +105,7 @@ public enum ActivitySource: Hashable, Sendable, Identifiable {
         case .rideWithGPS:  return "point.topleft.down.curvedto.point.bottomright.up"
         case .decathlon:    return "figure.run"
         case .scenic:       return "motorcycle"
+        case .redpoint:     return "figure.climbing"
         case .bryton, .sigma, .hammerhead, .fitbit, .stryd, .tomtom: return "speedometer"
         case .other:        return "app.dashed"
         case .unknown:      return "questionmark.circle"

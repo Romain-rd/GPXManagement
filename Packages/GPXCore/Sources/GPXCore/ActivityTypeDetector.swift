@@ -16,8 +16,9 @@ public enum ActivityTypeDetector {
     /// de type d'activité fiable (ex. Scenic, dédiée moto).
     public static func detect(source: ActivitySource) -> ActivityType? {
         switch source {
-        case .scenic: return .motorcycle
-        default:      return nil
+        case .scenic:   return .motorcycle
+        case .redpoint: return .climbing
+        default:        return nil
         }
     }
 

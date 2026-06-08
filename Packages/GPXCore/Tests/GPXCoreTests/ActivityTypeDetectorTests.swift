@@ -33,4 +33,11 @@ final class ActivityTypeDetectorTests: XCTestCase {
         XCTAssertNil(ActivityTypeDetector.detect(hint: nil, fileFormat: .gpx))
         XCTAssertNil(ActivityTypeDetector.detect(hint: "", fileFormat: .fit))
     }
+
+    func testRedpointSourceDefaultsToClimbing() {
+        // Le creator Redpoint (GPX ou FIT) → source Redpoint → escalade par défaut.
+        XCTAssertEqual(ActivitySource(rawCreator: "Redpoint with Barometer"), .redpoint)
+        XCTAssertEqual(ActivitySource(rawCreator: "Redpoint Climbing Tracker App with Barometer"), .redpoint)
+        XCTAssertEqual(ActivityTypeDetector.detect(source: .redpoint), .climbing)
+    }
 }
