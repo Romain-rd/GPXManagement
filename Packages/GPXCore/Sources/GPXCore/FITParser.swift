@@ -26,6 +26,12 @@ public struct FITParser: Sendable {
         var sessionStart: Date?
         var sessionDuration: Double?
         var sessionDistance: Double?
+        var sessionAvgSpeed: Double?
+        var sessionMaxSpeed: Double?
+        var sessionAvgHR: Double?
+        var sessionMaxHR: Double?
+        var sessionAscent: Double?
+        var sessionDescent: Double?
 
         while decoder.hasMoreRecords {
             let header = try decoder.readUInt8()
@@ -64,6 +70,12 @@ public struct FITParser: Sendable {
                         if let st = fields[2]?.uint32Value { sessionStart = Self.fitEpoch.addingTimeInterval(TimeInterval(st)) }
                         if let el = fields[7]?.doubleValue { sessionDuration = el / 1000.0 }
                         if let di = fields[9]?.doubleValue { sessionDistance = di / 100.0 }
+                        if let v = fields[14]?.doubleValue { sessionAvgSpeed = v / 1000.0 } // avg_speed (mm/s → m/s)
+                        if let v = fields[15]?.doubleValue { sessionMaxSpeed = v / 1000.0 } // max_speed
+                        if let v = fields[16]?.doubleValue { sessionAvgHR = v }             // avg_heart_rate (bpm)
+                        if let v = fields[17]?.doubleValue { sessionMaxHR = v }             // max_heart_rate
+                        if let v = fields[22]?.doubleValue { sessionAscent = v }            // total_ascent (m)
+                        if let v = fields[23]?.doubleValue { sessionDescent = v }           // total_descent (m)
                     }
                 case 34:
                     if let sport = fields[4]?.uint8Value, pendingSport == nil { pendingSport = sport }
@@ -88,7 +100,12 @@ public struct FITParser: Sendable {
         let timestamps = points.compactMap(\.timestamp)
         let summary: ParsedTrack.Summary?
         if sessionStart != nil || sessionDuration != nil || sessionDistance != nil {
-            summary = ParsedTrack.Summary(startDate: sessionStart, duration: sessionDuration, distance: sessionDistance)
+            summary = ParsedTrack.Summary(
+                startDate: sessionStart, duration: sessionDuration, distance: sessionDistance,
+                avgSpeed: sessionAvgSpeed, maxSpeed: sessionMaxSpeed,
+                avgHeartRate: sessionAvgHR, maxHeartRate: sessionMaxHR,
+                elevationGain: sessionAscent, elevationLoss: sessionDescent
+            )
         } else {
             summary = nil
         }

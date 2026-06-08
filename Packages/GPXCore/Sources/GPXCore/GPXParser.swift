@@ -14,11 +14,26 @@ public struct ParsedTrack: Sendable, Equatable {
         public let startDate: Date?
         public let duration: Double?
         public let distance: Double?
+        public let avgSpeed: Double?       // m/s
+        public let maxSpeed: Double?       // m/s
+        public let avgHeartRate: Double?
+        public let maxHeartRate: Double?
+        public let elevationGain: Double?
+        public let elevationLoss: Double?
 
-        public init(startDate: Date?, duration: Double?, distance: Double?) {
+        public init(startDate: Date?, duration: Double?, distance: Double?,
+                    avgSpeed: Double? = nil, maxSpeed: Double? = nil,
+                    avgHeartRate: Double? = nil, maxHeartRate: Double? = nil,
+                    elevationGain: Double? = nil, elevationLoss: Double? = nil) {
             self.startDate = startDate
             self.duration = duration
             self.distance = distance
+            self.avgSpeed = avgSpeed
+            self.maxSpeed = maxSpeed
+            self.avgHeartRate = avgHeartRate
+            self.maxHeartRate = maxHeartRate
+            self.elevationGain = elevationGain
+            self.elevationLoss = elevationLoss
         }
     }
 

@@ -285,18 +285,23 @@ public actor ImportService {
         guard parsed.points.isEmpty else {
             return ActivityStatsCalculator.compute(points: parsed.points)
         }
-        let duration = parsed.summary?.duration ?? 0
+        // Activité sans tracé GPS (ex. séance enregistrée sans position) : on reprend les stats du
+        // résumé de séance (FIT) au lieu de tout laisser à 0 ; la vitesse moyenne est calculée à défaut.
+        let s = parsed.summary
+        let duration = s?.duration ?? 0
+        let distance = s?.distance ?? 0
+        let avgSpeed = s?.avgSpeed ?? (duration > 0 ? distance / duration : 0)
         return ActivityStats(
-            distance: parsed.summary?.distance ?? 0,
+            distance: distance,
             duration: duration,
             movingDuration: duration,
-            elevationGain: 0,
-            elevationLoss: 0,
-            avgSpeed: 0,
-            maxSpeed: 0,
+            elevationGain: s?.elevationGain ?? 0,
+            elevationLoss: s?.elevationLoss ?? 0,
+            avgSpeed: avgSpeed,
+            maxSpeed: s?.maxSpeed ?? 0,
             maxSlope: 0,
-            avgHeartRate: nil,
-            maxHeartRate: nil,
+            avgHeartRate: s?.avgHeartRate,
+            maxHeartRate: s?.maxHeartRate,
             boundingBox: .zero
         )
     }
