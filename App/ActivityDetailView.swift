@@ -72,6 +72,7 @@ struct ActivityDetailView: View {
     @State private var templateNameInput = ""
     @State private var savingNewTemplate = false
     @AppStorage("photosOnMapEnabled") private var photosOnMapEnabled = true
+    @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -102,7 +103,7 @@ struct ActivityDetailView: View {
         // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
         // la fenêtre principale gère la même chose côté ContentView.
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
-        .task(id: "\(activity.id)-\(activity.activityType.rawValue)") { await loadDerivedMetrics() }
+        .task(id: "\(activity.id)-\(activity.activityType.rawValue)-\(pauseThresholdMinutes)") { await loadDerivedMetrics() }
         .onAppear {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
@@ -792,7 +793,7 @@ struct ActivityDetailView: View {
             let (up, down) = ElevationProfileBuilder.ascentDescentTime(ElevationProfileBuilder.build(points: points))
             ascentTime = up > 0 ? up : nil
             descentTime = down > 0 ? down : nil
-            let pause = ActivityStatsCalculator.longPausesDuration(points: points) // arrêts ≥ 5 min
+            let pause = ActivityStatsCalculator.longPausesDuration(points: points, minSeconds: pauseThresholdMinutes * 60)
             pausedTime = pause > 0 ? pause : nil
         } else { ascentTime = nil; descentTime = nil; pausedTime = nil }
     }

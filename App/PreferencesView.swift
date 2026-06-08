@@ -25,6 +25,7 @@ struct PreferencesView: View {
 struct GeneralPreferencesView: View {
     @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignScan25.rawValue
     @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
+    @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
 
     var body: some View {
         Form {
@@ -34,6 +35,13 @@ struct GeneralPreferencesView: View {
                         Text(layer.displayName).tag(layer.rawValue)
                     }
                 }
+            }
+            Section("Métriques") {
+                Stepper("Durée minimale d'une pause : \(Int(pauseThresholdMinutes)) min",
+                        value: $pauseThresholdMinutes, in: 1...60, step: 1)
+                Text("Un arrêt n'est compté comme « pause » que s'il dure au moins ce temps (les arrêts brefs — feu rouge, photo — sont ignorés).")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Section("Photos") {
                 Toggle("Photos sélectionnées par défaut", isOn: $photosSelectedByDefault)

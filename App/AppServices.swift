@@ -740,6 +740,7 @@ final class CloudPreferences {
         ("slopeOverlayOpacity", .double),
         ("videoUserTemplates", .string),
         ("videoSelectedTemplate", .string),
+        ("pauseThresholdMinutes", .double),
     ]
 
     /// Modèle d'organisation iCloud — unique pour tous les appareils (dernière modification gagne).

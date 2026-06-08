@@ -209,22 +209,26 @@ public enum ActivityStatsCalculator {
         return (avg, maxHR)
     }
 
-    /// Temps total des « vraies » pauses : arrêts continus (vitesse ≤ seuil mouvement) d'au moins `minSeconds`.
-    /// Les ralentissements/arrêts brefs (feu rouge, photo) ne sont pas comptés.
-    public static func longPausesDuration(points: [TrackPoint], minSeconds: Double = 300) -> TimeInterval {
-        guard points.count > 1 else { return 0 }
+    /// Temps total des « vraies » pauses : périodes où l'on reste dans un rayon `radiusMeters` pendant au moins
+    /// `minSeconds` (robuste au jitter GPS à l'arrêt). Les ralentissements/arrêts brefs ne sont pas comptés.
+    public static func longPausesDuration(points: [TrackPoint], minSeconds: Double = 300, radiusMeters: Double = 40) -> TimeInterval {
+        let pts = points.filter { $0.timestamp != nil }
+        guard pts.count > 1 else { return 0 }
         var total: TimeInterval = 0
-        var currentStop: TimeInterval = 0
-        func flush() { if currentStop >= minSeconds { total += currentStop }; currentStop = 0 }
-        for i in 1..<points.count {
-            guard let t1 = points[i - 1].timestamp, let t2 = points[i].timestamp else { flush(); continue }
-            let dt = t2.timeIntervalSince(t1)
-            guard dt > 0 else { continue }
-            let segment = haversine(lat1: points[i - 1].latitude, lon1: points[i - 1].longitude,
-                                    lat2: points[i].latitude, lon2: points[i].longitude)
-            if segment / dt <= movingThreshold { currentStop += dt } else { flush() }
+        var i = 0
+        while i < pts.count - 1 {
+            var j = i
+            // Étend le groupe tant que les points restent dans le rayon autour de l'ancre i (on n'est pas parti).
+            while j + 1 < pts.count,
+                  haversine(lat1: pts[i].latitude, lon1: pts[i].longitude, lat2: pts[j + 1].latitude, lon2: pts[j + 1].longitude) <= radiusMeters {
+                j += 1
+            }
+            if j > i, let ti = pts[i].timestamp, let tj = pts[j].timestamp {
+                let span = tj.timeIntervalSince(ti)
+                if span >= minSeconds { total += span; i = j + 1; continue }
+            }
+            i += 1
         }
-        flush()
         return total
     }
 }
