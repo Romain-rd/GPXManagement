@@ -565,7 +565,7 @@ struct RaidDetailView: View {
                     slopeEnabled: $slopeOverlayEnabled,
                     slopeOpacity: $slopeOverlayOpacity
                 ) {
-                    MapFullscreenButton(isFullscreen: false) { window.fullscreenRaidId = raid.id }
+                    MapFullscreenButton { window.fullscreenRaidId = raid.id }
                 }
                 .padding(8)
             }

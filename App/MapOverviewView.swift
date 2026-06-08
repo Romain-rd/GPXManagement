@@ -139,17 +139,16 @@ struct MapControlCluster<Trailing: View>: View {
     }
 }
 
-/// Bouton d'entrée/sortie du plein écran carte, réutilisé sur toutes les cartes (même geste partout).
+/// Bouton d'entrée en plein écran carte, réutilisé sur toutes les cartes (la sortie est un item de toolbar).
 struct MapFullscreenButton: View {
-    let isFullscreen: Bool
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .help(isFullscreen ? "Quitter le plein écran (Échap)" : "Carte en plein écran")
+        .help("Carte en plein écran")
     }
 }
 
@@ -236,7 +235,7 @@ struct MapOverviewView: View {
                 .padding(.horizontal, 8)
                 .background(.thinMaterial, in: Capsule())
             MapControlCluster(layer: $layer, trackColorMode: trackColorBinding, slopeEnabled: $slopeOverlayEnabled, slopeOpacity: $slopeOverlayOpacity) {
-                MapFullscreenButton(isFullscreen: false) { window.mapFullscreen = true }
+                MapFullscreenButton { window.mapFullscreen = true }
             }
         }
     }
