@@ -908,8 +908,8 @@ enum HTMLReportRenderer {
       function yUnit(){ return metric === 'speed' ? D.speedUnit : 'm'; }
       function segColor(s, i){
         if (metric === 'speed') return D.speedCats[D.scat[i]] || '#888';
-        if (D.paused && D.paused[i]==1) return '#8e8e93';
-        return mode === 'distance' ? (D.cats[s.cat[i]] || '#888') : (s.moving[i]==1 ? '#34c759' : '#8e8e93');
+        if (mode === 'distance') return D.cats[s.cat[i]] || '#888';
+        return (D.paused && D.paused[i]==1) ? '#8e8e93' : (s.moving[i]==1 ? '#34c759' : '#8e8e93');
       }
 
       function resize(){

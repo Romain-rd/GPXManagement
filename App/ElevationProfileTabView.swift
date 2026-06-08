@@ -202,9 +202,7 @@ struct ElevationProfileTabView: View {
     private var legendItems: [(label: String, color: Color, time: TimeInterval)] {
         switch mode {
         case .distance:
-            var items = slopeScale.categories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
-            if pausedTime > 0 { items.append((MovementState.paused.label, MovementState.paused.color, pausedTime)) }
-            return items
+            return slopeScale.categories.map { (slopeScale.label(for: $0), $0.color, slopeTimes[$0] ?? 0) }
         case .time:
             return [
                 (MovementState.moving.label, MovementState.moving.color, movingTime),
@@ -585,9 +583,9 @@ struct ElevationProfileTabView: View {
             buildHeartRate(from: profile, xs: xs)
         }
 
-        // Segments de pause (mêmes que les cartes/légende) → coloriés « Pause » (gris) dans tous les modes.
+        // La pause est une notion temporelle : on ne la matérialise qu'en mode temps (en distance, à l'arrêt la distance n'avance pas).
         let pausedFlags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters)
-        func isPaused(_ i: Int) -> Bool { i < pausedFlags.count && pausedFlags[i] }
+        func isPaused(_ i: Int) -> Bool { mode == .time && i < pausedFlags.count && pausedFlags[i] }
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
             if isPaused(i) { return (MovementState.paused.label, MovementState.paused.color) }

@@ -130,12 +130,11 @@ enum PDFReportRenderer {
 
     static func slopeRuns(from profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> ([ProfileChartSample], [String: Color]) {
         guard profile.count >= 2 else { return ([], [:]) }
-        let paused = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
-        func isPaused(_ i: Int) -> Bool { paused.indices.contains(i) && paused[i] }
+        // Profil en distance : uniquement les bandes de pente (la pause est temporelle, sans sens sur l'axe distance).
         let categories = (0..<(profile.count - 1)).map { scale.category(for: profile[$0].slope) }
         return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 },
-                    key: { isPaused($0) ? "Pause" : scale.label(for: categories[$0]) },
-                    color: { isPaused($0) ? .gray : categories[$0].color })
+                    key: { scale.label(for: categories[$0]) },
+                    color: { categories[$0].color })
     }
 
     /// Profil en fonction du temps : aires mouvement/pause + courbe de fréquence cardiaque normalisée.
