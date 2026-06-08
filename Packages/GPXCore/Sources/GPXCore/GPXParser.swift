@@ -43,6 +43,20 @@ public struct GPXParser: Sendable {
     public init() {}
 
     public func parse(data: Data) throws -> ParsedTrack {
+        do {
+            return try parseStrict(data: data)
+        } catch let error as GPXParseError {
+            // Blindage : certains exports (gpx.py/gpxpy) écrivent les extensions avec l'URI de namespace
+            // en guise de nom de balise (<http://…/v1:hr>), ce qui est du XML invalide. On répare ces
+            // noms (→ <hr>, <cad>… : FC/cadence préservées) puis on réessaie une fois.
+            if case .xmlError = error, let repaired = Self.repairNamespacedTagNames(data) {
+                return try parseStrict(data: repaired)
+            }
+            throw error
+        }
+    }
+
+    private func parseStrict(data: Data) throws -> ParsedTrack {
         let delegate = GPXParserDelegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
@@ -57,6 +71,16 @@ public struct GPXParser: Sendable {
         }
         guard !delegate.points.isEmpty else { throw GPXParseError.noTracks }
         return delegate.build()
+    }
+
+    /// Remplace les noms de balises où l'URI de namespace sert de nom (`<scheme://…:local>` → `<local>`).
+    /// Ne touche pas aux balises valides (sans `://`) ni aux attributs `xmlns="http://…"`. Renvoie nil si rien à réparer.
+    static func repairNamespacedTagNames(_ data: Data) -> Data? {
+        guard let text = String(data: data, encoding: .utf8),
+              let regex = try? NSRegularExpression(pattern: "<(/?)[^>\\s]*://[^>\\s]*:([A-Za-z_][\\w.\\-]*)([ >])") else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        let repaired = regex.stringByReplacingMatches(in: text, range: range, withTemplate: "<$1$2$3")
+        return repaired == text ? nil : repaired.data(using: .utf8)
     }
 
     public func parse(url: URL) throws -> ParsedTrack {

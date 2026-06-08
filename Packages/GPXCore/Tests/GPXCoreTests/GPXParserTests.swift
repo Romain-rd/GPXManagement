@@ -151,4 +151,34 @@ final class GPXParserTests: XCTestCase {
         let xml = "not xml at all"
         XCTAssertThrowsError(try parser.parse(data: xml.data(using: .utf8)!))
     }
+
+    /// Exports gpx.py/gpxpy : l'URI de namespace sert de nom de balise (<http://…:hr>) → XML invalide.
+    /// Le blindage répare ces noms et récupère le tracé (FC/cadence préservées).
+    func testParseRepairsNamespaceUriTagNames() throws {
+        let ns = "http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="45.0" lon="6.0">
+              <ele>2000.0</ele>
+              <time>2026-04-11T04:21:56.761000Z</time>
+              <extensions>
+                <\(ns):TrackPointExtension>
+                  <\(ns):hr>91</\(ns):hr>
+                  <\(ns):cad>20</\(ns):cad>
+                </\(ns):TrackPointExtension>
+              </extensions>
+            </trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        let parsed = try parser.parse(data: xml.data(using: .utf8)!)
+        XCTAssertEqual(parsed.points.count, 1)
+        XCTAssertEqual(parsed.points.first?.latitude, 45.0)
+        XCTAssertEqual(parsed.points.first?.altitude, 2000.0)
+        XCTAssertEqual(parsed.points.first?.heartRate, 91)   // extension préservée après réparation
+        XCTAssertEqual(parsed.points.first?.cadence, 20)
+        XCTAssertNotNil(parsed.points.first?.timestamp)
+    }
 }
