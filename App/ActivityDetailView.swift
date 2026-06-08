@@ -53,6 +53,7 @@ struct ActivityDetailView: View {
     @State private var dragAccumulator: Double = 0
     @State private var fsProfileHeight: Double = 220 // hauteur du volet profil en plein écran (local à la fenêtre)
     @State private var showFsProfile = true
+    @State private var climbCount: Int? // nombre de montées (escalade), calculé depuis le profil d'altitude
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -98,6 +99,7 @@ struct ActivityDetailView: View {
         // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
         // la fenêtre principale gère la même chose côté ContentView.
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
+        .task(id: "\(activity.id)-\(activity.activityType.rawValue)") { await loadClimbCount() }
         .onAppear {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
@@ -360,6 +362,9 @@ struct ActivityDetailView: View {
             }
             if let hr = activity.maxHeartRate {
                 MetricCard(icon: "heart.fill", value: "\(Int(hr.rounded())) bpm", label: "FC max", tint: .red)
+            }
+            if activity.activityType == .climbing, let n = climbCount {
+                MetricCard(icon: "figure.climbing", value: "\(n)", label: "Montées", tint: .brown)
             }
         }
     }
@@ -734,6 +739,16 @@ struct ActivityDetailView: View {
     private func persistCurrentLayout() {
         let data = try? JSONEncoder().encode(currentLayout)
         Task { try? await repository.updateVideoLayoutData(id: activity.id, data: data) }
+    }
+
+    /// Escalade : compte les montées (voies/blocs) depuis le profil d'altitude barométrique.
+    /// Masqué (nil) si l'activité n'est pas de l'escalade ou n'a pas de données d'altitude (ex. FIT sans baromètre).
+    private func loadClimbCount() async {
+        guard activity.activityType == .climbing,
+              let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data) else { climbCount = nil; return }
+        let altitudes = points.compactMap(\.altitude)
+        climbCount = altitudes.count >= 2 ? ClimbCounter.count(altitudes: altitudes) : nil
     }
 
     private func loadTracePreview() async {
