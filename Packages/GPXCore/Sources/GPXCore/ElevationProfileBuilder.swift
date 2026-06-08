@@ -87,9 +87,13 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
-    /// Marque les segments appartenant à une pause longue : rester dans `pauseRadiusMeters` pendant ≥ `pauseMinSeconds`
-    /// (robuste au jitter GPS à l'arrêt). Retourne un drapeau par segment (taille = profile.count − 1).
+    /// Marque les segments appartenant à une pause longue (≥ `pauseMinSeconds`). Deux cas :
+    /// 1) cluster dense : rester dans `pauseRadiusMeters` (robuste au jitter GPS à l'arrêt) ;
+    /// 2) trou unique (auto-pause de l'appareil) : un seul long segment dont la vitesse moyenne est quasi nulle,
+    ///    même si ses extrémités dépassent le rayon (l'appareil a cessé d'enregistrer pendant l'arrêt).
+    /// Retourne un drapeau par segment (taille = profile.count − 1).
     public static func pausedSegmentFlags(_ profile: [ElevationProfilePoint], pauseMinSeconds: Double, pauseRadiusMeters: Double) -> [Bool] {
+        let idleSpeed = 0.5 // m/s (~1,8 km/h) : sous la marche → arrêt réel
         let n = profile.count
         guard n > 1 else { return [] }
         func dist(_ a: Int, _ b: Int) -> Double? {
@@ -100,6 +104,16 @@ public enum ElevationProfileBuilder {
         var paused = [Bool](repeating: false, count: n - 1)
         var i = 0
         while i < n - 1 {
+            // Cas 2 : trou d'auto-pause sur un seul segment (grand dt, déplacement net négligeable).
+            if let ti = profile[i].timestamp, let ti1 = profile[i + 1].timestamp {
+                let dt = ti1.timeIntervalSince(ti)
+                if dt >= pauseMinSeconds, let d = dist(i, i + 1), d / dt <= idleSpeed {
+                    paused[i] = true
+                    i += 1
+                    continue
+                }
+            }
+            // Cas 1 : cluster dense dans le rayon.
             var j = i
             while j + 1 < n, let d = dist(i, j + 1), d <= pauseRadiusMeters { j += 1 }
             if j > i, let ti = profile[i].timestamp, let tj = profile[j].timestamp, tj.timeIntervalSince(ti) >= pauseMinSeconds {
