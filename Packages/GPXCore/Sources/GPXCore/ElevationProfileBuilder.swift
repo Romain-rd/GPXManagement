@@ -87,6 +87,21 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
+    /// Temps passé en montée vs descente d'après la pente lissée (zone morte `flatPercent` pour ignorer le plat/bruit).
+    public static func ascentDescentTime(_ profile: [ElevationProfilePoint], flatPercent: Double = 1.0) -> (ascending: TimeInterval, descending: TimeInterval) {
+        guard profile.count >= 2 else { return (0, 0) }
+        var up: TimeInterval = 0, down: TimeInterval = 0
+        for i in 0..<(profile.count - 1) {
+            guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0, dt <= 300 else { continue }
+            let slope = profile[i].slope
+            if slope > flatPercent { up += dt }
+            else if slope < -flatPercent { down += dt }
+        }
+        return (up, down)
+    }
+
     public static func timeByCategory(_ profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> [SlopeCategory: TimeInterval] {
         guard profile.count >= 2 else { return [:] }
         var result: [SlopeCategory: TimeInterval] = [:]

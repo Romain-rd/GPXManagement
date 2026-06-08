@@ -54,6 +54,8 @@ struct ActivityDetailView: View {
     @State private var fsProfileHeight: Double = 220 // hauteur du volet profil en plein écran (local à la fenêtre)
     @State private var showFsProfile = true
     @State private var climbCount: Int? // nombre de montées (escalade), calculé depuis le profil d'altitude
+    @State private var ascentTime: TimeInterval? // temps en montée (activités de déplacement avec dénivelé)
+    @State private var descentTime: TimeInterval?
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -99,7 +101,7 @@ struct ActivityDetailView: View {
         // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
         // la fenêtre principale gère la même chose côté ContentView.
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
-        .task(id: "\(activity.id)-\(activity.activityType.rawValue)") { await loadClimbCount() }
+        .task(id: "\(activity.id)-\(activity.activityType.rawValue)") { await loadDerivedMetrics() }
         .onAppear {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
@@ -365,6 +367,16 @@ struct ActivityDetailView: View {
             MetricCard(icon: "clock", value: Self.duration(activity.duration), label: "Durée totale", tint: .purple)
             if movement && activity.movingDuration > 0 {
                 MetricCard(icon: "stopwatch", value: Self.duration(activity.movingDuration), label: "En mouvement", tint: .purple)
+                let paused = activity.duration - activity.movingDuration
+                if paused > 30 {
+                    MetricCard(icon: "pause.circle", value: Self.duration(paused), label: "En pause", tint: .gray)
+                }
+            }
+            if let up = ascentTime {
+                MetricCard(icon: "arrow.up.forward.circle", value: Self.duration(up), label: "Temps en montée", tint: .green)
+            }
+            if let down = descentTime {
+                MetricCard(icon: "arrow.down.forward.circle", value: Self.duration(down), label: "Temps en descente", tint: .blue)
             }
             if movement && activity.avgSpeed > 0 {
                 MetricCard(icon: "speedometer", value: speedText(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
@@ -764,14 +776,23 @@ struct ActivityDetailView: View {
         Task { try? await repository.updateVideoLayoutData(id: activity.id, data: data) }
     }
 
-    /// Escalade : compte les montées (voies/blocs) depuis le profil d'altitude barométrique.
-    /// Masqué (nil) si l'activité n'est pas de l'escalade ou n'a pas de données d'altitude (ex. FIT sans baromètre).
-    private func loadClimbCount() async {
-        guard activity.activityType == .climbing,
-              let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
-              let points = try? TrackPointCodec.decode(data) else { climbCount = nil; return }
-        let altitudes = points.compactMap(\.altitude)
-        climbCount = altitudes.count >= 2 ? ClimbCounter.count(altitudes: altitudes) : nil
+    /// Métriques dérivées calculées depuis les points : montées (escalade) et temps en montée/descente
+    /// (activités de déplacement). Chacune est nil si sans objet ou sans donnée d'altitude.
+    private func loadDerivedMetrics() async {
+        guard let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data) else {
+            climbCount = nil; ascentTime = nil; descentTime = nil; return
+        }
+        if activity.activityType == .climbing {
+            let altitudes = points.compactMap(\.altitude)
+            climbCount = altitudes.count >= 2 ? ClimbCounter.count(altitudes: altitudes) : nil
+        } else { climbCount = nil }
+
+        if activity.activityType.tracksDistanceAndSpeed {
+            let (up, down) = ElevationProfileBuilder.ascentDescentTime(ElevationProfileBuilder.build(points: points))
+            ascentTime = up > 0 ? up : nil
+            descentTime = down > 0 ? down : nil
+        } else { ascentTime = nil; descentTime = nil }
     }
 
     private func loadTracePreview() async {

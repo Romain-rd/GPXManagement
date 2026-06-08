@@ -2,6 +2,19 @@ import XCTest
 @testable import GPXCore
 
 final class ElevationProfileBuilderTests: XCTestCase {
+    func testAscentDescentTime() {
+        let t0 = Date(timeIntervalSince1970: 0)
+        func p(_ s: Double, _ sec: Double) -> ElevationProfilePoint {
+            ElevationProfilePoint(distanceFromStart: 0, altitude: 0, slope: s, timestamp: t0.addingTimeInterval(sec))
+        }
+        // pentes : +5 % (montée), -5 % (descente), +0,3 % (plat, sous la zone morte 1 %)
+        let profile = [p(5, 0), p(-5, 10), p(0.3, 20), p(0, 30)]
+        let (up, down) = ElevationProfileBuilder.ascentDescentTime(profile)
+        XCTAssertEqual(up, 10)    // segment 0
+        XCTAssertEqual(down, 10)  // segment 1
+        // segment 2 (0,3 %) ignoré → ni montée ni descente
+    }
+
     func testEmptyReturnsEmpty() {
         let profile = ElevationProfileBuilder.build(points: [])
         XCTAssertTrue(profile.isEmpty)
