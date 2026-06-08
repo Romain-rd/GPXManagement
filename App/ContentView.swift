@@ -71,6 +71,16 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+            } else {
+                // En plein écran : bouton de sortie en haut-droite, dans la toolbar (au-dessus de la carte
+                // → reçoit le clic, contrairement à un overlay dessiné sous la barre transparente).
+                ToolbarItem(placement: .automatic) {
+                    Button { window.mapFullscreen = false } label: {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    }
+                    .help("Quitter le plein écran (Échap)")
+                    .keyboardShortcut(.cancelAction)
+                }
             }
             if window.isExportingMap {
                 exportToolbarItem
@@ -81,8 +91,8 @@ struct ContentView: View {
                 }
             }
         }
-        // Plein écran carte façon Plan.app : barre de titre transparente (les pastilles flottent sur la
-        // carte), titre vidé et recherche retirée côté vues ; le repli des colonnes est forcé ci-dessus.
+        // Plein écran carte façon Plan.app : barre de titre transparente (pastilles flottantes conservées) ;
+        // titre vidé + recherche retirée côté vues, contrôles décalés sous la barre d'outils (qui reste présente).
         .toolbarBackground(window.mapFullscreen ? .hidden : .automatic, for: .windowToolbar)
         .focusedSceneValue(\.windowModel, window)
         .task {

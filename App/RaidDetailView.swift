@@ -683,7 +683,7 @@ struct RaidDetailView: View {
                 Section("Prédéfinis") {
                     ForEach(VideoTemplate.builtins) { t in
                         Button { applyTemplateToEditor(t) } label: {
-                            Label(t.name, systemImage: t.id == editingTemplateID ? "checkmark" : "")
+                            CheckmarkLabel(t.name, selected: t.id == editingTemplateID)
                         }
                     }
                 }
@@ -691,7 +691,7 @@ struct RaidDetailView: View {
                     Section("Mes modèles") {
                         ForEach(userTemplates) { t in
                             Button { applyTemplateToEditor(t) } label: {
-                                Label(t.name, systemImage: t.id == editingTemplateID ? "checkmark" : "")
+                                CheckmarkLabel(t.name, selected: t.id == editingTemplateID)
                             }
                         }
                     }

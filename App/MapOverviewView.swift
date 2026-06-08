@@ -4,6 +4,16 @@ import MapKit
 import GPXCore
 import GPXMapKit
 
+/// Élément de menu avec une coche si sélectionné, sans symbole vide sinon (évite « No symbol named '' »).
+struct CheckmarkLabel: View {
+    let title: String
+    let selected: Bool
+    init(_ title: String, selected: Bool) { self.title = title; self.selected = selected }
+    var body: some View {
+        if selected { Label(title, systemImage: "checkmark") } else { Text(title) }
+    }
+}
+
 struct LayerPicker: View {
     @Binding var layer: MapLayer
 
@@ -15,7 +25,7 @@ struct LayerPicker: View {
                         Button {
                             layer = l
                         } label: {
-                            Label(l.displayName, systemImage: l == layer ? "checkmark" : "")
+                            CheckmarkLabel(l.displayName, selected: l == layer)
                         }
                     }
                 }
@@ -81,7 +91,7 @@ struct TrackColorControl: View {
     var body: some View {
         Menu {
             ForEach(TrackColorMode.allCases) { m in
-                Button { mode = m } label: { Label(m.label, systemImage: m == mode ? "checkmark" : "") }
+                Button { mode = m } label: { CheckmarkLabel(m.label, selected: m == mode) }
             }
         } label: {
             HStack(spacing: 4) {
@@ -92,6 +102,54 @@ struct TrackColorControl: View {
         .menuStyle(.borderedButton)
         .padding(6)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// Groupe de contrôles carte (même ordre/style partout) : Fond · Trace · Pentes, + boutons d'action optionnels.
+/// Horizontal par défaut (au-dessus/à côté de la carte), vertical en plein écran (centré sur le bord gauche).
+struct MapControlCluster<Trailing: View>: View {
+    @Binding var layer: MapLayer
+    @Binding var trackColorMode: TrackColorMode
+    @Binding var slopeEnabled: Bool
+    @Binding var slopeOpacity: Double
+    var axis: Axis
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(layer: Binding<MapLayer>, trackColorMode: Binding<TrackColorMode>, slopeEnabled: Binding<Bool>, slopeOpacity: Binding<Double>, axis: Axis = .horizontal, @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+        _layer = layer
+        _trackColorMode = trackColorMode
+        _slopeEnabled = slopeEnabled
+        _slopeOpacity = slopeOpacity
+        self.axis = axis
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        let layout = axis == .vertical ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+            LayerPicker(layer: $layer)
+            TrackColorControl(mode: $trackColorMode)
+            if layer.isIGN {
+                SlopeOverlayControl(enabled: $slopeEnabled, opacity: $slopeOpacity)
+                    .padding(6)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+            }
+            trailing()
+        }
+    }
+}
+
+/// Bouton d'entrée/sortie du plein écran carte, réutilisé sur toutes les cartes (même geste partout).
+struct MapFullscreenButton: View {
+    let isFullscreen: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help(isFullscreen ? "Quitter le plein écran (Échap)" : "Carte en plein écran")
     }
 }
 
@@ -119,6 +177,12 @@ struct MapOverviewView: View {
         return activities.filter { selectedIds.contains($0.id) }
     }
 
+    private var isFullscreen: Bool { window.mapFullscreen }
+
+    private var trackColorBinding: Binding<TrackColorMode> {
+        Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue })
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
@@ -137,25 +201,16 @@ struct MapOverviewView: View {
                 }
             }
 
-            if !tracks.isEmpty {
-                HStack(spacing: 12) {
-                    Text("\(tracks.count) trace(s)")
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background(.thinMaterial, in: Capsule())
-                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
-                    if layer.isIGN {
-                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
-                            .padding(6)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    LayerPicker(layer: $layer)
-                }
-                .padding(8)
+            if !tracks.isEmpty && !isFullscreen {
+                inlineControls.padding(8)
             }
         }
-        .navigationTitle("Carte d'ensemble")
+        .overlay(alignment: .top) { if isFullscreen { fsTopScrim } }
+        .overlay(alignment: .bottom) { if isFullscreen && !tracks.isEmpty { fsControls } }
+        // ignore tout le safe area en plein écran (carte sous la barre transparente), sinon respecte-le —
+        // sans changer l'identité de la carte (pas de rechargement des traces au basculement).
+        .ignoresSafeArea(.container, edges: isFullscreen ? .all : [])
+        .navigationTitle(isFullscreen ? "" : "Carte d'ensemble")
         .task(id: visibleActivitiesIDsKey) { await loadAll() }
         .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
@@ -168,6 +223,32 @@ struct MapOverviewView: View {
         } message: {
             Text(exportError ?? "")
         }
+    }
+
+    /// Contrôles en mode fenêtré (coin haut-droit) : compteur + cluster + bouton plein écran.
+    private var inlineControls: some View {
+        HStack(spacing: 12) {
+            Text("\(tracks.count) trace(s)")
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(.thinMaterial, in: Capsule())
+            MapControlCluster(layer: $layer, trackColorMode: trackColorBinding, slopeEnabled: $slopeOverlayEnabled, slopeOpacity: $slopeOverlayOpacity) {
+                MapFullscreenButton(isFullscreen: false) { window.mapFullscreen = true }
+            }
+        }
+    }
+
+    /// Contrôles plein écran, en barre horizontale centrée en bas.
+    private var fsControls: some View {
+        MapControlCluster(layer: $layer, trackColorMode: trackColorBinding, slopeEnabled: $slopeOverlayEnabled, slopeOpacity: $slopeOverlayOpacity, axis: .horizontal)
+            .padding(.bottom, 12)
+    }
+
+    private var fsTopScrim: some View {
+        LinearGradient(colors: [.black.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom)
+            .frame(height: 96)
+            .allowsHitTesting(false)
     }
 
     private func exportPNG(fullRoute: Bool) async {

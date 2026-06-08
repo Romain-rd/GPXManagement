@@ -124,7 +124,7 @@ struct ActivityListView: View {
         Menu {
             ForEach(ActivitySortOrder.allCases) { order in
                 Button { listVM.sortOrder = order } label: {
-                    Label(order.label, systemImage: listVM.sortOrder == order ? "checkmark" : "")
+                    CheckmarkLabel(order.label, selected: listVM.sortOrder == order)
                 }
             }
         } label: {

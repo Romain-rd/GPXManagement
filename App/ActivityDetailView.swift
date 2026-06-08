@@ -51,7 +51,7 @@ struct ActivityDetailView: View {
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
     @AppStorage("detailMapHeight") private var mapHeight: Double = 340
     @State private var dragAccumulator: Double = 0
-    @State private var fsProfileHeight: Double = 200 // local à la fenêtre (non partagé)
+    @State private var fsProfileHeight: Double = 220 // hauteur du volet profil en plein écran (local à la fenêtre)
     @State private var showFsProfile = true
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
@@ -93,10 +93,10 @@ struct ActivityDetailView: View {
                 }
             }
         }
-        // Titre vidé en plein écran pour ne pas chevaucher les contrôles flottants (barre transparente).
+        // Titre vidé en plein écran pour ne pas chevaucher les contrôles (barre de titre transparente).
         .navigationTitle(fullscreenMap ? "" : activity.title)
-        // Fenêtre autonome : barre de titre transparente en plein écran → la carte passe dessous et les
-        // pastilles flottent (la fenêtre principale gère la même chose côté ContentView).
+        // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
+        // la fenêtre principale gère la même chose côté ContentView.
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
         .onAppear {
             notesDraft = activity.notes ?? ""
@@ -173,6 +173,12 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
+                } else if isStandaloneWindow {
+                    // Plein écran (fenêtre autonome) : sortie dans la toolbar (reçoit le clic, au-dessus de la carte).
+                    Button { fullscreenMap = false } label: {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    }
+                    .keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
                 }
             }
         }
@@ -445,7 +451,25 @@ struct ActivityDetailView: View {
             .help("Glisser pour ajuster la hauteur de la carte")
     }
 
+    /// Plein écran : carte (remplit) au-dessus, profil en volet bas à hauteur réglable — pile verticale,
+    /// la carte ne passe pas sous le profil (VStack plutôt que VSplitView qui donne une taille nulle à la carte Metal).
     private var fullscreenMapOverlay: some View {
+        VStack(spacing: 0) {
+            fsMapPane
+            if showFsProfile {
+                ProfileResizeHandle { delta in
+                    fsProfileHeight = min(560, max(140, fsProfileHeight + Double(delta)))
+                }
+                fsProfilePane
+                    .frame(height: fsProfileHeight)
+            }
+        }
+        // Carte bord-à-bord façon Plan.app : elle passe sous la barre de titre rendue transparente
+        // (cf. .toolbarBackground(.hidden) côté fenêtre), les pastilles flottent par-dessus.
+        .ignoresSafeArea()
+    }
+
+    private var fsMapPane: some View {
         ActivityMapCard(
             activityId: activity.id,
             activityType: activity.activityType,
@@ -457,61 +481,39 @@ struct ActivityDetailView: View {
             trackColorMode: trackColorMode,
             onSelectPhoto: openPhoto
         )
+        .frame(maxHeight: .infinity)
         .overlay(alignment: .top) { fsTopScrim }
-        .overlay(alignment: .topLeading) { fsControlBar }
-        .overlay(alignment: .topTrailing) { fsQuitButton }
-        .overlay(alignment: .bottom) { if showFsProfile { fsProfilePanel } }
-        // Carte bord-à-bord façon Plan.app : elle passe sous la barre de titre rendue transparente
-        // (cf. .toolbarBackground(.hidden) côté fenêtre), les pastilles flottent par-dessus.
-        .ignoresSafeArea()
+        .overlay(alignment: .bottom) { fsControlBar }
     }
 
-    /// Léger dégradé en haut pour garder pastilles + contrôles lisibles sur fond IGN clair.
+    /// Léger dégradé en haut pour garder pastilles + bouton Quitter lisibles sur fond IGN clair.
     private var fsTopScrim: some View {
         LinearGradient(colors: [.black.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom)
             .frame(height: 96)
             .allowsHitTesting(false)
     }
 
-    /// Barre de contrôles du plein écran (sous la barre de titre, pour ne pas chevaucher titre/pastilles).
+    /// Contrôles du plein écran, en barre horizontale centrée en bas de la carte.
     private var fsControlBar: some View {
-        HStack(spacing: 8) {
-            LayerPicker(layer: mapLayerBinding)
-            TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
-            if mapLayerBinding.wrappedValue.isIGN {
-                SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
-                    .padding(6)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-            }
+        MapControlCluster(
+            layer: mapLayerBinding,
+            trackColorMode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }),
+            slopeEnabled: $slopeOverlayEnabled,
+            slopeOpacity: $slopeOverlayOpacity,
+            axis: .horizontal
+        ) {
             Button { showFsProfile.toggle() } label: {
                 Image(systemName: showFsProfile ? "rectangle.bottomthird.inset.filled" : "rectangle")
                     .padding(7).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain).help(showFsProfile ? "Masquer le profil" : "Afficher le profil")
         }
-        // Décalé à droite des 3 pastilles flottantes de la fenêtre (coin haut-gauche).
-        .padding(.top, 8).padding(.leading, 80)
+        .padding(.bottom, 12)
     }
 
-    private var fsQuitButton: some View {
-        Button { fullscreenMap = false } label: {
-            Label("Quitter", systemImage: "arrow.down.right.and.arrow.up.left")
-                .padding(.horizontal, 8).padding(.vertical, 6)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain).keyboardShortcut(.cancelAction).help("Quitter le plein écran (Échap)")
-        .padding(.top, 8).padding(.trailing, 12)
-    }
-
-    /// Profil en surimpression discrète, navigable (survol → marqueur sur la carte), à hauteur réglable.
-    /// La hauteur n'est appliquée qu'à la fin du glissement (la carte ne se redessine pas pendant le drag).
-    private var fsProfilePanel: some View {
+    /// Profil plein écran : volet bas (hauteur réglable par la poignée), navigable (survol → marqueur carte).
+    private var fsProfilePane: some View {
         VStack(spacing: 2) {
-            // Le drag est isolé dans cette sous-vue (état local) → le parent (carte + graphe) n'est pas re-rendu
-            // pendant le glissement ; la hauteur n'est appliquée qu'au lâcher.
-            ProfileResizeHandle { delta in
-                fsProfileHeight = min(520, max(120, fsProfileHeight + Double(delta)))
-            }
             HStack(spacing: 8) {
                 Picker("", selection: $profileMetric) { ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) } }
                     .pickerStyle(.segmented).labelsHidden().fixedSize()
@@ -521,7 +523,7 @@ struct ActivityDetailView: View {
             }
             .padding(.horizontal, 12)
             ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
-                .frame(height: fsProfileHeight)
+                .frame(maxHeight: .infinity)
         }
         .padding(.bottom, 6)
         .background(.ultraThinMaterial)
@@ -834,13 +836,13 @@ struct ActivityDetailView: View {
             Menu {
                 Section("Prédéfinis") {
                     ForEach(VideoTemplate.builtins) { t in
-                        Button { applyTemplate(t) } label: { Label(t.name, systemImage: t.id == selectedTemplateID ? "checkmark" : "") }
+                        Button { applyTemplate(t) } label: { CheckmarkLabel(t.name, selected: t.id == selectedTemplateID) }
                     }
                 }
                 if !userTemplates.isEmpty {
                     Section("Mes modèles") {
                         ForEach(userTemplates) { t in
-                            Button { applyTemplate(t) } label: { Label(t.name, systemImage: t.id == selectedTemplateID ? "checkmark" : "") }
+                            Button { applyTemplate(t) } label: { CheckmarkLabel(t.name, selected: t.id == selectedTemplateID) }
                         }
                     }
                 }
