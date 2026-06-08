@@ -376,29 +376,35 @@ struct ActivityDetailView: View {
                       systemImage: profileMetric == .speed ? "speedometer" : "chart.xyaxis.line")
                     .font(.headline)
                 Spacer()
-                Picker("", selection: $profileMetric) {
-                    ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                Picker("", selection: $profileMode) {
-                    ForEach(ProfileMode.allCases) { m in
-                        Text(m.label).tag(m)
+                // Escalade : pas de vitesse ni de distance pertinentes (sur place) → profil altitude/temps, sans sélecteurs.
+                if !isClimbing {
+                    Picker("", selection: $profileMetric) {
+                        ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    Picker("", selection: $profileMode) {
+                        ForEach(ProfileMode.allCases) { m in
+                            Text(m.label).tag(m)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
             }
             ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
                 .frame(height: 280)
                 .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
         }
         .onChange(of: activity.id, initial: true) {
-            profileMetric = activity.activityType == .sailing ? .speed : .altitude
+            if isClimbing { profileMetric = .altitude; profileMode = .time }
+            else { profileMetric = activity.activityType == .sailing ? .speed : .altitude }
         }
     }
+
+    private var isClimbing: Bool { activity.activityType == .climbing }
 
     private var mapSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -520,10 +526,12 @@ struct ActivityDetailView: View {
     private var fsProfilePane: some View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Picker("", selection: $profileMetric) { ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) } }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
-                Picker("", selection: $profileMode) { ForEach(ProfileMode.allCases) { Text($0.label).tag($0) } }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                if !isClimbing {
+                    Picker("", selection: $profileMetric) { ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    Picker("", selection: $profileMode) { ForEach(ProfileMode.allCases) { Text($0.label).tag($0) } }
+                        .pickerStyle(.segmented).labelsHidden().fixedSize()
+                }
                 Spacer()
             }
             .padding(.horizontal, 12)

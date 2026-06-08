@@ -493,7 +493,14 @@ public struct TrackMapView: NSViewRepresentable {
                 if p.y < minY { minY = p.y }
                 if p.y > maxY { maxY = p.y }
             }
-            return MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+            var rect = MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+            // Trace quasi immobile (escalade sur place…) → étendue ~0 = carte noire. On garantit ~300 m de côté.
+            let minSpan = 300 * MKMapPointsPerMeterAtLatitude(coords[0].latitude)
+            if rect.size.width < minSpan || rect.size.height < minSpan {
+                let w = Swift.max(rect.size.width, minSpan), h = Swift.max(rect.size.height, minSpan)
+                rect = MKMapRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
+            }
+            return rect
         }
     }
 }

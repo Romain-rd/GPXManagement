@@ -4,7 +4,8 @@ import Foundation
 /// un cycle de remontée d'au moins `thresholdMeters` suivi d'une redescente d'au moins `thresholdMeters`
 /// (hystérésis, pour ignorer le bruit du capteur). Calibré sur les exports Redpoint.
 public enum ClimbCounter {
-    public static let defaultThresholdMeters: Double = 1.5
+    /// Calibré sur deux sessions Redpoint (réel 5 et 7 → 3,0 m donne 5 et 7 ; en dessous, sur-compte).
+    public static let defaultThresholdMeters: Double = 3.0
 
     public static func count(points: [TrackPoint], thresholdMeters: Double = defaultThresholdMeters) -> Int {
         count(altitudes: points.compactMap(\.altitude), thresholdMeters: thresholdMeters)

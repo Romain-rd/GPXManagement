@@ -16,7 +16,7 @@ public struct FITParser: Sendable {
         try decoder.readHeader()
 
         var points: [TrackPoint] = []
-        var trackName: String?
+        let trackName: String? = nil // FIT n'a pas de nom de séance ; le titre est dérivé du fichier à l'import
         var activityHint: String?
         var manufacturerId: UInt32?
         var productName: String?
@@ -81,10 +81,9 @@ public struct FITParser: Sendable {
                     if let sport = fields[4]?.uint8Value, pendingSport == nil { pendingSport = sport }
                 case 0:
                     if let manufacturer = fields[1]?.uint32Value { manufacturerId = manufacturer }
-                    if let nameField = fields[8]?.stringValue {
-                        trackName = nameField
-                        productName = nameField
-                    }
+                    // product_name = appli/appareil (ex. « Watch6,18 », « Redpoint… ») : sert au creator/source,
+                    // mais ne doit PAS servir de titre d'activité (le titre retombe sur le nom de fichier).
+                    if let nameField = fields[8]?.stringValue { productName = nameField }
                 default:
                     break
                 }
