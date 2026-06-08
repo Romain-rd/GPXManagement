@@ -1202,6 +1202,7 @@ private struct HTMLDistanceChart: View {
         .chartLegend(.hidden)
         .chartXAxisLabel("Distance (km)")
         .chartYAxisLabel("Altitude (m)")
+        .chartXScale(domain: 0...max(samples.map(\.x).max() ?? 1, 1))
         .padding(14)
         .background(Color.white)
     }
@@ -1226,6 +1227,7 @@ private struct HTMLTimeChart: View {
         .chartLegend(.hidden)
         .chartXAxisLabel(time.axisLabel)
         .chartYAxisLabel("Altitude (m)")
+        .chartXScale(domain: 0...max(time.samples.map(\.x).max() ?? 1, 1))
         .chartYScale(domain: 0...max(time.yDomainHi, 1))
         .chartYAxis {
             AxisMarks(position: .leading)

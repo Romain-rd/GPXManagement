@@ -319,6 +319,7 @@ struct PDFProfilesPage: View {
             .chartLegend(.hidden)
             .chartXAxisLabel("Distance (km)")
             .chartYAxisLabel("Altitude (m)")
+            .chartXScale(domain: 0...max(distanceSamples.map(\.x).max() ?? 1, 1))
             .frame(height: 200)
             slopeLegend
         }
@@ -343,6 +344,7 @@ struct PDFProfilesPage: View {
             .chartLegend(.hidden)
             .chartXAxisLabel(time.axisLabel)
             .chartYAxisLabel("Altitude (m)")
+            .chartXScale(domain: 0...max(time.samples.map(\.x).max() ?? 1, 1))
             .chartYScale(domain: 0...max(time.yDomainHi, 1))
             .chartYAxis {
                 AxisMarks(position: .leading)

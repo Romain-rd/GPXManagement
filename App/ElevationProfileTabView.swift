@@ -126,6 +126,7 @@ struct ElevationProfileTabView: View {
     @State private var selectedIndex: Int?
 
     @State private var totalKm: Double = 0
+    @State private var xDomainHi: Double = 0
     @State private var altMin: Double = 0
     @State private var altMax: Double = 0
     @State private var dPlus: Double = 0
@@ -340,6 +341,7 @@ struct ElevationProfileTabView: View {
         .chartLegend(.hidden)
         .chartXAxisLabel(xAxisLabel)
         .chartYAxisLabel(metric == .speed ? "Vitesse (\(speedUnitLabel))" : "Altitude (m)")
+        .chartXScale(domain: 0...max(xDomainHi, 1))
         .chartYScale(domain: 0...max(yDomainHi, 1))
         .chartYAxis {
             AxisMarks(position: .leading)
@@ -512,7 +514,7 @@ struct ElevationProfileTabView: View {
 
     private func resetData() {
         areaPoints = []; linePoints = []; styleScale = [:]
-        totalKm = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0; pausedRanges = []
+        totalKm = 0; xDomainHi = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0; pausedRanges = []
         hasAltitude = false; hasSpeed = false; maxSpeedDisplay = 0; avgSpeedDisplay = 0
         trimmedProfile = []; hrLine = []; hoverSamples = []; selectedIndex = nil
         highlightedCoordinate = nil
@@ -601,6 +603,8 @@ struct ElevationProfileTabView: View {
             }
             buildHeartRate(from: profile, xs: xs)
         }
+        // Domaine X explicite = dernière valeur, sinon Swift Charts arrondit vers le haut et la courbe n'atteint pas le bord droit.
+        xDomainHi = xs.last ?? 0
 
         func segmentStyle(_ i: Int) -> (key: String, color: Color) {
             if isPaused(i) { return (MovementState.paused.label, MovementState.paused.color) }
