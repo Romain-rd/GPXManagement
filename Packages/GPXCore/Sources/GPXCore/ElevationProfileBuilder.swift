@@ -87,19 +87,47 @@ public enum ElevationProfileBuilder {
 
     /// Temps cumulé passé dans chaque catégorie de pente, calculé sur le profil non décimé.
     /// Les intervalles aberrants (gaps/pauses > 5 min) sont ignorés.
-    /// Temps passé en montée vs descente d'après la pente lissée (zone morte `flatPercent` pour ignorer le plat/bruit).
-    public static func ascentDescentTime(_ profile: [ElevationProfilePoint], flatPercent: Double = 1.0) -> (ascending: TimeInterval, descending: TimeInterval) {
-        guard profile.count >= 2 else { return (0, 0) }
-        var up: TimeInterval = 0, down: TimeInterval = 0
-        for i in 0..<(profile.count - 1) {
-            guard let t1 = profile[i].timestamp, let t2 = profile[i + 1].timestamp else { continue }
-            let dt = t2.timeIntervalSince(t1)
-            guard dt > 0, dt <= 300 else { continue }
-            let slope = profile[i].slope
-            if slope > flatPercent { up += dt }
-            else if slope < -flatPercent { down += dt }
+    /// Répartition du temps en 4 seaux disjoints (somme = temps écoulé) : pause, montée, descente, plat.
+    /// Une pause = rester dans `pauseRadiusMeters` pendant ≥ `pauseMinSeconds` (robuste au jitter). Le reste
+    /// est classé par pente lissée (zone morte `flatPercent` autour de 0 = plat).
+    public static func timeBreakdown(_ profile: [ElevationProfilePoint],
+                                     pauseMinSeconds: Double = 300, pauseRadiusMeters: Double = 40,
+                                     flatPercent: Double = 1.0) -> (ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval, paused: TimeInterval) {
+        let n = profile.count
+        guard n > 1 else { return (0, 0, 0, 0) }
+
+        func dist(_ a: Int, _ b: Int) -> Double? {
+            guard let la = profile[a].latitude, let lo = profile[a].longitude,
+                  let lb = profile[b].latitude, let lob = profile[b].longitude else { return nil }
+            return haversine(lat1: la, lon1: lo, lat2: lb, lon2: lob)
         }
-        return (up, down)
+
+        // Segments appartenant à une pause longue (rester dans le rayon ≥ minSeconds).
+        var paused = [Bool](repeating: false, count: n - 1)
+        var i = 0
+        while i < n - 1 {
+            var j = i
+            while j + 1 < n, let d = dist(i, j + 1), d <= pauseRadiusMeters { j += 1 }
+            if j > i, let ti = profile[i].timestamp, let tj = profile[j].timestamp, tj.timeIntervalSince(ti) >= pauseMinSeconds {
+                for s in i..<j { paused[s] = true }
+                i = j + 1
+            } else {
+                i += 1
+            }
+        }
+
+        var asc: TimeInterval = 0, desc: TimeInterval = 0, flat: TimeInterval = 0, pau: TimeInterval = 0
+        for s in 0..<(n - 1) {
+            guard let t1 = profile[s].timestamp, let t2 = profile[s + 1].timestamp else { continue }
+            let dt = t2.timeIntervalSince(t1)
+            guard dt > 0 else { continue }
+            if paused[s] { pau += dt; continue }
+            let slope = profile[s].slope
+            if slope > flatPercent { asc += dt }
+            else if slope < -flatPercent { desc += dt }
+            else { flat += dt }
+        }
+        return (asc, desc, flat, pau)
     }
 
     public static func timeByCategory(_ profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> [SlopeCategory: TimeInterval] {

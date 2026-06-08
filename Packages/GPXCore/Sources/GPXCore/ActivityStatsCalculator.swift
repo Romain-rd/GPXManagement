@@ -208,27 +208,4 @@ public enum ActivityStatsCalculator {
         let maxHR = hrs.max() ?? 0
         return (avg, maxHR)
     }
-
-    /// Temps total des « vraies » pauses : périodes où l'on reste dans un rayon `radiusMeters` pendant au moins
-    /// `minSeconds` (robuste au jitter GPS à l'arrêt). Les ralentissements/arrêts brefs ne sont pas comptés.
-    public static func longPausesDuration(points: [TrackPoint], minSeconds: Double = 300, radiusMeters: Double = 40) -> TimeInterval {
-        let pts = points.filter { $0.timestamp != nil }
-        guard pts.count > 1 else { return 0 }
-        var total: TimeInterval = 0
-        var i = 0
-        while i < pts.count - 1 {
-            var j = i
-            // Étend le groupe tant que les points restent dans le rayon autour de l'ancre i (on n'est pas parti).
-            while j + 1 < pts.count,
-                  haversine(lat1: pts[i].latitude, lon1: pts[i].longitude, lat2: pts[j + 1].latitude, lon2: pts[j + 1].longitude) <= radiusMeters {
-                j += 1
-            }
-            if j > i, let ti = pts[i].timestamp, let tj = pts[j].timestamp {
-                let span = tj.timeIntervalSince(ti)
-                if span >= minSeconds { total += span; i = j + 1; continue }
-            }
-            i += 1
-        }
-        return total
-    }
 }

@@ -56,7 +56,8 @@ struct ActivityDetailView: View {
     @State private var climbCount: Int? // nombre de montées (escalade), calculé depuis le profil d'altitude
     @State private var ascentTime: TimeInterval? // temps en montée (activités de déplacement avec dénivelé)
     @State private var descentTime: TimeInterval?
-    @State private var pausedTime: TimeInterval? // temps des pauses ≥ 5 min
+    @State private var flatTime: TimeInterval?
+    @State private var pausedTime: TimeInterval? // temps des pauses ≥ seuil
     @AppStorage("videoQuality") private var videoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("videoFormat") private var videoFormatRaw = VideoFormat.landscape.rawValue
     @AppStorage("videoUserTemplates") private var userTemplatesJSON = ""
@@ -73,6 +74,7 @@ struct ActivityDetailView: View {
     @State private var savingNewTemplate = false
     @AppStorage("photosOnMapEnabled") private var photosOnMapEnabled = true
     @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
+    @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
@@ -103,7 +105,7 @@ struct ActivityDetailView: View {
         // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
         // la fenêtre principale gère la même chose côté ContentView.
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
-        .task(id: "\(activity.id)-\(activity.activityType.rawValue)-\(pauseThresholdMinutes)") { await loadDerivedMetrics() }
+        .task(id: "\(activity.id)-\(activity.activityType.rawValue)-\(pauseThresholdMinutes)-\(pauseRadiusMeters)") { await loadDerivedMetrics() }
         .onAppear {
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
@@ -378,6 +380,9 @@ struct ActivityDetailView: View {
             }
             if let down = descentTime {
                 MetricCard(icon: "arrow.down.forward.circle", value: Self.duration(down), label: "Temps en descente", tint: .blue)
+            }
+            if let flat = flatTime {
+                MetricCard(icon: "arrow.right.circle", value: Self.duration(flat), label: "Temps à plat", tint: .teal)
             }
             if movement && activity.avgSpeed > 0 {
                 MetricCard(icon: "speedometer", value: speedText(activity.avgSpeed), label: "Vitesse moy.", tint: .teal)
@@ -790,12 +795,15 @@ struct ActivityDetailView: View {
         } else { climbCount = nil }
 
         if activity.activityType.tracksDistanceAndSpeed {
-            let (up, down) = ElevationProfileBuilder.ascentDescentTime(ElevationProfileBuilder.build(points: points))
-            ascentTime = up > 0 ? up : nil
-            descentTime = down > 0 ? down : nil
-            let pause = ActivityStatsCalculator.longPausesDuration(points: points, minSeconds: pauseThresholdMinutes * 60)
-            pausedTime = pause > 0 ? pause : nil
-        } else { ascentTime = nil; descentTime = nil; pausedTime = nil }
+            // Partition du temps (somme = total) : pause / montée / descente / plat.
+            let bd = ElevationProfileBuilder.timeBreakdown(
+                ElevationProfileBuilder.build(points: points),
+                pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters)
+            ascentTime = bd.ascending > 0 ? bd.ascending : nil
+            descentTime = bd.descending > 0 ? bd.descending : nil
+            flatTime = bd.flat > 0 ? bd.flat : nil
+            pausedTime = bd.paused > 0 ? bd.paused : nil
+        } else { ascentTime = nil; descentTime = nil; flatTime = nil; pausedTime = nil }
     }
 
     private func loadTracePreview() async {

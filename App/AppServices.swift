@@ -741,6 +741,7 @@ final class CloudPreferences {
         ("videoUserTemplates", .string),
         ("videoSelectedTemplate", .string),
         ("pauseThresholdMinutes", .double),
+        ("pauseRadiusMeters", .double),
     ]
 
     /// Modèle d'organisation iCloud — unique pour tous les appareils (dernière modification gagne).

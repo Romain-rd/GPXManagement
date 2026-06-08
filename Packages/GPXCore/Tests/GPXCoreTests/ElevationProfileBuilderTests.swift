@@ -2,17 +2,25 @@ import XCTest
 @testable import GPXCore
 
 final class ElevationProfileBuilderTests: XCTestCase {
-    func testAscentDescentTime() {
+    func testTimeBreakdownPartitionsAndSumsToTotal() {
         let t0 = Date(timeIntervalSince1970: 0)
-        func p(_ s: Double, _ sec: Double) -> ElevationProfilePoint {
-            ElevationProfilePoint(distanceFromStart: 0, altitude: 0, slope: s, timestamp: t0.addingTimeInterval(sec))
+        func p(_ lat: Double, _ slope: Double, _ sec: Double) -> ElevationProfilePoint {
+            ElevationProfilePoint(distanceFromStart: 0, altitude: 0, slope: slope, timestamp: t0.addingTimeInterval(sec), latitude: lat, longitude: 6.0)
         }
-        // pentes : +5 % (montée), -5 % (descente), +0,3 % (plat, sous la zone morte 1 %)
-        let profile = [p(5, 0), p(-5, 10), p(0.3, 20), p(0, 30)]
-        let (up, down) = ElevationProfileBuilder.ascentDescentTime(profile)
-        XCTAssertEqual(up, 10)    // segment 0
-        XCTAssertEqual(down, 10)  // segment 1
-        // segment 2 (0,3 %) ignoré → ni montée ni descente
+        // ~0,001° ≈ 111 m (déplacement franc) ; le dernier point reste à ~3 m → pause.
+        let profile = [
+            p(45.000,  5,   0),   // seg0 : montée 10 s
+            p(45.001, -5,  10),   // seg1 : descente 10 s
+            p(45.002,  0,  20),   // seg2 : plat 10 s
+            p(45.003,  0,  30),   // seg3 : pause 360 s (reste dans le rayon)
+            p(45.00303, 0, 390),
+        ]
+        let bd = ElevationProfileBuilder.timeBreakdown(profile)
+        XCTAssertEqual(bd.ascending, 10)
+        XCTAssertEqual(bd.descending, 10)
+        XCTAssertEqual(bd.flat, 10)
+        XCTAssertEqual(bd.paused, 360)
+        XCTAssertEqual(bd.ascending + bd.descending + bd.flat + bd.paused, 390) // = temps total écoulé
     }
 
     func testEmptyReturnsEmpty() {

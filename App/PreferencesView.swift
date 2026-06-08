@@ -26,6 +26,7 @@ struct GeneralPreferencesView: View {
     @AppStorage("defaultMapLayer") private var mapLayer: String = MapLayer.ignScan25.rawValue
     @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
     @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
+    @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
 
     var body: some View {
         Form {
@@ -36,10 +37,12 @@ struct GeneralPreferencesView: View {
                     }
                 }
             }
-            Section("Métriques") {
+            Section("Métriques — détection des pauses") {
                 Stepper("Durée minimale d'une pause : \(Int(pauseThresholdMinutes)) min",
                         value: $pauseThresholdMinutes, in: 1...60, step: 1)
-                Text("Un arrêt n'est compté comme « pause » que s'il dure au moins ce temps (les arrêts brefs — feu rouge, photo — sont ignorés).")
+                Stepper("Rayon d'immobilité : \(Int(pauseRadiusMeters)) m",
+                        value: $pauseRadiusMeters, in: 10...150, step: 5)
+                Text("Un arrêt est une pause si l'on reste dans ce rayon pendant au moins cette durée (robuste au tremblement GPS ; les arrêts brefs — feu rouge, photo — sont ignorés).")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
