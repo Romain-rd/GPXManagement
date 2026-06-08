@@ -74,7 +74,7 @@ enum HTMLReportRenderer {
         let workingProfile = hasAltitude ? profile : ElevationProfileBuilder.buildMotion(points: points)
         let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile, scale: activity.activityType.slopeScale)
         let timeProfile = PDFReportRenderer.movementRuns(from: profile)
-        let movement = ElevationProfileBuilder.movementTime(workingProfile)
+        let movement = PDFReportRenderer.movementSplit(workingProfile)
         let interactiveProfile = options.profile == .interactive
 
         var distancePNG: Data?
@@ -504,6 +504,11 @@ enum HTMLReportRenderer {
         let cats = order.map { "\"\(hex($0.color))\"" }
         let catLabels = order.map { "\"\(scale.label(for: $0))\"" }
 
+        // Pauses (mêmes que l'app/profil) → marquées par point pour le coloriage gris dans les deux modes.
+        let pausedFlags = ElevationProfileBuilder.pausedSegmentFlags(pts, pauseMinSeconds: PDFReportRenderer.pauseMinSeconds, pauseRadiusMeters: PDFReportRenderer.pauseRadiusMeters)
+        func isPausedPt(_ i: Int) -> Bool { i < pausedFlags.count && pausedFlags[i] }
+        let pausedArr = pts.indices.map { isPausedPt($0) ? "1" : "0" }
+
         // Vitesse (unité d'affichage) + catégorie par point
         let sScale = at.speedScale
         var rawMps = [Double](repeating: 0, count: pts.count)
@@ -548,15 +553,7 @@ enum HTMLReportRenderer {
                 return num(lastX, 3)
             }
             let tAlt = pts.map { num($0.altitude, 1) }
-            var moving: [String] = []
-            for i in 0..<pts.count {
-                if i + 1 < pts.count, let a = pts[i].timestamp, let b = pts[i + 1].timestamp, b.timeIntervalSince(a) > 0 {
-                    let dd = pts[i + 1].distanceFromStart - pts[i].distanceFromStart
-                    moving.append(dd / b.timeIntervalSince(a) > 0.5 ? "1" : "0")
-                } else {
-                    moving.append(moving.last ?? "1")
-                }
-            }
+            let moving = pts.indices.map { isPausedPt($0) ? "0" : "1" } // = non-pause (cohérent avec les cartes)
             let hrs = pts.compactMap(\.heartRate).filter { $0 > 0 }
             var hrField = "null"
             if hrs.count >= 2 {
@@ -573,7 +570,7 @@ enum HTMLReportRenderer {
         return "{hasAlt:\(hasAltitude),cats:[\(cats.joined(separator: ","))],catLabels:[\(catLabels.joined(separator: ","))],"
             + "speedCats:[\(speedCats.joined(separator: ","))],speedLabels:[\(speedLabels.joined(separator: ","))],"
             + "spd:\(arr(speedArr)),scat:\(arr(scatArr)),speedUnit:\"\(at.speedUnitLabel)\",distUnit:\"\(distUnit)\",distFactor:\(num(distFactor, 6)),"
-            + "distance:\(distanceObj),time:\(timeObj)}"
+            + "paused:\(arr(pausedArr)),distance:\(distanceObj),time:\(timeObj)}"
     }
 
     /// Sous-échantillonnage uniforme (profils sans altitude : Douglas-Peucker écraserait une courbe plate).
@@ -640,7 +637,7 @@ enum HTMLReportRenderer {
             metricCard("⬆️", "Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
             metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
             metricCard("🕐", "Durée totale", fmtDuration(activity.duration)),
-            metricCard("⏱️", "En mouvement", fmtDuration(activity.movingDuration)),
+            metricCard("⏱️", "En mouvement", fmtDuration(movement.moving)),
             metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)),
             metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed))
         ]
@@ -911,6 +908,7 @@ enum HTMLReportRenderer {
       function yUnit(){ return metric === 'speed' ? D.speedUnit : 'm'; }
       function segColor(s, i){
         if (metric === 'speed') return D.speedCats[D.scat[i]] || '#888';
+        if (D.paused && D.paused[i]==1) return '#8e8e93';
         return mode === 'distance' ? (D.cats[s.cat[i]] || '#888') : (s.moving[i]==1 ? '#34c759' : '#8e8e93');
       }
 

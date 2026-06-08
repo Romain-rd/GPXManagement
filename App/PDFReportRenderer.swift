@@ -72,9 +72,9 @@ enum PDFReportRenderer {
         let profile = ElevationProfileBuilder.build(points: points)
         let (distanceSamples, distanceScale) = slopeRuns(from: profile, scale: activity.activityType.slopeScale)
         let timeProfile = movementRuns(from: profile)
-        let movement = ElevationProfileBuilder.movementTime(profile)
+        let movement = Self.movementSplit(profile)
 
-        let page1 = PDFReportPage(activity: activity, mapImage: mapImage)
+        let page1 = PDFReportPage(activity: activity, mapImage: mapImage, movingTime: profile.isEmpty ? nil : movement.moving)
         let page2 = PDFProfilesPage(
             activity: activity,
             distanceSamples: distanceSamples,
@@ -118,10 +118,24 @@ enum PDFReportRenderer {
     // MARK: - Données des profils
 
     /// Regroupe les points en segments contigus de même pente (chaque run = une aire colorée distincte).
+    // Seuils de pause (paramétrés par l'utilisateur, partagés avec l'app/profil).
+    static var pauseMinSeconds: Double { (UserDefaults.standard.object(forKey: "pauseThresholdMinutes") as? Double ?? 5) * 60 }
+    static var pauseRadiusMeters: Double { UserDefaults.standard.object(forKey: "pauseRadiusMeters") as? Double ?? 40 }
+
+    /// Temps mouvement/pause cohérent avec l'app : mouvement = montée+descente+plat, pause = arrêts ≥ seuil.
+    static func movementSplit(_ profile: [ElevationProfilePoint]) -> (moving: TimeInterval, paused: TimeInterval) {
+        let bd = ElevationProfileBuilder.timeBreakdown(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        return (bd.ascending + bd.descending + bd.flat, bd.paused)
+    }
+
     static func slopeRuns(from profile: [ElevationProfilePoint], scale: SlopeScale = .percent) -> ([ProfileChartSample], [String: Color]) {
         guard profile.count >= 2 else { return ([], [:]) }
+        let paused = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        func isPaused(_ i: Int) -> Bool { paused.indices.contains(i) && paused[i] }
         let categories = (0..<(profile.count - 1)).map { scale.category(for: profile[$0].slope) }
-        return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 }, key: { scale.label(for: categories[$0]) }, color: { categories[$0].color })
+        return runs(profile: profile, xs: profile.map { $0.distanceFromStart / 1000 },
+                    key: { isPaused($0) ? "Pause" : scale.label(for: categories[$0]) },
+                    color: { isPaused($0) ? .gray : categories[$0].color })
     }
 
     /// Profil en fonction du temps : aires mouvement/pause + courbe de fréquence cardiaque normalisée.
@@ -140,13 +154,8 @@ enum PDFReportRenderer {
         }
         let yHi = (profile.map(\.altitude).max() ?? 1) * 1.05
 
-        func moving(_ i: Int) -> Bool {
-            guard i + 1 < profile.count, let a = profile[i].timestamp, let b = profile[i + 1].timestamp else { return false }
-            let dt = b.timeIntervalSince(a)
-            guard dt > 0 else { return false }
-            let dd = profile[i + 1].distanceFromStart - profile[i].distanceFromStart
-            return dd / dt > 0.5
-        }
+        let paused = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        func moving(_ i: Int) -> Bool { !(paused.indices.contains(i) && paused[i]) }
 
         let (samples, scale) = runs(profile: profile, xs: xs,
                                     key: { moving($0) ? "moving" : "paused" },
@@ -214,6 +223,7 @@ enum PDFReportRenderer {
 struct PDFReportPage: View {
     let activity: ActivitySummary
     let mapImage: NSImage?
+    var movingTime: TimeInterval? // = montée+descente+plat (cohérent avec l'app), sinon repli sur la stat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -247,7 +257,7 @@ struct PDFReportPage: View {
             card("arrow.up.forward", "\(Int(activity.elevationGain.rounded())) m", "Dénivelé +", .green)
             card("arrow.down.forward", "\(Int(activity.elevationLoss.rounded())) m", "Dénivelé −", .orange)
             card("clock", PDFFmt.duration(activity.duration), "Durée totale", .purple)
-            card("stopwatch", PDFFmt.duration(activity.movingDuration), "En mouvement", .purple)
+            card("stopwatch", PDFFmt.duration(movingTime ?? activity.movingDuration), "En mouvement", .purple)
             card("speedometer", PDFFmt.speed(activity.avgSpeed), "Vitesse moy.", .teal)
             card("gauge.with.dots.needle.67percent", PDFFmt.speed(activity.maxSpeed), "Vitesse max", .teal)
             if let hr = activity.avgHeartRate { card("heart", "\(Int(hr.rounded())) bpm", "FC moyenne", .red) }
