@@ -17,7 +17,8 @@ struct PreferencesView: View {
             AboutView()
                 .tabItem { Label("À propos", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 360)
+        // Assez grand pour les onglets denses (Maintenance, Strava) ; les Form défilent au-delà.
+        .frame(width: 580, height: 600)
     }
 }
 
@@ -48,7 +49,7 @@ struct GeneralPreferencesView: View {
 
 struct OrganizationPreferencesView: View {
     @Bindable private var services = AppServices.shared
-    @AppStorage("organizationPattern") private var pattern: String = OrganizationPattern.default.template
+    @Bindable private var cloud = CloudPreferences.shared
     @State private var watchedFolderPath: String = ""
     @State private var showReorganizeConfirmation = false
     @State private var reorganizeAlreadyTidy = false
@@ -56,12 +57,12 @@ struct OrganizationPreferencesView: View {
     var body: some View {
         Form {
             Section("Modèle d'organisation") {
-                Picker("Modèle prédéfini", selection: $pattern) {
+                Picker("Modèle prédéfini", selection: $cloud.organizationPattern) {
                     ForEach(OrganizationPattern.presets, id: \.template) { preset in
                         Text(preset.label).tag(preset.template)
                     }
                 }
-                TextField("Modèle personnalisé", text: $pattern, axis: .vertical)
+                TextField("Modèle personnalisé", text: $cloud.organizationPattern, axis: .vertical)
                     .lineLimit(2...4)
                     .font(.system(.body, design: .monospaced))
                 Text("Variables : {year}, {month}, {day}, {activity}, {subactivity}, {title}, {ext}")
@@ -98,7 +99,7 @@ struct OrganizationPreferencesView: View {
                     }
                     Button("Annuler", role: .cancel) {}
                 } message: {
-                    Text("\(services.pendingReorganizeCount) fichier(s) seront déplacés dans iCloud pour correspondre au modèle « \(pattern) ». La synchronisation s'appliquera sur tous vos appareils.")
+                    Text("\(services.pendingReorganizeCount) fichier(s) seront déplacés dans iCloud pour correspondre au modèle « \(cloud.organizationPattern) ». La synchronisation s'appliquera sur tous vos appareils.")
                 }
             }
 
