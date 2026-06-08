@@ -74,7 +74,9 @@ enum HTMLReportRenderer {
         let workingProfile = hasAltitude ? profile : ElevationProfileBuilder.buildMotion(points: points)
         let (distanceSamples, distanceScale) = PDFReportRenderer.slopeRuns(from: profile, scale: activity.activityType.slopeScale)
         let timeProfile = PDFReportRenderer.movementRuns(from: profile)
-        let movement = PDFReportRenderer.movementSplit(workingProfile)
+        let bd = ElevationProfileBuilder.timeBreakdown(workingProfile, pauseMinSeconds: PDFReportRenderer.pauseMinSeconds, pauseRadiusMeters: PDFReportRenderer.pauseRadiusMeters)
+        let movement = (moving: bd.ascending + bd.descending + bd.flat, paused: bd.paused,
+                        ascending: bd.ascending, descending: bd.descending, flat: bd.flat)
         let interactiveProfile = options.profile == .interactive
 
         var distancePNG: Data?
@@ -619,7 +621,7 @@ enum HTMLReportRenderer {
         return scale.categories.map { LegendItem(label: scale.label(for: $0), color: hex($0.color)) }
     }
 
-    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String) -> String {
+    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval, ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String) -> String {
         let accent = hex(activity.activityType.trackColor)
         let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
         let interactiveProfile = options.profile == .interactive && !profilePayload.isEmpty
@@ -645,10 +647,15 @@ enum HTMLReportRenderer {
             metricCard("⬆️", "Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
             metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
             metricCard("🕐", "Durée totale", fmtDuration(activity.duration)),
-            metricCard("⏱️", "En mouvement", fmtDuration(movement.moving)),
-            metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)),
-            metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed))
+            metricCard("⏱️", "En mouvement", fmtDuration(movement.moving))
         ]
+        // Mêmes temps que l'app : pause + répartition montée/descente/à plat (somme = durée totale), quand disponibles.
+        if movement.paused > 0 { cards.append(metricCard("⏸️", "En pause", fmtDuration(movement.paused))) }
+        if movement.ascending > 0 { cards.append(metricCard("↗️", "Temps en montée", fmtDuration(movement.ascending))) }
+        if movement.descending > 0 { cards.append(metricCard("↘️", "Temps en descente", fmtDuration(movement.descending))) }
+        if movement.flat > 0 { cards.append(metricCard("➡️", "Temps à plat", fmtDuration(movement.flat))) }
+        cards.append(metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)))
+        cards.append(metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed)))
         if let hr = activity.avgHeartRate { cards.append(metricCard("❤️", "FC moyenne", "\(Int(hr.rounded())) bpm")) }
         if let hr = activity.maxHeartRate { cards.append(metricCard("❤️", "FC max", "\(Int(hr.rounded())) bpm")) }
 
