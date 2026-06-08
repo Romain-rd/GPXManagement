@@ -23,7 +23,7 @@ final class WaypointSelectorTests: XCTestCase {
         let wp = WaypointSelector.waypoints(from: pts)
         XCTAssertNotNil(wp)
         XCTAssertFalse(wp!.isLoop)
-        XCTAssertEqual(wp!.via?.altitude, 1200)
+        XCTAssertEqual(wp!.vias.first?.altitude, 1200)
     }
 
     func testLoopDetectedWhenStartEqualsEnd() {
@@ -53,44 +53,50 @@ final class WaypointSelectorTests: XCTestCase {
         let pts = [pt(45.0, 6.0, alt: 100), pt(45.0005, 6.0005, alt: 120), pt(45.001, 6.001, alt: 100)]
         let wp = WaypointSelector.waypoints(from: pts, minViaSeparationMeters: 500)
         XCTAssertNotNil(wp)
-        XCTAssertNil(wp!.via)
+        XCTAssertTrue(wp!.vias.isEmpty)
     }
 }
 
 final class RouteNameBuilderTests: XCTestCase {
     func testPointToPointWithVia() {
-        let name = RouteNameBuilder.build(startName: "Nice", viaName: "Col d'Èze", endName: "Menton", isLoop: false)
+        let name = RouteNameBuilder.build(startName: "Nice", viaNames: ["Col d'Èze"], endName: "Menton", isLoop: false)
         XCTAssertEqual(name, "Nice → Col d'Èze → Menton")
     }
 
     func testPointToPointWithoutVia() {
-        let name = RouteNameBuilder.build(startName: "Nice", viaName: nil, endName: "Menton", isLoop: false)
+        let name = RouteNameBuilder.build(startName: "Nice", viaNames: [], endName: "Menton", isLoop: false)
         XCTAssertEqual(name, "Nice → Menton")
     }
 
-    func testLoopWithVia() {
-        let name = RouteNameBuilder.build(startName: "Chamonix", viaName: "Aiguille du Midi", endName: "Chamonix", isLoop: true)
-        XCTAssertEqual(name, "Boucle de Chamonix par Aiguille du Midi")
+    func testLoopWithViaListsPassagePoints() {
+        // Boucle avec point(s) de passage → liste fléchée (plus de « Boucle de … »).
+        let name = RouteNameBuilder.build(startName: "Chamonix", viaNames: ["Aiguille du Midi"], endName: "Chamonix", isLoop: true)
+        XCTAssertEqual(name, "Chamonix → Aiguille du Midi → Chamonix")
     }
 
-    func testLoopWithoutVia() {
-        let name = RouteNameBuilder.build(startName: "Chamonix", viaName: nil, endName: "Chamonix", isLoop: true)
+    func testLoopWithMultipleVias() {
+        let name = RouteNameBuilder.build(startName: "Cipières", viaNames: ["Col de l'Écre", "Gréolières"], endName: "Cipières", isLoop: true)
+        XCTAssertEqual(name, "Cipières → Col de l'Écre → Gréolières → Cipières")
+    }
+
+    func testLoopWithoutViaFallsBack() {
+        let name = RouteNameBuilder.build(startName: "Chamonix", viaNames: [], endName: "Chamonix", isLoop: true)
         XCTAssertEqual(name, "Boucle de Chamonix")
     }
 
-    func testSameStartEndNotFlaggedLoopStillBecomesLoop() {
-        let name = RouteNameBuilder.build(startName: "Lyon", viaName: "Mont d'Or", endName: "Lyon", isLoop: false)
-        XCTAssertEqual(name, "Boucle de Lyon par Mont d'Or")
+    func testSameStartEndNotFlaggedLoopStillListsPassage() {
+        let name = RouteNameBuilder.build(startName: "Lyon", viaNames: ["Mont d'Or"], endName: "Lyon", isLoop: false)
+        XCTAssertEqual(name, "Lyon → Mont d'Or → Lyon")
     }
 
     func testMissingNamesFallback() {
-        XCTAssertEqual(RouteNameBuilder.build(startName: "Nice", viaName: nil, endName: nil, isLoop: false), "Départ de Nice")
-        XCTAssertEqual(RouteNameBuilder.build(startName: nil, viaName: nil, endName: "Menton", isLoop: false), "Arrivée à Menton")
-        XCTAssertNil(RouteNameBuilder.build(startName: nil, viaName: nil, endName: nil, isLoop: false))
+        XCTAssertEqual(RouteNameBuilder.build(startName: "Nice", viaNames: [], endName: nil, isLoop: false), "Départ de Nice")
+        XCTAssertEqual(RouteNameBuilder.build(startName: nil, viaNames: [], endName: "Menton", isLoop: false), "Arrivée à Menton")
+        XCTAssertNil(RouteNameBuilder.build(startName: nil, viaNames: [], endName: nil, isLoop: false))
     }
 
     func testViaEqualStartNotDuplicated() {
-        let name = RouteNameBuilder.build(startName: "Nice", viaName: "Nice", endName: "Menton", isLoop: false)
+        let name = RouteNameBuilder.build(startName: "Nice", viaNames: ["Nice"], endName: "Menton", isLoop: false)
         XCTAssertEqual(name, "Nice → Menton")
     }
 }

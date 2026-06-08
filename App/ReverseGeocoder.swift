@@ -65,6 +65,9 @@ enum ReverseGeocoder {
     }
 
     private static func bestName(from placemark: CLPlacemark, preferPOI: Bool) -> String? {
+        // Un refuge (cabane, bivouac, gîte…) au point exact prime sur la ville la plus proche,
+        // y compris pour le départ/arrivée d'une rando.
+        if !preferPOI, let refuge = refugeName(in: placemark) { return refuge }
         if preferPOI, let aoi = placemark.areasOfInterest?.first { return aoi }
         if let locality = placemark.locality { return locality }
         if let subLocality = placemark.subLocality { return subLocality }
@@ -72,6 +75,17 @@ enum ReverseGeocoder {
         if let inlandWater = placemark.inlandWater { return inlandWater }
         if let name = placemark.name { return name }
         return nil
+    }
+
+    private static let refugeKeywords = ["refuge", "cabane", "chalet-refuge", "bivouac", "gîte", "gite"]
+
+    /// Nom de refuge/abri trouvé dans les POI ou le nom du placemark, sinon nil.
+    private static func refugeName(in placemark: CLPlacemark) -> String? {
+        let candidates = (placemark.areasOfInterest ?? []) + [placemark.name].compactMap { $0 }
+        return candidates.first { name in
+            let lower = name.lowercased()
+            return refugeKeywords.contains { lower.contains($0) }
+        }
     }
 }
 
@@ -82,15 +96,15 @@ enum RouteNamer {
 
         let startName = await ReverseGeocoder.placeName(latitude: wp.start.latitude, longitude: wp.start.longitude, preferPOI: false)
 
-        var viaName: String?
-        if let via = wp.via {
-            viaName = await ReverseGeocoder.placeName(latitude: via.latitude, longitude: via.longitude, preferPOI: true)
+        var viaNames: [String?] = []
+        for via in wp.vias {
+            viaNames.append(await ReverseGeocoder.placeName(latitude: via.latitude, longitude: via.longitude, preferPOI: true))
         }
 
         let endName = wp.isLoop
             ? startName
             : await ReverseGeocoder.placeName(latitude: wp.end.latitude, longitude: wp.end.longitude, preferPOI: false)
 
-        return RouteNameBuilder.build(startName: startName, viaName: viaName, endName: endName, isLoop: wp.isLoop)
+        return RouteNameBuilder.build(startName: startName, viaNames: viaNames, endName: endName, isLoop: wp.isLoop)
     }
 }

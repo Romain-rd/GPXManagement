@@ -1,41 +1,35 @@
 import Foundation
 
 public enum RouteNameBuilder {
-    public static func build(startName: String?, viaName: String?, endName: String?, isLoop: Bool) -> String? {
+    public static func build(startName: String?, viaNames: [String?], endName: String?, isLoop: Bool) -> String? {
         let start = clean(startName)
-        let via = clean(viaName)
+        let vias = viaNames.compactMap(clean)
         let end = clean(endName)
 
-        if isLoop {
-            guard let start else {
-                if let via { return "Boucle par \(via)" }
-                return nil
-            }
-            if let via, via != start {
-                return "Boucle de \(start) par \(via)"
-            }
-            return "Boucle de \(start)"
+        // Séquence des étapes (départ → vias → arrivée), sans doublon consécutif.
+        var stops: [String] = []
+        func add(_ name: String?) { if let name, name != stops.last { stops.append(name) } }
+        add(start)
+        vias.forEach { add($0) }
+        add(end)
+
+        // Boucle (détectée, ou départ == arrivée) sans point de passage → rien à lister.
+        let isClosed = isLoop || (start != nil && start == end)
+        if isClosed && vias.isEmpty {
+            if let start { return "Boucle de \(start)" }
+            return nil
         }
 
         switch (start, end) {
-        case let (s?, e?):
-            if s == e {
-                if let via, via != s { return "Boucle de \(s) par \(via)" }
-                return "Boucle de \(s)"
-            }
-            if let via, via != s, via != e {
-                return "\(s) → \(via) → \(e)"
-            }
-            return "\(s) → \(e)"
-        case let (s?, nil):
-            if let via, via != s { return "\(s) → \(via)" }
-            return "Départ de \(s)"
-        case let (nil, e?):
-            if let via, via != e { return "\(via) → \(e)" }
-            return "Arrivée à \(e)"
         case (nil, nil):
-            if let via { return "Par \(via)" }
-            return nil
+            if stops.isEmpty { return nil }
+            return stops.count == 1 ? "Par \(stops[0])" : stops.joined(separator: " → ")
+        case let (s?, nil):
+            return stops.count >= 2 ? stops.joined(separator: " → ") : "Départ de \(s)"
+        case let (nil, e?):
+            return stops.count >= 2 ? stops.joined(separator: " → ") : "Arrivée à \(e)"
+        case (_?, _?):
+            return stops.joined(separator: " → ")
         }
     }
 
