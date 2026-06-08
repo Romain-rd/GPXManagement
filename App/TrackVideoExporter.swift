@@ -239,6 +239,13 @@ enum TrackVideoExporter {
         guard total > 0 else { throw TrackVideoError.noTrack }
         let altitudes = smooth(fillNils(pts.map(\.altitude)), window: 7)
         let timestamps = pts.map(\.timestamp)
+        // Plages de pause (mêmes réglages que l'app/PDF/web) calculées sur le profil plein → vitesse forcée à 0 à l'arrêt.
+        let pauseMinSeconds = (UserDefaults.standard.object(forKey: "pauseThresholdMinutes") as? Double ?? 5) * 60
+        let pauseRadiusMeters = UserDefaults.standard.object(forKey: "pauseRadiusMeters") as? Double ?? 40
+        let pauseProfile = ElevationProfileBuilder.build(points: rawPoints)
+        let pauseRanges = ElevationProfileBuilder.pausedTimeRanges(
+            pauseProfile.isEmpty ? ElevationProfileBuilder.buildMotion(points: rawPoints) : pauseProfile,
+            pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
         let heartRates = smooth(fillNils(pts.map(\.heartRate)), window: 5)
         let hrAll = heartRates.compactMap { $0 }
         let hrMin = hrAll.min() ?? 0, hrMax = hrAll.max() ?? 1
@@ -315,6 +322,8 @@ enum TrackVideoExporter {
                 let dt = t2.timeIntervalSince(t1)
                 if dt > 0.5 { speed = (hi - lo) / dt } // m/s
             }
+            // À l'arrêt, la vitesse réelle est nulle (le jitter GPS en fabriquait une).
+            if let t = timeAt(meters), pauseRanges.contains(where: { $0.contains(t) }) { speed = 0 }
             return Hud(time: timeAt(meters), altitude: altitudeAt(meters), slope: slope, speed: speed, heart: hrEnabled ? hrAt(meters) : nil)
         }
 
