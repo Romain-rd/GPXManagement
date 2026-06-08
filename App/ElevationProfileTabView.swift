@@ -490,7 +490,11 @@ struct ElevationProfileTabView: View {
             pausedRanges = ElevationProfileBuilder.pausedTimeRanges(working, pauseMinSeconds: minSec, pauseRadiusMeters: pauseRadiusMeters)
 
             let speeds = speedSeries(trimmed)
-            maxSpeedDisplay = speeds.max() ?? 0
+            // Vitesse max hors pauses (le jitter GPS gonfle la vitesse à l'arrêt).
+            maxSpeedDisplay = zip(trimmed, speeds).filter { p, _ in
+                guard let t = p.timestamp, !pausedRanges.isEmpty else { return true }
+                return !pausedRanges.contains { $0.contains(t) }
+            }.map(\.1).max() ?? 0
             let totalMeters = trimmed.last?.distanceFromStart ?? 0
             avgSpeedDisplay = movingTime > 0 ? speedDisplay(mps: totalMeters / movingTime) : 0
 
@@ -555,7 +559,13 @@ struct ElevationProfileTabView: View {
         }
         totalKm = distanceDisplay(meters: profile.last?.distanceFromStart ?? 0)
 
-        let speeds: [Double] = metric == .speed ? speedSeries(profile) : []
+        // En pause, la vitesse réelle est nulle (le jitter GPS produit une vitesse fantôme distance/temps) → on la force à 0.
+        func isPausedPoint(_ i: Int) -> Bool {
+            guard mode == .time, !pausedRanges.isEmpty, let t = profile[i].timestamp else { return false }
+            return pausedRanges.contains { $0.contains(t) }
+        }
+        var speeds: [Double] = metric == .speed ? speedSeries(profile) : []
+        if metric == .speed { for i in speeds.indices where isPausedPoint(i) { speeds[i] = 0 } }
         func yValue(_ i: Int) -> Double {
             metric == .speed ? (speeds.indices.contains(i) ? speeds[i] : 0) : profile[i].altitude
         }

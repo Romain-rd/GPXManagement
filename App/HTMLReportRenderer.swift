@@ -528,7 +528,8 @@ enum HTMLReportRenderer {
         for i in 0..<pts.count {
             let lo = max(0, i - 2), hi = min(pts.count - 1, i + 2)
             var sum = 0.0; for k in lo...hi { sum += rawMps[k] }
-            spd[i] = dispSpeed(sum / Double(hi - lo + 1))
+            // En pause, la vitesse réelle est nulle (jitter GPS) → on la force à 0.
+            spd[i] = isPausedPt(i) ? 0 : dispSpeed(sum / Double(hi - lo + 1))
         }
         let speedArr = spd.map { num($0, 1) }
         let scatArr = spd.map { String(sScale.category(for: $0).rawValue) }
