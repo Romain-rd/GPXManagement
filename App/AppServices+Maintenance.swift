@@ -1,0 +1,196 @@
+import Foundation
+import GPXCore
+
+// MARK: - Maintenance de la bibliothèque (suppression, renommage, recalculs, resync CloudKit)
+
+extension AppServices {
+    func deleteAllData() async {
+        guard let repo = coreDataRepository else { return }
+        isDeletingAll = true
+        lastMaintenanceSummary = nil
+        importError = nil
+        defer { isDeletingAll = false }
+
+        do {
+            let count = try await repo.deleteAllActivities()
+            try await storage.removeAllStoredFiles()
+            CloudPreferences.shared.resetStravaSync()
+            lastStravaSyncSummary = nil
+            libraryRevision += 1
+            lastMaintenanceSummary = "\(count) activité(s) supprimée(s). Bibliothèque et fichiers vidés."
+        } catch {
+            importError = "Échec de la suppression : \(error.localizedDescription)"
+        }
+    }
+
+    func renameAllActivitiesFromRoute() async {
+        guard let repo = repository as? CoreDataActivityRepository else { return }
+        isRenamingAll = true
+        lastMaintenanceSummary = nil
+        defer {
+            isRenamingAll = false
+            renameAllProgress = nil
+        }
+
+        let summaries = (try? await repo.fetchAllSummaries()) ?? []
+        guard !summaries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à renommer."
+            return
+        }
+
+        var renamed = 0
+        var skipped = 0
+        for (idx, summary) in summaries.enumerated() {
+            renameAllProgress = "Renommage \(idx + 1)/\(summaries.count)… (le débit du géocodage est limité, soyez patient)"
+            guard let data = try? await repo.fetchTrackData(id: summary.id), !data.isEmpty,
+                  let points = try? TrackPointCodec.decode(data),
+                  let name = await RouteNamer.suggestName(points: points) else {
+                skipped += 1
+                continue
+            }
+            do {
+                try await repo.updateTitle(id: summary.id, title: name)
+                renamed += 1
+            } catch {
+                skipped += 1
+            }
+            if idx % 10 == 9 { libraryRevision += 1 }
+        }
+
+        libraryRevision += 1
+        lastMaintenanceSummary = "\(renamed) renommée(s) · \(skipped) ignorée(s) sur \(summaries.count)."
+    }
+
+    /// Recalcule l'application source de toutes les activités en relisant leurs fichiers stockés.
+    func recalculateSources() async {
+        guard let repo = coreDataRepository else { return }
+        isRecalculatingSources = true
+        lastMaintenanceSummary = nil
+        defer {
+            isRecalculatingSources = false
+            recalcSourcesProgress = nil
+        }
+
+        let entries = (try? await repo.fetchSourceRecomputeEntries()) ?? []
+        guard !entries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à analyser."
+            return
+        }
+
+        var updated = 0
+        var missing = 0
+        var failures = 0
+        var reclassified = 0
+        for (idx, entry) in entries.enumerated() {
+            recalcSourcesProgress = "Analyse \(idx + 1)/\(entries.count)…"
+            do {
+                let url = try await storage.url(forRelativePath: entry.relativePath)
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    missing += 1
+                    continue
+                }
+                let sourceApp = try await importer.detectSourceApp(at: url, origin: entry.origin)
+                try await repo.updateSourceApp(id: entry.id, sourceApp: sourceApp)
+                updated += 1
+
+                // Réaffecte le type déduit de la source (ex. Scenic → Moto) si le type est resté générique.
+                if entry.activityType == .other,
+                   let deducedType = ActivityTypeDetector.detect(source: ActivitySource(rawCreator: sourceApp)) {
+                    try await repo.updateActivityType(id: entry.id, rawValue: deducedType.rawValue)
+                    reclassified += 1
+                }
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: recalc source failed for \(entry.id): \(error)")
+            }
+            if idx % 25 == 24 { libraryRevision += 1 }
+        }
+
+        libraryRevision += 1
+        var parts = ["\(updated) mise(s) à jour"]
+        if reclassified > 0 { parts.append("\(reclassified) reclassée(s) par type") }
+        if missing > 0 { parts.append("\(missing) fichier(s) introuvable(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastMaintenanceSummary = parts.joined(separator: " · ")
+    }
+
+    /// Re-traite tous les fichiers stockés : recalcule tracé + statistiques (corrige les tracés
+    /// pollués, ex. Scenic) et met à jour la source. Réaffecte le type déduit si resté générique.
+    func reprocessAllFromSource() async {
+        guard let repo = coreDataRepository else { return }
+        isReprocessing = true
+        lastMaintenanceSummary = nil
+        defer {
+            isReprocessing = false
+            reprocessProgress = nil
+        }
+
+        let entries = (try? await repo.fetchSourceRecomputeEntries()) ?? []
+        guard !entries.isEmpty else {
+            lastMaintenanceSummary = "Aucune activité à re-traiter."
+            return
+        }
+
+        var updated = 0
+        var missing = 0
+        var failures = 0
+        var reclassified = 0
+        for (idx, entry) in entries.enumerated() {
+            reprocessProgress = "Re-traitement \(idx + 1)/\(entries.count)…"
+            do {
+                let url = try await storage.url(forRelativePath: entry.relativePath)
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    missing += 1
+                    continue
+                }
+                let result = try await importer.reprocess(fileAt: url, origin: entry.origin)
+                // N'écrase pas un type choisi : ne reclasse que si le type est resté générique.
+                var newType: ActivityType?
+                if entry.activityType == .other, let suggested = result.suggestedType, suggested != .other {
+                    newType = suggested
+                    reclassified += 1
+                }
+                try await repo.applyReprocess(id: entry.id, result: result, newType: newType)
+                updated += 1
+            } catch {
+                failures += 1
+                NSLog("GPXManagement: reprocess failed for \(entry.id): \(error)")
+            }
+            if idx % 25 == 24 { libraryRevision += 1 }
+        }
+
+        libraryRevision += 1
+        var parts = ["\(updated) re-traitée(s)"]
+        if reclassified > 0 { parts.append("\(reclassified) reclassée(s) par type") }
+        if missing > 0 { parts.append("\(missing) fichier(s) introuvable(s)") }
+        if failures > 0 { parts.append("\(failures) échec(s)") }
+        lastMaintenanceSummary = parts.joined(separator: " · ")
+    }
+
+    // MARK: - Resync CloudKit (rattrapage des activités non poussées)
+
+    /// Touche `updatedAt` sur chaque Activity pour relancer un export CloudKit complet.
+    /// Utile quand une machine a un historique local que NSPersistentCloudKitContainer n'a jamais pushé.
+    func forceCloudKitResync() async {
+        guard let repo = coreDataRepository else { return }
+        guard !isForcingCloudKitResync else { return }
+        isForcingCloudKitResync = true
+        lastMaintenanceSummary = nil
+        defer {
+            isForcingCloudKitResync = false
+            cloudKitResyncProgress = nil
+        }
+        do {
+            let total = try await repo.touchAllActivitiesForResync { done, total in
+                self.cloudKitResyncProgress = "Touche \(done)/\(total)…"
+            }
+            libraryRevision += 1
+            lastMaintenanceSummary = total > 0
+                ? "\(total) activité(s) marquée(s) pour resync CloudKit. La synchronisation peut prendre quelques minutes."
+                : "Aucune activité à resynchroniser."
+        } catch {
+            NSLog("GPXManagement: forceCloudKitResync failed: \(error)")
+            lastMaintenanceSummary = "Échec de la resync : \(error.localizedDescription)"
+        }
+    }
+}

@@ -51,6 +51,10 @@
 		2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */; };
 		29CB53642CAF41618C48C0B8 /* RaidDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */; };
 		016796AE01F74D7D97627AAE /* RaidParticipantEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860483180DB04447A5028238 /* RaidParticipantEditor.swift */; };
+		7832411EC3544FBD8C6ACBD0 /* AppServices+Maintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = C224C00D324846DEA702074F /* AppServices+Maintenance.swift */; };
+		4F869CD74F2E49469F073D93 /* AppServices+StravaSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */; };
+		3A09C7E784CB4841A454F4D2 /* AppServices+Reorganization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */; };
+		B1EA52FD0FBC4BECA0E7D302 /* CloudPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +113,10 @@
 		B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailViewModel.swift; sourceTree = "<group>"; };
 		10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailViewModel.swift; sourceTree = "<group>"; };
 		860483180DB04447A5028238 /* RaidParticipantEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidParticipantEditor.swift; sourceTree = "<group>"; };
+		C224C00D324846DEA702074F /* AppServices+Maintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+Maintenance.swift"; sourceTree = "<group>"; };
+		BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+StravaSync.swift"; sourceTree = "<group>"; };
+		B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+Reorganization.swift"; sourceTree = "<group>"; };
+		4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CloudPreferences.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -167,6 +175,10 @@
 				8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */,
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
+				4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */,
+				B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */,
+				BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */,
+				C224C00D324846DEA702074F /* AppServices+Maintenance.swift */,
 				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
@@ -346,6 +358,10 @@
 				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
 				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
+				B1EA52FD0FBC4BECA0E7D302 /* CloudPreferences.swift in Sources */,
+				3A09C7E784CB4841A454F4D2 /* AppServices+Reorganization.swift in Sources */,
+				4F869CD74F2E49469F073D93 /* AppServices+StravaSync.swift in Sources */,
+				7832411EC3544FBD8C6ACBD0 /* AppServices+Maintenance.swift in Sources */,
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
 				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
 				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
