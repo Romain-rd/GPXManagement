@@ -43,6 +43,12 @@
 		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
 		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
+		D5DBBF34BE864945925E4527 /* ActivityMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */; };
+		2196EB1626D843B78A77CC5B /* ActivityPhotosSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */; };
+		9C539C5D85DE4C56A01384F2 /* MediaEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993988649DA7481EA3345D2C /* MediaEditor.swift */; };
+		65A5E03A8CBC46D9BF28DFF2 /* VideoLayoutEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */; };
+		5F19BC99145848069C022407 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */; };
+		2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -93,6 +99,12 @@
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
 		"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMapCard.swift; sourceTree = "<group>"; };
+		FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPhotosSection.swift; sourceTree = "<group>"; };
+		993988649DA7481EA3345D2C /* MediaEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaEditor.swift; sourceTree = "<group>"; };
+		09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLayoutEditor.swift; sourceTree = "<group>"; };
+		1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
+		B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +150,12 @@
 			children = (
 				A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */,
 				6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */,
+				B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */,
+				BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */,
+				FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */,
+				993988649DA7481EA3345D2C /* MediaEditor.swift */,
+				09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */,
+				1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */,
 				B98887F275D8B5C626A27859 /* ActivityFilters.swift */,
 				06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */,
 				2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */,
@@ -309,6 +327,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */,
+				2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */,
+				D5DBBF34BE864945925E4527 /* ActivityMapCard.swift in Sources */,
+				2196EB1626D843B78A77CC5B /* ActivityPhotosSection.swift in Sources */,
+				9C539C5D85DE4C56A01384F2 /* MediaEditor.swift in Sources */,
+				65A5E03A8CBC46D9BF28DFF2 /* VideoLayoutEditor.swift in Sources */,
+				5F19BC99145848069C022407 /* MetricCard.swift in Sources */,
 				D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */,
 				410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */,
 				B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */,
