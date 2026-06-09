@@ -6,21 +6,23 @@ import Photos
 import GPXCore
 import GPXMapKit
 
-struct WebExportOptions: Codable {
-    enum MapRendering: String, CaseIterable, Identifiable, Codable {
+public struct WebExportOptions: Codable {
+    public init() {}
+
+    public enum MapRendering: String, CaseIterable, Identifiable, Codable {
         case staticImage, interactive
-        var id: String { rawValue }
-        var label: String { self == .staticImage ? "Image statique" : "Carte interactive" }
+        public var id: String { rawValue }
+        public var label: String { self == .staticImage ? "Image statique" : "Carte interactive" }
     }
-    enum ProfileRendering: String, CaseIterable, Identifiable, Codable {
+    public enum ProfileRendering: String, CaseIterable, Identifiable, Codable {
         case staticImage, interactive
-        var id: String { rawValue }
-        var label: String { self == .staticImage ? "Image statique" : "Graphique interactif" }
+        public var id: String { rawValue }
+        public var label: String { self == .staticImage ? "Image statique" : "Graphique interactif" }
     }
-    enum Output: String, CaseIterable, Identifiable, Codable {
+    public enum Output: String, CaseIterable, Identifiable, Codable {
         case folder, publishBunny
-        var id: String { rawValue }
-        var label: String {
+        public var id: String { rawValue }
+        public var label: String {
             switch self {
             case .folder:       return "Dossier"
             case .publishBunny: return "GPXManagement.net"
@@ -28,18 +30,18 @@ struct WebExportOptions: Codable {
         }
     }
 
-    var map: MapRendering = .interactive
-    var profile: ProfileRendering = .interactive
-    var output: Output = .folder
-    var includePhotos: Bool = true
-    var includeNotes: Bool = true
+    public var map: MapRendering = .interactive
+    public var profile: ProfileRendering = .interactive
+    public var output: Output = .folder
+    public var includePhotos: Bool = true
+    public var includeNotes: Bool = true
 }
 
-enum HTMLReportError: Error, LocalizedError {
+public enum HTMLReportError: Error, LocalizedError {
     case noTrackData
     case renderFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noTrackData:  return "Cette activité ne contient pas de trace."
         case .renderFailed: return "Échec de la génération de la page web."
@@ -48,12 +50,12 @@ enum HTMLReportError: Error, LocalizedError {
 }
 
 @MainActor
-enum HTMLReportRenderer {
-    enum Output {
+public enum HTMLReportRenderer {
+    public enum Output {
         case folder(files: [String: Data]) // contient "index.html"
     }
 
-    static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset]) async throws -> Output {
+    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset]) async throws -> Output {
         guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty else {
             throw HTMLReportError.noTrackData
         }
@@ -144,7 +146,7 @@ enum HTMLReportRenderer {
     private static let raidPalette = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9"]
 
     /// Génère le dossier d'un raid : page d'ensemble + une page complète par étape (réutilise `render`).
-    static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
+    public static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
         var files: [String: Data] = [:]
         var stageOpts = options
         stageOpts.output = .folder

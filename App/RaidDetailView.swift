@@ -5,6 +5,7 @@ import Photos
 import CoreLocation
 import MapKit
 import GPXCore
+import GPXRender
 import GPXMapKit
 
 struct RaidDetailView: View {

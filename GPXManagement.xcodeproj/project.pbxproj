@@ -23,13 +23,12 @@
 		5E2086A9A62998F215D1204F /* GPXCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5239B19228804795EAC2D36D /* GPXCore */; };
 		69199036BADF737CF4157B63 /* CoreDataActivityRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */; };
 		6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */; };
-		71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */; };
-		736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */; };
 		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
 		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
 		9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */; };
 		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
+		BEEF00000000000000000001 /* GPXRender in Frameworks */ = {isa = PBXBuildFile; productRef = BEEF00000000000000000002 /* GPXRender */; };
 		A52A49DCAB0612268A04D686 /* AppNavigationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */; };
 		B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */; };
 		BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */; };
@@ -41,7 +40,6 @@
 		D9A721DBFC355D7D2570747F /* BunnyStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */; };
-		E64B4322FE44A87CE52FA9CE /* HTMLReportRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
 		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
 		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
@@ -63,7 +61,6 @@
 /* Begin PBXFileReference section */
 		0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BunnyStorageService.swift; sourceTree = "<group>"; };
 		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
-		108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLReportRenderer.swift; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
 		1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -99,11 +96,9 @@
 		C6D30FAA3BB1A3C0CC71F6BD /* RaidVideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidVideoExporter.swift; sourceTree = "<group>"; };
 		C7ACADC04245857846CE60BC /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModelTests.swift; sourceTree = "<group>"; };
-		E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActivityType+Display.swift"; sourceTree = "<group>"; };
 		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
 		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
-		FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFReportRenderer.swift; sourceTree = "<group>"; };
 		"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -115,6 +110,7 @@
 				5E2086A9A62998F215D1204F /* GPXCore in Frameworks */,
 				81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */,
 				A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */,
+				BEEF00000000000000000001 /* GPXRender in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,7 +147,6 @@
 				B98887F275D8B5C626A27859 /* ActivityFilters.swift */,
 				06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */,
 				2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */,
-				E1A70A5F9194FA83137C6661 /* ActivityType+Display.swift */,
 				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
 				8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */,
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
@@ -162,11 +157,9 @@
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
 				4F25EFB570B8ADC9F59F35BD /* ExportService.swift */,
 				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
-				108B6FDA4323408A7AECB6FE /* HTMLReportRenderer.swift */,
 				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
 				C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */,
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
-				FA0EA93727D414A3B5BA021C /* PDFReportRenderer.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				79107E0008C422D10DDDD339 /* RaidDetailView.swift */,
 				C6D30FAA3BB1A3C0CC71F6BD /* RaidVideoExporter.swift */,
@@ -238,6 +231,7 @@
 				5239B19228804795EAC2D36D /* GPXCore */,
 				5AE15CBBEA76E19E78D5872B /* GPXMapKit */,
 				9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */,
+				BEEF00000000000000000002 /* GPXRender */,
 			);
 			productName = GPXManagement;
 			productReference = 9BB4378936EFA44AA940A32D /* GPXManagement.app */;
@@ -293,6 +287,7 @@
 				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */,
 				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */,
 				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */,
+				BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 93E8E9B8009CA324990F9289 /* Products */;
@@ -325,7 +320,6 @@
 				D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */,
 				410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */,
 				B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */,
-				71140791A9EBD94578561E8D /* ActivityType+Display.swift in Sources */,
 				344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */,
 				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
@@ -336,11 +330,9 @@
 				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
 				D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */,
 				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
-				E64B4322FE44A87CE52FA9CE /* HTMLReportRenderer.swift in Sources */,
 				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
 				DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */,
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
-				736B219557447E0CEA0319A2 /* PDFReportRenderer.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */,
 				35BA04D227FCCCD0E5A04DB2 /* RaidVideoExporter.swift in Sources */,
@@ -631,6 +623,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXMapKit;
 		};
+		BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/GPXRender;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -645,6 +641,10 @@
 		9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = GPXStrava;
+		};
+		BEEF00000000000000000002 /* GPXRender */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GPXRender;
 		};
 /* End XCSwiftPackageProductDependency section */
 

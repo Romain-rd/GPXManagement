@@ -5,11 +5,11 @@ import MapKit
 import GPXCore
 import GPXMapKit
 
-enum PDFReportError: Error, LocalizedError {
+public enum PDFReportError: Error, LocalizedError {
     case noTrackData
     case renderFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noTrackData:  return "Cette activité ne contient pas de trace."
         case .renderFailed: return "Échec de la génération du PDF."
@@ -49,12 +49,12 @@ struct PDFTimeProfile {
 }
 
 @MainActor
-enum PDFReportRenderer {
+public enum PDFReportRenderer {
     // A4 portrait en points (72 dpi).
     private static let pageSize = CGSize(width: 595, height: 842)
     private static let trackColor = NSColor.systemRed
 
-    static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer) async throws -> Data {
+    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer) async throws -> Data {
         guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty else {
             throw PDFReportError.noTrackData
         }

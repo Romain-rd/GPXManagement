@@ -1,5 +1,6 @@
 import SwiftUI
 import GPXCore
+import GPXRender
 import GPXMapKit
 
 @MainActor
