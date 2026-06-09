@@ -22,6 +22,7 @@ final class CoreDataActivityRepositoryTests: XCTestCase {
             elevationLoss: 480,
             avgSpeed: 12.5,
             maxSpeed: 18.0,
+            maxSlope: 9.0,
             avgHeartRate: 145,
             maxHeartRate: 168,
             boundingBox: BoundingBox(minLatitude: 45.0, maxLatitude: 45.5, minLongitude: 6.0, maxLongitude: 6.5)

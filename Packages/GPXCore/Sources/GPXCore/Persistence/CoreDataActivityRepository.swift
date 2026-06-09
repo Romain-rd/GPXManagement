@@ -2,14 +2,14 @@ import Foundation
 import CoreData
 import GPXCore
 
-final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable {
-    let persistence: PersistenceController
+public final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable {
+    public let persistence: PersistenceController
 
-    init(persistence: PersistenceController) {
+    public init(persistence: PersistenceController) {
         self.persistence = persistence
     }
 
-    func findActivity(stravaId: String) async throws -> UUID? {
+    public func findActivity(stravaId: String) async throws -> UUID? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -19,7 +19,7 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
         }
     }
 
-    func findDuplicate(sha256: String, startDate: Date, distance: Double) async throws -> UUID? {
+    public func findDuplicate(sha256: String, startDate: Date, distance: Double) async throws -> UUID? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -37,7 +37,7 @@ final class CoreDataActivityRepository: ActivityRepository, @unchecked Sendable 
         }
     }
 
-    func createActivity(_ payload: ActivityCreationPayload) async throws {
+    public func createActivity(_ payload: ActivityCreationPayload) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let activity = NSEntityDescription.insertNewObject(forEntityName: "Activity", into: context)

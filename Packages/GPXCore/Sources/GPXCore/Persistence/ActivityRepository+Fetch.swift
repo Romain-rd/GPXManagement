@@ -2,16 +2,16 @@ import Foundation
 import CoreData
 import GPXCore
 
-struct SourceRecomputeEntry: Sendable {
-    let id: UUID
-    let relativePath: String
-    let format: SourceFileFormat
-    let origin: ActivityOrigin
-    let activityType: ActivityType
+public struct SourceRecomputeEntry: Sendable {
+    public let id: UUID
+    public let relativePath: String
+    public let format: SourceFileFormat
+    public let origin: ActivityOrigin
+    public let activityType: ActivityType
 }
 
 extension CoreDataActivityRepository {
-    func fetchAllSummaries() async throws -> [ActivitySummary] {
+    public func fetchAllSummaries() async throws -> [ActivitySummary] {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -21,7 +21,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func deleteAllActivities() async throws -> Int {
+    public func deleteAllActivities() async throws -> Int {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -32,7 +32,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func deleteActivity(id: UUID) async throws {
+    public func deleteActivity(id: UUID) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -46,7 +46,7 @@ extension CoreDataActivityRepository {
     }
 
     /// Date de départ la plus récente parmi les activités importées depuis Strava (curseur de sync).
-    func latestStravaActivityDate() async throws -> Date? {
+    public func latestStravaActivityDate() async throws -> Date? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -57,7 +57,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchTrackData(id: UUID) async throws -> Data? {
+    public func fetchTrackData(id: UUID) async throws -> Data? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -67,7 +67,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateTitle(id: UUID, title: String) async throws {
+    public func updateTitle(id: UUID, title: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -81,7 +81,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateSourceFileName(id: UUID, relativePath: String) async throws {
+    public func updateSourceFileName(id: UUID, relativePath: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -95,7 +95,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateActivityType(id: UUID, rawValue: String) async throws {
+    public func updateActivityType(id: UUID, rawValue: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -111,7 +111,7 @@ extension CoreDataActivityRepository {
 
     /// Touche `updatedAt` sur chaque Activity par lots — sert à forcer NSPersistentCloudKitContainer
     /// à republier tous les enregistrements (ex. machine où le mirroring n'a jamais poussé l'historique).
-    func touchAllActivitiesForResync(batchSize: Int = 100, onBatch: @MainActor @Sendable (Int, Int) -> Void) async throws -> Int {
+    public func touchAllActivitiesForResync(batchSize: Int = 100, onBatch: @MainActor @Sendable (Int, Int) -> Void) async throws -> Int {
         let context = persistence.container.newBackgroundContext()
         let total: Int = try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -143,7 +143,7 @@ extension CoreDataActivityRepository {
         return total
     }
 
-    func updateSourceApp(id: UUID, sourceApp: String?) async throws {
+    public func updateSourceApp(id: UUID, sourceApp: String?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -158,7 +158,7 @@ extension CoreDataActivityRepository {
     }
 
     /// Données minimales nécessaires pour recalculer l'application source en relisant les fichiers stockés.
-    func fetchSourceRecomputeEntries() async throws -> [SourceRecomputeEntry] {
+    public func fetchSourceRecomputeEntries() async throws -> [SourceRecomputeEntry] {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -178,7 +178,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
+    public func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -210,7 +210,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchVideoLayoutData(id: UUID) async throws -> Data? {
+    public func fetchVideoLayoutData(id: UUID) async throws -> Data? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -220,7 +220,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateVideoLayoutData(id: UUID, data: Data?) async throws {
+    public func updateVideoLayoutData(id: UUID, data: Data?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -234,7 +234,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateNotes(id: UUID, notes: String) async throws {
+    public func updateNotes(id: UUID, notes: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -248,7 +248,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchWebPublishedURL(id: UUID) async throws -> String? {
+    public func fetchWebPublishedURL(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -258,7 +258,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchWebPublishConfig(id: UUID) async throws -> String? {
+    public func fetchWebPublishConfig(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -268,7 +268,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func setWebPublished(id: UUID, url: String, configJSON: String?) async throws {
+    public func setWebPublished(id: UUID, url: String, configJSON: String?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -283,7 +283,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchFilmPublishedURL(id: UUID) async throws -> String? {
+    public func fetchFilmPublishedURL(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -293,7 +293,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func setFilmPublished(id: UUID, url: String) async throws {
+    public func setFilmPublished(id: UUID, url: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -349,7 +349,7 @@ enum ActivitySummaryMapper {
 }
 
 extension CoreDataActivityRepository {
-    func fetchRaids() async throws -> [Raid] {
+    public func fetchRaids() async throws -> [Raid] {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -358,7 +358,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func createRaid(_ raid: Raid) async throws {
+    public func createRaid(_ raid: Raid) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let object = NSEntityDescription.insertNewObject(forEntityName: "Raid", into: context)
@@ -367,7 +367,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateRaid(_ raid: Raid) async throws {
+    public func updateRaid(_ raid: Raid) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -379,7 +379,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func deleteRaid(id: UUID) async throws {
+    public func deleteRaid(id: UUID) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let activities = NSFetchRequest<NSManagedObject>(entityName: "Activity")
@@ -397,7 +397,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchRaidWebPublishedURL(id: UUID) async throws -> String? {
+    public func fetchRaidWebPublishedURL(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -407,7 +407,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchRaidWebPublishConfig(id: UUID) async throws -> String? {
+    public func fetchRaidWebPublishConfig(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -417,7 +417,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func setRaidWebPublished(id: UUID, url: String, configJSON: String?) async throws {
+    public func setRaidWebPublished(id: UUID, url: String, configJSON: String?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -432,7 +432,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func fetchRaidFilmPublishedURL(id: UUID) async throws -> String? {
+    public func fetchRaidFilmPublishedURL(id: UUID) async throws -> String? {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -442,7 +442,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func setRaidFilmPublished(id: UUID, url: String) async throws {
+    public func setRaidFilmPublished(id: UUID, url: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Raid")
@@ -456,7 +456,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func setRaid(activityIds: [UUID], raidId: UUID?) async throws {
+    public func setRaid(activityIds: [UUID], raidId: UUID?) async throws {
         guard !activityIds.isEmpty else { return }
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
@@ -473,7 +473,7 @@ extension CoreDataActivityRepository {
 }
 
 extension CoreDataActivityRepository {
-    func fetchSmartFilters() async throws -> [SmartFilter] {
+    public func fetchSmartFilters() async throws -> [SmartFilter] {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")
@@ -482,7 +482,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func createSmartFilter(_ filter: SmartFilter) async throws {
+    public func createSmartFilter(_ filter: SmartFilter) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let object = NSEntityDescription.insertNewObject(forEntityName: "SmartFilter", into: context)
@@ -491,7 +491,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func updateSmartFilter(_ filter: SmartFilter) async throws {
+    public func updateSmartFilter(_ filter: SmartFilter) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")
@@ -503,7 +503,7 @@ extension CoreDataActivityRepository {
         }
     }
 
-    func deleteSmartFilter(id: UUID) async throws {
+    public func deleteSmartFilter(id: UUID) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "SmartFilter")

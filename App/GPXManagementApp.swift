@@ -1,4 +1,5 @@
 import SwiftUI
+import GPXCore
 
 @main
 struct GPXManagementApp: App {

@@ -1,5 +1,6 @@
 import XCTest
 import CoreData
+import GPXCore
 @testable import GPXManagement
 
 final class PersistenceControllerTests: XCTestCase {

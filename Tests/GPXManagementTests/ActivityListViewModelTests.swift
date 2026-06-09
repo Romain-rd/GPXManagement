@@ -25,7 +25,7 @@ final class ActivityListViewModelTests: XCTestCase {
         let stats = ActivityStats(
             distance: distance, duration: 3600, movingDuration: 3600,
             elevationGain: 500, elevationLoss: 480,
-            avgSpeed: 10, maxSpeed: 15,
+            avgSpeed: 10, maxSpeed: 15, maxSlope: 0,
             avgHeartRate: nil, maxHeartRate: nil,
             boundingBox: .zero
         )

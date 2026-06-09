@@ -1,16 +1,16 @@
 import CoreData
 import Foundation
 
-final class PersistenceController {
-    nonisolated(unsafe) static let shared = PersistenceController()
+public final class PersistenceController {
+    nonisolated(unsafe) public static let shared = PersistenceController()
 
-    nonisolated(unsafe) static let preview: PersistenceController = {
+    nonisolated(unsafe) public static let preview: PersistenceController = {
         PersistenceController(inMemory: true)
     }()
 
-    let container: NSPersistentCloudKitContainer
+    public let container: NSPersistentCloudKitContainer
 
-    init(inMemory: Bool = false) {
+    public init(inMemory: Bool = false) {
         container = NSPersistentCloudKitContainer(name: "GPXManagement")
 
         guard let description = container.persistentStoreDescriptions.first else {
