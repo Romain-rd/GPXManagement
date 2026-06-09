@@ -187,4 +187,104 @@ final class ElevationProfileBuilderTests: XCTestCase {
         XCTAssertEqual(ActivityType.skiingTouring.slopeScale, .percent)
         XCTAssertEqual(ActivityType.cyclingRoad.slopeScale, .percent)
     }
+
+    // MARK: Détection de pauses
+
+    private func profilePoint(_ lat: Double, slope: Double = 0, sec: Double) -> ElevationProfilePoint {
+        ElevationProfilePoint(distanceFromStart: 0, altitude: 0, slope: slope,
+                              timestamp: Date(timeIntervalSince1970: sec), latitude: lat, longitude: 6.0)
+    }
+
+    func testPausedSegmentFlagsClusterDetection() {
+        // Mouvement (~111 m entre points), puis cluster de 380 s dans un rayon de ~2 m, puis repart.
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.002, sec: 20),
+            profilePoint(45.00201, sec: 200),
+            profilePoint(45.00202, sec: 400),
+            profilePoint(45.003, sec: 410),
+        ]
+        let flags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(flags, [false, false, true, true, false])
+    }
+
+    func testPausedSegmentFlagsIgnoresShortStop() {
+        // Même cluster mais 120 s < seuil de 300 s → pas une pause.
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.00101, sec: 70),
+            profilePoint(45.00102, sec: 130),
+            profilePoint(45.002, sec: 140),
+        ]
+        let flags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(flags, [false, false, false, false])
+    }
+
+    func testPausedSegmentFlagsSingleGapAutoPause() {
+        // Trou unique d'auto-pause appareil : 690 s pour ~100 m (> rayon, mais vitesse quasi nulle).
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.0019, sec: 700),
+            profilePoint(45.0029, sec: 710),
+        ]
+        let flags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(flags, [false, true, false])
+    }
+
+    func testPausedSegmentFlagsLongGapWhileTravelingIsNotPause() {
+        // Enregistrement coupé pendant un déplacement (~6,7 km en 600 s ≈ 11 m/s) → pas une pause.
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.061, sec: 610),
+            profilePoint(45.062, sec: 620),
+        ]
+        let flags = ElevationProfileBuilder.pausedSegmentFlags(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(flags, [false, false, false])
+    }
+
+    func testPausedTimeRangesCoverContiguousFlags() {
+        // Cluster de pause entre t=20 et t=400 → une seule plage continue [20, 400].
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.002, sec: 20),
+            profilePoint(45.00201, sec: 200),
+            profilePoint(45.00202, sec: 400),
+            profilePoint(45.003, sec: 410),
+        ]
+        let ranges = ElevationProfileBuilder.pausedTimeRanges(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(ranges.count, 1)
+        XCTAssertEqual(ranges[0].lowerBound, Date(timeIntervalSince1970: 20))
+        XCTAssertEqual(ranges[0].upperBound, Date(timeIntervalSince1970: 400))
+    }
+
+    func testPausedTimeRangesEmptyWithoutPause() {
+        let profile = [
+            profilePoint(45.000, sec: 0),
+            profilePoint(45.001, sec: 10),
+            profilePoint(45.002, sec: 20),
+        ]
+        XCTAssertTrue(ElevationProfileBuilder.pausedTimeRanges(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40).isEmpty)
+    }
+
+    func testSlopeTimesAndPausePartitioning() {
+        // La pente du segment en pause (10 %) ne doit PAS compter dans les catégories.
+        let profile = [
+            profilePoint(45.000, slope: 2, sec: 0),    // seg0 : 10 s douce
+            profilePoint(45.001, slope: 10, sec: 10),  // seg1 : 10 s raide
+            profilePoint(45.002, slope: -5, sec: 20),  // seg2 : 10 s descente
+            profilePoint(45.003, slope: 10, sec: 30),  // seg3 : pause 360 s (cluster ~3 m)
+            profilePoint(45.00303, slope: 0, sec: 390),
+        ]
+        let (byCat, paused) = ElevationProfileBuilder.slopeTimesAndPause(profile, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+        XCTAssertEqual(byCat[.gentle] ?? 0, 10)
+        XCTAssertEqual(byCat[.steep] ?? 0, 10)
+        XCTAssertEqual(byCat[.descent] ?? 0, 10)
+        XCTAssertEqual(paused, 360)
+        XCTAssertEqual(byCat.values.reduce(0, +) + paused, 390) // = temps total écoulé
+    }
 }
