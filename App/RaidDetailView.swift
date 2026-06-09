@@ -17,6 +17,7 @@ struct RaidDetailView: View {
     @Bindable var window: WindowModel
 
     @State private var draft: Raid
+    @State private var model: RaidDetailViewModel
     @State private var hoveredStageId: UUID?
     @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
@@ -31,7 +32,6 @@ struct RaidDetailView: View {
     @State private var isAddingParticipant = false
     @State private var showFilmOptions = false
     @State private var filmPublish = false
-    @State private var filmPublishedURL: String?
     @State private var isExportingFilm = false
     @State private var filmProgress: Double = 0
     @State private var filmStatus = ""
@@ -39,8 +39,6 @@ struct RaidDetailView: View {
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
-    @State private var publishedURL: String?
-    @State private var publishConfigJSON: String?
 
     @AppStorage("raidVideoQuality") private var raidVideoQualityRaw = VideoQuality.hd720.rawValue
     @AppStorage("raidVideoFormat") private var raidVideoFormatRaw = VideoFormat.landscape.rawValue
@@ -73,6 +71,7 @@ struct RaidDetailView: View {
         self.navigation = navigation
         self.window = window
         _draft = State(initialValue: raid)
+        _model = State(initialValue: RaidDetailViewModel(repository: repository))
     }
 
     private var members: [ActivitySummary] {
@@ -108,7 +107,7 @@ struct RaidDetailView: View {
         .toolbar { ToolbarItemGroup { raidActions } }
         .task(id: "\(raid.id.uuidString)|\(trackColorModeRaw)") { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
-        .task(id: raid.id) { await loadPublishState() }
+        .task(id: raid.id) { await model.loadPublishState(raidId: raid.id) }
         .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
         .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
@@ -189,7 +188,7 @@ struct RaidDetailView: View {
 
     @ViewBuilder
     private var filmLinkSection: some View {
-        if let urlString = filmPublishedURL, let url = URL(string: urlString) {
+        if let urlString = model.filmPublishedURL, let url = URL(string: urlString) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "film").foregroundStyle(.tint)
@@ -224,7 +223,7 @@ struct RaidDetailView: View {
 
     @ViewBuilder
     private var publishedLinkSection: some View {
-        if let urlString = publishedURL, let url = URL(string: urlString) {
+        if let urlString = model.publishedURL, let url = URL(string: urlString) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "globe").foregroundStyle(.tint)
@@ -313,11 +312,6 @@ struct RaidDetailView: View {
         .frame(width: 560)
     }
 
-    private func loadPublishState() async {
-        publishedURL = try? await repository.fetchRaidWebPublishedURL(id: raid.id)
-        publishConfigJSON = try? await repository.fetchRaidWebPublishConfig(id: raid.id)
-        filmPublishedURL = try? await repository.fetchRaidFilmPublishedURL(id: raid.id)
-    }
 
     private func exportRaidWeb() async {
         isExportingWeb = true
@@ -373,22 +367,18 @@ struct RaidDetailView: View {
     }
 
     private func publishRaidToBunny(files: [String: Data], onProgress: ((Double, String) -> Void)? = nil) async throws {
-        let uuid = existingPublishUUID() ?? UUID().uuidString.lowercased()
+        let uuid = model.existingPublishUUID() ?? UUID().uuidString.lowercased()
         try await BunnyStorageService.publish(files: files, folder: "raids/\(uuid)", onProgress: onProgress)
         let url = "https://www.gpxmanagement.net/raids/\(uuid)/"
         let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
         try await repository.setRaidWebPublished(id: raid.id, url: url, configJSON: configJSON)
-        publishedURL = url
-        publishConfigJSON = configJSON
+        model.publishedURL = url
+        model.publishConfigJSON = configJSON
     }
 
-    private func existingPublishUUID() -> String? {
-        guard let s = publishedURL, let comps = URLComponents(string: s) else { return nil }
-        return comps.path.split(separator: "/").map(String.init).last
-    }
 
     private func republishWeb() async {
-        if let json = publishConfigJSON, let data = json.data(using: .utf8), var opts = try? JSONDecoder().decode(WebExportOptions.self, from: data) {
+        if let json = model.publishConfigJSON, let data = json.data(using: .utf8), var opts = try? JSONDecoder().decode(WebExportOptions.self, from: data) {
             opts.output = .publishBunny
             webOptions = opts
         } else {
@@ -954,7 +944,7 @@ struct RaidDetailView: View {
             }
             let urlStr = "https://www.gpxmanagement.net/\(folder)/"
             try? await repository.setRaidFilmPublished(id: raid.id, url: urlStr)
-            filmPublishedURL = urlStr
+            model.filmPublishedURL = urlStr
             if let u = URL(string: urlStr) {
                 NSWorkspace.shared.open(u)
                 NSPasteboard.general.clearContents()
@@ -1199,129 +1189,5 @@ struct RaidDetailView: View {
         let m = (total % 3600) / 60
         if h > 0 { return "\(h) h \(String(format: "%02d", m))" }
         return "\(m) min"
-    }
-}
-
-struct RaidLayoutThumbnail: View {
-    let layout: VideoLayout
-    let aspect: Double
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
-                Rectangle().fill(Color(white: 0.18))
-                zone(layout.trace, in: geo.size, color: .blue)
-                if let profile = layout.profile {
-                    zone(profile, in: geo.size, color: .teal)
-                }
-                zone(layout.media, in: geo.size, color: .orange)
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .aspectRatio(aspect, contentMode: .fit)
-    }
-
-    private func zone(_ z: LayoutZone, in size: CGSize, color: Color) -> some View {
-        RoundedRectangle(cornerRadius: 2)
-            .fill(color.opacity(0.18))
-            .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(color, lineWidth: 1.2))
-            .frame(width: max(1, z.w * size.width), height: max(1, z.h * size.height))
-            .offset(x: z.x * size.width, y: z.y * size.height)
-    }
-}
-
-struct ParticipantAvatar: View {
-    let participant: RaidParticipant
-    var size: CGFloat = 40
-
-    var body: some View {
-        Group {
-            if let data = participant.avatarImageData, let image = NSImage(data: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    Color.accentColor.opacity(0.25)
-                    Text(initials)
-                        .font(.system(size: size * 0.4, weight: .semibold))
-                        .foregroundStyle(.tint)
-                }
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-    }
-
-    private var initials: String {
-        let parts = participant.name.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init).joined()
-        return letters.isEmpty ? "?" : letters.uppercased()
-    }
-}
-
-struct RaidParticipantEditor: View {
-    @State private var participant: RaidParticipant
-    let onSave: (RaidParticipant) -> Void
-    let onDelete: (() -> Void)?
-    @Environment(\.dismiss) private var dismiss
-    @State private var avatarItem: PhotosPickerItem?
-
-    init(participant: RaidParticipant, onSave: @escaping (RaidParticipant) -> Void, onDelete: (() -> Void)?) {
-        _participant = State(initialValue: participant)
-        self.onSave = onSave
-        self.onDelete = onDelete
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(onDelete == nil ? "Nouveau participant" : "Modifier le participant")
-                .font(.headline)
-
-            HStack(spacing: 16) {
-                ParticipantAvatar(participant: participant, size: 72)
-                VStack(alignment: .leading, spacing: 8) {
-                    PhotosPicker(participant.avatarImageData == nil ? "Choisir une photo…" : "Changer la photo…",
-                                 selection: $avatarItem, matching: .images)
-                    if participant.avatarImageData != nil {
-                        Button("Retirer la photo", role: .destructive) { participant.avatarImageData = nil }
-                            .buttonStyle(.link)
-                    }
-                }
-            }
-
-            TextField("Nom", text: $participant.name)
-                .textFieldStyle(.roundedBorder)
-
-            HStack {
-                if onDelete != nil {
-                    Button("Supprimer", role: .destructive) {
-                        onDelete?()
-                        dismiss()
-                    }
-                }
-                Spacer()
-                Button("Annuler") { dismiss() }
-                Button("Enregistrer") {
-                    onSave(participant)
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(participant.name.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 360)
-        .onChange(of: avatarItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let resized = RaidDetailView.downscaledJPEG(data, maxDimension: 256) {
-                    participant.avatarImageData = resized
-                }
-                avatarItem = nil
-            }
-        }
     }
 }

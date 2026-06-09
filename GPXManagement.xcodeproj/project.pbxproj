@@ -49,6 +49,8 @@
 		65A5E03A8CBC46D9BF28DFF2 /* VideoLayoutEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */; };
 		5F19BC99145848069C022407 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */; };
 		2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */; };
+		29CB53642CAF41618C48C0B8 /* RaidDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */; };
+		016796AE01F74D7D97627AAE /* RaidParticipantEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860483180DB04447A5028238 /* RaidParticipantEditor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +107,8 @@
 		09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLayoutEditor.swift; sourceTree = "<group>"; };
 		1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailViewModel.swift; sourceTree = "<group>"; };
+		10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailViewModel.swift; sourceTree = "<group>"; };
+		860483180DB04447A5028238 /* RaidParticipantEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidParticipantEditor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,6 +177,8 @@
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				79107E0008C422D10DDDD339 /* RaidDetailView.swift */,
+				860483180DB04447A5028238 /* RaidParticipantEditor.swift */,
+				10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */,
 				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
 				1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */,
@@ -350,6 +356,8 @@
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */,
+				016796AE01F74D7D97627AAE /* RaidParticipantEditor.swift in Sources */,
+				29CB53642CAF41618C48C0B8 /* RaidDetailViewModel.swift in Sources */,
 				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
 				9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */,
