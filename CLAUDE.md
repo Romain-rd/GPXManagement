@@ -37,7 +37,7 @@ Utilisateur unique (Romain), usage personnel, distribution hors Mac App Store.
 
 ## Conventions de code
 
-- **UI en français**, **code en anglais** (identifiants, commentaires, commits).
+- **UI en français**, **identifiants de code en anglais**. Les **commentaires et messages de commit sont en français** (pratique constante du dépôt).
 - Pas de commentaires sauf si la raison (le *pourquoi*) n'est pas évidente à la lecture. Pas de commentaires expliquant *quoi* fait le code.
 - Pas de docstrings multi-paragraphes. Une ligne max.
 - Pas de classes utilitaires fourre-tout (`Utils`, `Helpers`). Préférer les extensions ciblées.
