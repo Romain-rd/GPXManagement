@@ -1,6 +1,5 @@
 import Foundation
 import CoreLocation
-import GPXCore
 
 /// Limiteur à fenêtre glissante pour respecter le quota CLGeocoder (~50 req/60 s).
 /// On vise 45 pour garder une marge.
@@ -33,11 +32,11 @@ actor GeocodeThrottler {
 }
 
 @MainActor
-enum ReverseGeocoder {
+public enum ReverseGeocoder {
     private static var cache: [String: String] = [:]
     private static let throttler = GeocodeThrottler()
 
-    static func placeName(latitude: Double, longitude: Double, preferPOI: Bool) async -> String? {
+    public static func placeName(latitude: Double, longitude: Double, preferPOI: Bool) async -> String? {
         let key = cacheKey(latitude: latitude, longitude: longitude, preferPOI: preferPOI)
         if let cached = cache[key] {
             return cached.isEmpty ? nil : cached
@@ -90,8 +89,8 @@ enum ReverseGeocoder {
 }
 
 @MainActor
-enum RouteNamer {
-    static func suggestName(points: [TrackPoint]) async -> String? {
+public enum RouteNamer {
+    public static func suggestName(points: [TrackPoint]) async -> String? {
         guard let wp = WaypointSelector.waypoints(from: points) else { return nil }
 
         let startName = await ReverseGeocoder.placeName(latitude: wp.start.latitude, longitude: wp.start.longitude, preferPOI: false)

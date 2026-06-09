@@ -1,11 +1,11 @@
 import Foundation
 
-enum BunnyStorageError: Error, LocalizedError {
+public enum BunnyStorageError: Error, LocalizedError {
     case notConfigured
     case zoneLookupFailed(status: Int)
     case requestFailed(path: String, status: Int)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notConfigured:
             return "Bunny n'est pas configuré (renseigner BUNNY_API_KEY et BUNNY_STORAGE_ZONE_ID dans Secrets.xcconfig)."
@@ -21,14 +21,14 @@ enum BunnyStorageError: Error, LocalizedError {
 /// La clé API de compte (générique) et l'ID de zone sont lus dans Info.plist (injectés depuis
 /// Secrets.xcconfig, non versionnés). Le nom de zone, le mot de passe Storage et le host régional
 /// sont résolus à la volée via l'API de management — pas de mot de passe Storage à stocker.
-enum BunnyStorageService {
+public enum BunnyStorageService {
     private static func info(_ key: String) -> String {
         (Bundle.main.object(forInfoDictionaryKey: key) as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
     }
     private static var apiKey: String { info("BunnyApiKey") }
     private static var zoneId: String { info("BunnyStorageZoneId") }
 
-    static var isConfigured: Bool {
+    public static var isConfigured: Bool {
         !apiKey.isEmpty && apiKey != "TODO" && !zoneId.isEmpty && zoneId != "TODO"
     }
 
@@ -48,7 +48,7 @@ enum BunnyStorageService {
     }
 
     /// Envoie tous les fichiers (clé = chemin relatif) sous `folder/`, après suppression du dossier existant.
-    static func publish(files: [String: Data], folder: String, onProgress: ((Double, String) -> Void)? = nil) async throws {
+    public static func publish(files: [String: Data], folder: String, onProgress: ((Double, String) -> Void)? = nil) async throws {
         guard isConfigured else { throw BunnyStorageError.notConfigured }
         let zone = try await resolveZone()
         try? await deleteFolder(folder, zone: zone)

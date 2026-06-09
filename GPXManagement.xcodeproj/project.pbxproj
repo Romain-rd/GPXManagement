@@ -36,7 +36,6 @@
 		D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */; };
 		D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */; };
 		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
-		D9A721DBFC355D7D2570747F /* BunnyStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */; };
 		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
 		DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */; };
 		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
@@ -44,7 +43,6 @@
 		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
 		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
 		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
-		FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,12 +56,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BunnyStorageService.swift; sourceTree = "<group>"; };
 		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
 		1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseGeocoder.swift; sourceTree = "<group>"; };
 		2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapOverviewView.swift; sourceTree = "<group>"; };
 		2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModel.swift; sourceTree = "<group>"; };
 		44934C5F563E2D198B67B314 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
@@ -150,7 +146,6 @@
 				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
 				9471D358879C561216F8F27A /* AppServices.swift */,
 				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
-				0677C76DC8643462D69E7AFA /* BunnyStorageService.swift */,
 				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
 				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
 				4F25EFB570B8ADC9F59F35BD /* ExportService.swift */,
@@ -160,7 +155,6 @@
 				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
 				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
 				79107E0008C422D10DDDD339 /* RaidDetailView.swift */,
-				2BD392D4BE4E215C5BCC40AF /* ReverseGeocoder.swift */,
 				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
 				C7ACADC04245857846CE60BC /* SidebarView.swift */,
 				1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */,
@@ -322,7 +316,6 @@
 				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
 				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
 				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
-				D9A721DBFC355D7D2570747F /* BunnyStorageService.swift in Sources */,
 				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
 				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
 				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
@@ -333,7 +326,6 @@
 				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
 				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
 				54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */,
-				FAC63D4A807AB95DCE2BECF0 /* ReverseGeocoder.swift in Sources */,
 				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
 				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
 				9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */,
