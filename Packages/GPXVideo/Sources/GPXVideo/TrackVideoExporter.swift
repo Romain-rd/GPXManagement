@@ -7,58 +7,58 @@ import CoreImage
 import GPXCore
 import GPXMapKit
 
-enum TrackVideoMedia {
+public enum TrackVideoMedia {
     case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D)
     case video(asset: AVAsset, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D)
 
-    var coordinate: CLLocationCoordinate2D {
+    public var coordinate: CLLocationCoordinate2D {
         switch self {
         case .photo(_, _, let c), .video(_, _, let c): return c
         }
     }
-    var thumbnail: NSImage? {
+    public var thumbnail: NSImage? {
         switch self {
         case .photo(_, let t, _), .video(_, let t, _): return t
         }
     }
-    var isVideo: Bool { if case .video = self { return true }; return false }
+    public var isVideo: Bool { if case .video = self { return true }; return false }
 }
 
-enum VideoInsetSize: String, CaseIterable, Identifiable {
+public enum VideoInsetSize: String, CaseIterable, Identifiable {
     case small, medium, large
-    var id: String { rawValue }
-    var label: String {
+    public var id: String { rawValue }
+    public var label: String {
         switch self {
         case .small:  return "Petite"
         case .medium: return "Moyenne"
         case .large:  return "Grande"
         }
     }
-    var widthFactor: Double { self == .small ? 0.42 : (self == .medium ? 0.60 : 0.95) }
-    var heightFactor: Double { self == .small ? 0.46 : (self == .medium ? 0.66 : 0.95) }
+    public var widthFactor: Double { self == .small ? 0.42 : (self == .medium ? 0.60 : 0.95) }
+    public var heightFactor: Double { self == .small ? 0.46 : (self == .medium ? 0.66 : 0.95) }
 }
 
-enum VideoQuality: String, CaseIterable, Identifiable, Codable {
+public enum VideoQuality: String, CaseIterable, Identifiable, Codable {
     case hd720, fullHD1080
-    var id: String { rawValue }
-    var label: String { self == .hd720 ? "HD (720p)" : "Full HD (1080p)" }
-    var base: Int { self == .hd720 ? 720 : 1080 }
+    public var id: String { rawValue }
+    public var label: String { self == .hd720 ? "HD (720p)" : "Full HD (1080p)" }
+    public var base: Int { self == .hd720 ? 720 : 1080 }
 }
 
-enum VideoFormat: String, CaseIterable, Identifiable, Codable {
+public enum VideoFormat: String, CaseIterable, Identifiable, Codable {
     case landscape, square, portrait
-    var id: String { rawValue }
-    var label: String {
+    public var id: String { rawValue }
+    public var label: String {
         switch self {
         case .landscape: return "Paysage 16:9"
         case .square:    return "Carré 1:1"
         case .portrait:  return "Portrait 9:16"
         }
     }
-    var aspect: Double { let d = dimensions(base: 720); return Double(d.width) / Double(d.height) }
+    public var aspect: Double { let d = dimensions(base: 720); return Double(d.width) / Double(d.height) }
 
     /// Dimensions (paires) à partir d'une base = côté court (paysage/portrait) ou côté (carré).
-    func dimensions(base: Int) -> (width: Int, height: Int) {
+    public func dimensions(base: Int) -> (width: Int, height: Int) {
         func even(_ v: Double) -> Int { let i = Int(v.rounded()); return i % 2 == 0 ? i : i + 1 }
         switch self {
         case .landscape: return (even(Double(base) * 16.0 / 9.0), base)
@@ -69,16 +69,21 @@ enum VideoFormat: String, CaseIterable, Identifiable, Codable {
 }
 
 /// Zone rectangulaire en fractions du cadre (origine haut-gauche, v vers le bas).
-struct LayoutZone: Codable, Equatable {
-    var x: Double; var y: Double; var w: Double; var h: Double
+public struct LayoutZone: Codable, Equatable {
+    public var x: Double; public var y: Double; public var w: Double; public var h: Double
+    public init(x: Double, y: Double, w: Double, h: Double) { self.x = x; self.y = y; self.w = w; self.h = h }
 }
 
-struct VideoLayout: Codable, Equatable {
-    var trace: LayoutZone
-    var media: LayoutZone
-    var profile: LayoutZone?   // nil → pas de profil
+public struct VideoLayout: Codable, Equatable {
+    public var trace: LayoutZone
+    public var media: LayoutZone
+    public var profile: LayoutZone?   // nil → pas de profil
 
-    static func defaultLayout(for format: VideoFormat) -> VideoLayout {
+    public init(trace: LayoutZone, media: LayoutZone, profile: LayoutZone?) {
+        self.trace = trace; self.media = media; self.profile = profile
+    }
+
+    public static func defaultLayout(for format: VideoFormat) -> VideoLayout {
         switch format {
         case .landscape:
             return VideoLayout(
@@ -100,20 +105,20 @@ struct VideoLayout: Codable, Equatable {
 }
 
 /// Modèle (template) : configuration vidéo complète, nommée et réutilisable.
-struct VideoTemplate: Identifiable, Codable, Equatable {
-    var id: String
-    var name: String
-    var quality: VideoQuality
-    var format: VideoFormat
-    var layout: VideoLayout
-    var builtin: Bool
-    var transition: MediaTransition
-    var showHeartRate: Bool
-    var showIntro: Bool
-    var showOutro: Bool
-    var mapLayerRaw: String
+public struct VideoTemplate: Identifiable, Codable, Equatable {
+    public var id: String
+    public var name: String
+    public var quality: VideoQuality
+    public var format: VideoFormat
+    public var layout: VideoLayout
+    public var builtin: Bool
+    public var transition: MediaTransition
+    public var showHeartRate: Bool
+    public var showIntro: Bool
+    public var showOutro: Bool
+    public var mapLayerRaw: String
 
-    init(id: String, name: String, quality: VideoQuality, format: VideoFormat, layout: VideoLayout, builtin: Bool,
+    public init(id: String, name: String, quality: VideoQuality, format: VideoFormat, layout: VideoLayout, builtin: Bool,
          transition: MediaTransition = .fade, showHeartRate: Bool = true, showIntro: Bool = true, showOutro: Bool = true,
          mapLayerRaw: String = "ign_scan25") {
         self.id = id; self.name = name; self.quality = quality; self.format = format; self.layout = layout; self.builtin = builtin
@@ -121,7 +126,7 @@ struct VideoTemplate: Identifiable, Codable, Equatable {
         self.mapLayerRaw = mapLayerRaw
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
@@ -136,7 +141,7 @@ struct VideoTemplate: Identifiable, Codable, Equatable {
         mapLayerRaw = (try? c.decode(String.self, forKey: .mapLayerRaw)) ?? "ign_scan25"
     }
 
-    static let builtins: [VideoTemplate] = [
+    public static let builtins: [VideoTemplate] = [
         VideoTemplate(id: "builtin.sidebyside", name: "16:9 côte à côte", quality: .hd720, format: .landscape,
                       layout: .defaultLayout(for: .landscape), builtin: true),
         VideoTemplate(id: "builtin.fullscreen", name: "16:9 plein écran", quality: .hd720, format: .landscape,
@@ -148,10 +153,10 @@ struct VideoTemplate: Identifiable, Codable, Equatable {
     ]
 }
 
-enum MediaTransition: String, CaseIterable, Identifiable, Codable {
+public enum MediaTransition: String, CaseIterable, Identifiable, Codable {
     case none, fade, zoom, slide
-    var id: String { rawValue }
-    var label: String {
+    public var id: String { rawValue }
+    public var label: String {
         switch self {
         case .none:  return "Aucune"
         case .fade:  return "Fondu"
@@ -161,26 +166,34 @@ enum MediaTransition: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-struct VideoConfig {
-    let width: Int
-    let height: Int
-    let layout: VideoLayout
-    let transition: MediaTransition
-    let showHeartRate: Bool
-    let showIntro: Bool
-    let showOutro: Bool
-    let mapLayer: MapLayer
-    let title: String
-    let dateText: String
-    let summary: [(label: String, value: String)]
+public struct VideoConfig {
+    public let width: Int
+    public let height: Int
+    public let layout: VideoLayout
+    public let transition: MediaTransition
+    public let showHeartRate: Bool
+    public let showIntro: Bool
+    public let showOutro: Bool
+    public let mapLayer: MapLayer
+    public let title: String
+    public let dateText: String
+    public let summary: [(label: String, value: String)]
+
+    public init(width: Int, height: Int, layout: VideoLayout, transition: MediaTransition, showHeartRate: Bool,
+                showIntro: Bool, showOutro: Bool, mapLayer: MapLayer, title: String, dateText: String,
+                summary: [(label: String, value: String)]) {
+        self.width = width; self.height = height; self.layout = layout; self.transition = transition
+        self.showHeartRate = showHeartRate; self.showIntro = showIntro; self.showOutro = showOutro
+        self.mapLayer = mapLayer; self.title = title; self.dateText = dateText; self.summary = summary
+    }
 }
 
-enum TrackVideoError: Error, LocalizedError {
+public enum TrackVideoError: Error, LocalizedError {
     case noTrack
     case snapshotFailed
     case writerFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noTrack:        return "La trace ne contient pas assez de points."
         case .snapshotFailed: return "Impossible de générer la carte de fond."
@@ -192,7 +205,7 @@ enum TrackVideoError: Error, LocalizedError {
 /// Génère un film (format/qualité au choix) : carton d'intro (titre + date), carte avec un point qui
 /// parcourt le tracé, vignettes des médias sur la carte, encart d'infos (heure/altitude/pente), médias
 /// sélectionnés affichés 4 s en encart (vidéos lues avec son), puis carton de fin (résumé des métriques).
-enum TrackVideoExporter {
+public enum TrackVideoExporter {
     private static let fps: Int32 = 30
     private static let trackSeconds = 30.0
     private static let photoSeconds = 4.0
@@ -223,7 +236,7 @@ enum TrackVideoExporter {
         return f
     }()
 
-    static func export(points rawPoints: [TrackPoint], media: [TrackVideoMedia], config: VideoConfig, to outputURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
+    public static func export(points rawPoints: [TrackPoint], media: [TrackVideoMedia], config: VideoConfig, to outputURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
         let width = config.width, height = config.height
         let scale = Double(height) / 720.0
         let pts = decimate(rawPoints, max: 1500)
@@ -377,7 +390,7 @@ enum TrackVideoExporter {
 
         func append(_ image: CGImage) {
             while !input.isReadyForMoreMediaData { usleep(3000) }
-            if let buffer = pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
+            if let buffer = VideoRendering.pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
                 adaptor.append(buffer, withPresentationTime: CMTime(value: frameIndex, timescale: fps))
                 frameIndex += 1
             }
@@ -628,7 +641,7 @@ enum TrackVideoExporter {
     }
 
     private static func drawFrame(background: NSImage, point: CGPoint, hud: Hud, width: Int, height: Int, scale: Double, profile: ProfileOverlay?, hudBottom: CGFloat, overlay: (NSRect) -> Void) -> CGImage {
-        let rep = bitmap(width: width, height: height)
+        let rep = VideoRendering.bitmap(width: width, height: height)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         let rect = NSRect(x: 0, y: 0, width: width, height: height)
@@ -709,7 +722,7 @@ enum TrackVideoExporter {
     }
 
     private static func drawCard(background: NSImage, title: String, subtitle: String?, lines: [(label: String, value: String)], width: Int, height: Int, scale: Double, footer: String? = nil) -> CGImage {
-        let rep = bitmap(width: width, height: height)
+        let rep = VideoRendering.bitmap(width: width, height: height)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         let W = CGFloat(width), H = CGFloat(height)
@@ -730,13 +743,7 @@ enum TrackVideoExporter {
         let maxContentW = panelW - pad * 2
 
         func fitted(_ text: String, baseSize: CGFloat, weight: NSFont.Weight, color: NSColor) -> NSAttributedString {
-            var size = baseSize
-            var attr = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color])
-            if attr.size().width > maxContentW {
-                size *= maxContentW / attr.size().width
-                attr = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color])
-            }
-            return attr
+            VideoRendering.fittedText(text, baseSize: baseSize, weight: weight, color: color, maxWidth: maxContentW)
         }
 
         let titleStr = fitted(title, baseSize: 48 * scale, weight: .bold, color: white)
@@ -793,27 +800,6 @@ enum TrackVideoExporter {
     }
 
     // MARK: - Helpers
-
-    private static func bitmap(width: Int, height: Int) -> NSBitmapImageRep {
-        NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
-                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-                         bytesPerRow: 0, bitsPerPixel: 0)!
-    }
-
-    private static func pixelBuffer(from image: CGImage, pool: CVPixelBufferPool?, width: Int, height: Int) -> CVPixelBuffer? {
-        guard let pool else { return nil }
-        var pb: CVPixelBuffer?
-        CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
-        guard let buffer = pb else { return nil }
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        guard let ctx = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height,
-                                  bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return buffer
-    }
 
     private static func boundingMapRect(_ coords: [CLLocationCoordinate2D]) -> MKMapRect {
         var rect = MKMapRect.null

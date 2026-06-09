@@ -4,34 +4,47 @@ import AppKit
 import GPXCore
 import GPXMapKit
 
-struct RaidVideoStage {
-    let title: String
-    let dateText: String
-    let points: [TrackPoint]
-    let media: [TrackVideoMedia]
-    let layout: VideoLayout
+public struct RaidVideoStage {
+    public let title: String
+    public let dateText: String
+    public let points: [TrackPoint]
+    public let media: [TrackVideoMedia]
+    public let layout: VideoLayout
+
+    public init(title: String, dateText: String, points: [TrackPoint], media: [TrackVideoMedia], layout: VideoLayout) {
+        self.title = title; self.dateText = dateText; self.points = points; self.media = media; self.layout = layout
+    }
 }
 
-struct RaidVideoConfig {
-    let width: Int
-    let height: Int
-    let transition: MediaTransition
-    let showHeartRate: Bool
-    let showStageCards: Bool
-    let mapLayer: MapLayer
-    let title: String
-    let dateText: String
-    let place: String?
-    let summary: [(label: String, value: String)]
-    let coverImage: NSImage?
-    let participants: [(name: String, avatar: NSImage?)]
+public struct RaidVideoConfig {
+    public let width: Int
+    public let height: Int
+    public let transition: MediaTransition
+    public let showHeartRate: Bool
+    public let showStageCards: Bool
+    public let mapLayer: MapLayer
+    public let title: String
+    public let dateText: String
+    public let place: String?
+    public let summary: [(label: String, value: String)]
+    public let coverImage: NSImage?
+    public let participants: [(name: String, avatar: NSImage?)]
+
+    public init(width: Int, height: Int, transition: MediaTransition, showHeartRate: Bool, showStageCards: Bool,
+                mapLayer: MapLayer, title: String, dateText: String, place: String?,
+                summary: [(label: String, value: String)], coverImage: NSImage?,
+                participants: [(name: String, avatar: NSImage?)]) {
+        self.width = width; self.height = height; self.transition = transition; self.showHeartRate = showHeartRate
+        self.showStageCards = showStageCards; self.mapLayer = mapLayer; self.title = title; self.dateText = dateText
+        self.place = place; self.summary = summary; self.coverImage = coverImage; self.participants = participants
+    }
 }
 
-enum RaidVideoError: Error, LocalizedError {
+public enum RaidVideoError: Error, LocalizedError {
     case noStages
     case writerFailed
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noStages:     return "Aucune étape avec un tracé exploitable dans ce raid."
         case .writerFailed: return "Échec de l'écriture de la vidéo du raid."
@@ -41,12 +54,12 @@ enum RaidVideoError: Error, LocalizedError {
 
 /// Film d'un raid : carton d'intro (couverture + titre + participants), un clip par étape (généré par
 /// TrackVideoExporter), puis carton de fin (stats cumulées + participants). Les segments sont concaténés.
-enum RaidVideoExporter {
+public enum RaidVideoExporter {
     private static let fps: Int32 = 30
     private static let introSeconds = 4.5
     private static let outroSeconds = 6.0
 
-    static func export(stages: [RaidVideoStage], config: RaidVideoConfig, to outputURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
+    public static func export(stages: [RaidVideoStage], config: RaidVideoConfig, to outputURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
         let playable = stages.filter { $0.points.count >= 2 }
         guard !playable.isEmpty else { throw RaidVideoError.noStages }
 
@@ -133,7 +146,7 @@ enum RaidVideoExporter {
         for _ in 0..<frames {
             autoreleasepool {
                 while !input.isReadyForMoreMediaData { usleep(2000) }
-                if let buffer = pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
+                if let buffer = VideoRendering.pixelBuffer(from: image, pool: adaptor.pixelBufferPool, width: width, height: height) {
                     adaptor.append(buffer, withPresentationTime: CMTime(value: idx, timescale: fps))
                     idx += 1
                 }
@@ -252,21 +265,13 @@ enum RaidVideoExporter {
     }
 
     private static func fitted(_ text: String, base: CGFloat, weight: NSFont.Weight, color: NSColor, maxWidth: CGFloat) -> NSAttributedString {
-        var size = base
-        var attr = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color])
-        if attr.size().width > maxWidth {
-            size *= maxWidth / attr.size().width
-            attr = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: size, weight: weight), .foregroundColor: color])
-        }
-        return attr
+        VideoRendering.fittedText(text, baseSize: base, weight: weight, color: color, maxWidth: maxWidth)
     }
 
     // MARK: - Helpers bas niveau
 
     private static func card(width: Int, height: Int, draw: (CGFloat, CGFloat, CGFloat) -> Void) -> CGImage {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
-                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-                                   bytesPerRow: 0, bitsPerPixel: 0)!
+        let rep = VideoRendering.bitmap(width: width, height: height)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         draw(CGFloat(width), CGFloat(height), CGFloat(height) / 720.0)
@@ -274,18 +279,4 @@ enum RaidVideoExporter {
         return rep.cgImage!
     }
 
-    private static func pixelBuffer(from image: CGImage, pool: CVPixelBufferPool?, width: Int, height: Int) -> CVPixelBuffer? {
-        guard let pool else { return nil }
-        var pb: CVPixelBuffer?
-        CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb)
-        guard let buffer = pb else { return nil }
-        CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        guard let ctx = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: width, height: height,
-                                  bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return buffer
-    }
 }

@@ -7,6 +7,7 @@ import AVFoundation
 import UniformTypeIdentifiers
 import GPXCore
 import GPXRender
+import GPXVideo
 import GPXMapKit
 
 struct ActivityDetailView: View {

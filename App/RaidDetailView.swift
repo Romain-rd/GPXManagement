@@ -6,6 +6,7 @@ import CoreLocation
 import MapKit
 import GPXCore
 import GPXRender
+import GPXVideo
 import GPXMapKit
 
 struct RaidDetailView: View {
