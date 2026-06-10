@@ -831,16 +831,20 @@ struct RaidDetailView: View {
         .frame(width: 440)
     }
 
-    private func cumulativeSummary() -> [(label: String, value: String)] {
+    /// Cumul des étapes ; temps en mouvement/en pause selon la même partition que l'app (timeBreakdown).
+    private func cumulativeSummary(moving: TimeInterval, paused: TimeInterval) -> [(label: String, value: String)] {
         let totalDistance = members.reduce(0) { $0 + $1.distance }
         let totalGain = members.reduce(0) { $0 + $1.elevationGain }
-        let totalMoving = members.reduce(0) { $0 + $1.movingDuration }
-        return [
+        let totalDuration = members.reduce(0) { $0 + $1.duration }
+        var lines: [(String, String)] = [
             ("Étapes", "\(members.count)"),
             ("Distance", Self.formatDistance(totalDistance)),
+            ("Durée", Self.formatDuration(totalDuration)),
             ("Dénivelé +", "\(Int(totalGain.rounded())) m"),
-            ("Temps", Self.formatDuration(totalMoving))
+            ("En mouvement", Self.formatDuration(moving))
         ]
+        if paused > 0 { lines.append(("En pause", Self.formatDuration(paused))) }
+        return lines
     }
 
     private func generateRaidFilm(publish: Bool) {
@@ -865,7 +869,6 @@ struct RaidDetailView: View {
         let memberList = members
         let cover = draft.coverImageData.flatMap { NSImage(data: $0) }
         let participants = draft.participants.map { (name: $0.name, avatar: $0.avatarImageData.flatMap { NSImage(data: $0) }) }
-        let summary = cumulativeSummary()
         let dateText = dateRangeText ?? ""
         let place = draft.place
 
@@ -877,10 +880,21 @@ struct RaidDetailView: View {
 
             let status = await PhotoLibraryService.requestAccess()
             var stages: [RaidVideoStage] = []
+            // Partition des temps cumulée (mêmes réglages de pause que l'app/PDF/web).
+            let pauseMinSeconds = (UserDefaults.standard.object(forKey: "pauseThresholdMinutes") as? Double ?? 5) * 60
+            let pauseRadiusMeters = UserDefaults.standard.object(forKey: "pauseRadiusMeters") as? Double ?? 40
+            var totalMoving: TimeInterval = 0
+            var totalPaused: TimeInterval = 0
             for (i, member) in memberList.enumerated() {
                 filmStatus = "Étape \(i + 1)/\(memberList.count)…"
                 guard let data = try? await repository.fetchTrackData(id: member.id), !data.isEmpty,
                       let points = try? TrackPointCodec.decode(data), points.count >= 2 else { continue }
+                let profile = ElevationProfileBuilder.build(points: points)
+                let bd = ElevationProfileBuilder.timeBreakdown(
+                    profile.isEmpty ? ElevationProfileBuilder.buildMotion(points: points) : profile,
+                    pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+                totalMoving += bd.ascending + bd.descending + bd.flat
+                totalPaused += bd.paused
                 var media: [TrackVideoMedia] = []
                 if status == .authorized || status == .limited {
                     let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
@@ -908,6 +922,9 @@ struct RaidDetailView: View {
                 ))
             }
 
+            // Repli sur la stat stockée si aucune étape n'a de timestamps exploitables.
+            let fallbackMoving = memberList.reduce(0) { $0 + $1.movingDuration }
+            let summary = cumulativeSummary(moving: totalMoving > 0 ? totalMoving : fallbackMoving, paused: totalPaused)
             let config = RaidVideoConfig(
                 width: dims.width, height: dims.height, transition: transition,
                 showHeartRate: raidVideoHeartRateOn, showStageCards: raidVideoStageCardsOn,
