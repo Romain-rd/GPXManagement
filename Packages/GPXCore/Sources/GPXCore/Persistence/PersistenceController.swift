@@ -28,6 +28,9 @@ public final class PersistenceController {
             description.shouldInferMappingModelAutomatically = true
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            // Borne le journal WAL : les checkpoints TRUNCATE échouent souvent (mirroring CloudKit
+            // occupé → « Database busy ») et le WAL enflait sans limite (observé à 378 Mo).
+            description.setOption(["journal_size_limit": "67108864"] as NSDictionary, forKey: NSSQLitePragmasOption)
         }
 
         container.loadPersistentStores { _, error in
