@@ -932,12 +932,20 @@ struct ActivityDetailView: View {
         var lines: [(String, String)] = [
             ("Distance", distanceText(activity.distance)),
             ("Durée", Self.duration(activity.duration)),
-            ("En mouvement", Self.duration(activity.movingDuration)),
+            // Mêmes temps que l'app et l'export web : partition pause/montée/descente/à plat
+            // (timeBreakdown, chargée par le view model), pas la stat movingDuration stockée.
+            ("En mouvement", Self.duration(model.movingTime ?? activity.movingDuration))
+        ]
+        if let pause = model.pausedTime { lines.append(("En pause", Self.duration(pause))) }
+        if let up = model.ascentTime { lines.append(("Temps en montée", Self.duration(up))) }
+        if let down = model.descentTime { lines.append(("Temps en descente", Self.duration(down))) }
+        if let flat = model.flatTime { lines.append(("Temps à plat", Self.duration(flat))) }
+        lines.append(contentsOf: [
             ("Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
             ("Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
             ("Vitesse moy.", speedText(activity.avgSpeed)),
             ("Vitesse max", speedText(activity.maxSpeed))
-        ]
+        ])
         if let hr = activity.avgHeartRate { lines.append(("FC moyenne", "\(Int(hr.rounded())) bpm")) }
         if let hr = activity.maxHeartRate { lines.append(("FC max", "\(Int(hr.rounded())) bpm")) }
         return lines
