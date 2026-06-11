@@ -216,7 +216,16 @@ struct MapOverviewView: View {
         .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
         .onChange(of: window.mapExportToken) { _, _ in
-            guard !tracks.isEmpty else { return }
+            // Pendant le chargement, `tracks` contient encore les traces précédentes (ou rien) :
+            // l'export sortirait une carte sans les traces affichées. On refuse explicitement.
+            guard !isLoading else {
+                exportError = "Les traces sont encore en cours de chargement — réessayez dans un instant."
+                return
+            }
+            guard !tracks.isEmpty else {
+                exportError = "Aucune trace chargée à exporter."
+                return
+            }
             Task { await exportPNG(fullRoute: window.mapExportFullRoute) }
         }
         .alert("Export PNG", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
