@@ -309,7 +309,8 @@ public struct TrackMapView: NSViewRepresentable {
         private var rangePolyline: SegmentRangePolyline?
         private var rangeSignature = ""
 
-        /// Polyline de surlignage d'une portion de trace (segment survolé), dessinée par-dessus le tracé.
+        /// Polyline de surlignage d'une portion de trace (segment sélectionné), dessinée par-dessus le tracé.
+        /// Cadre la carte sur le segment à la sélection, et sur la trace entière à la désélection.
         func applyHighlightRange(_ coords: [CLLocationCoordinate2D], to mapView: MKMapView) {
             let signature = coords.count >= 2
                 ? "\(coords.count)|\(coords[0].latitude),\(coords[0].longitude)|\(coords[coords.count - 1].latitude),\(coords[coords.count - 1].longitude)"
@@ -320,10 +321,17 @@ public struct TrackMapView: NSViewRepresentable {
                 mapView.removeOverlay(existing)
                 rangePolyline = nil
             }
-            guard coords.count >= 2 else { return }
+            guard coords.count >= 2 else {
+                let trackRects = mapView.overlays.compactMap { ($0 as? IdentifiedPolyline)?.boundingMapRect }
+                if let union = trackRects.dropFirst().reduce(trackRects.first, { $0?.union($1) }) {
+                    mapView.setVisibleMapRect(union, edgePadding: NSEdgeInsets(top: 40, left: 40, bottom: 40, right: 40), animated: true)
+                }
+                return
+            }
             let polyline = SegmentRangePolyline(coordinates: coords, count: coords.count)
             rangePolyline = polyline
             mapView.addOverlay(polyline, level: .aboveLabels)
+            mapView.setVisibleMapRect(polylineRect(coords), edgePadding: NSEdgeInsets(top: 60, left: 60, bottom: 60, right: 60), animated: true)
         }
 
         /// Superpose (ou retire) la couche « pentes » IGN par-dessus le fond, à l'opacité demandée.
