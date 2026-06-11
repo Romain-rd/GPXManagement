@@ -519,7 +519,7 @@ struct ActivityDetailView: View {
                 Text("D−").frame(width: 70, alignment: .trailing)
                 Text("Durée").frame(width: 85, alignment: .trailing)
                 Text("Vitesse moy.").frame(width: 95, alignment: .trailing)
-                Color.clear.frame(width: 30, height: 1)
+                Color.clear.frame(width: 58, height: 1)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
@@ -550,6 +550,16 @@ struct ActivityDetailView: View {
             Text("\(Int(stats.elevationLoss.rounded())) m").frame(width: 70, alignment: .trailing)
             Text(Self.duration(stats.duration)).frame(width: 85, alignment: .trailing)
             Text(speedText(stats.avgSpeed)).frame(width: 95, alignment: .trailing)
+            Button {
+                setSelectedSegment(segment.id)
+                fullscreenMap = true
+            } label: {
+                Image(systemName: "map")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 28, alignment: .trailing)
+            .help("Voir ce segment sur la carte en plein écran (Échap pour revenir)")
             Button {
                 if selectedSegmentId == segment.id { setSelectedSegment(nil) }
                 Task { await model.deleteSegment(id: segment.id, activityId: activity.id) }
@@ -681,6 +691,7 @@ struct ActivityDetailView: View {
             repository: repository,
             layer: mapLayerBinding,
             highlight: highlightedCoordinate,
+            highlightRange: selectedSegmentCoords,
             photos: mapPhotos,
             slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
             trackColorMode: trackColorMode,
@@ -729,7 +740,7 @@ struct ActivityDetailView: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
+            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate, highlightedDistanceRange: selectedSegmentRange)
                 .frame(maxHeight: .infinity)
         }
         .padding(.bottom, 6)
