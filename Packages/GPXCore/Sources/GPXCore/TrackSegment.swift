@@ -6,12 +6,15 @@ public struct TrackSegment: Codable, Identifiable, Sendable, Equatable {
     public var name: String
     public let startIndex: Int
     public let endIndex: Int
+    /// Phase d'origine si le segment vient de la découpe par phase (la vitesse n'a pas de sens pour une pause).
+    public let phase: TrackPhase?
 
-    public init(id: UUID = UUID(), name: String, startIndex: Int, endIndex: Int) {
+    public init(id: UUID = UUID(), name: String, startIndex: Int, endIndex: Int, phase: TrackPhase? = nil) {
         self.id = id
         self.name = name
         self.startIndex = Swift.min(startIndex, endIndex)
         self.endIndex = Swift.max(startIndex, endIndex)
+        self.phase = phase
     }
 
     /// Points couverts, bornés au tableau — robuste si la trace a changé depuis la création du segment.
@@ -37,7 +40,7 @@ public struct TrackSegment: Codable, Identifiable, Sendable, Equatable {
 }
 
 /// Phase d'une portion de trace, pour la découpe automatique par changement de type.
-public enum TrackPhase: Sendable, Hashable {
+public enum TrackPhase: String, Codable, Sendable, Hashable {
     case ascent, descent, flat, pause
 
     public var label: String {
@@ -161,7 +164,7 @@ public enum TrackSegmentBuilder {
         var counters: [TrackPhase: Int] = [:]
         return runs.map { run in
             counters[run.phase, default: 0] += 1
-            return TrackSegment(name: "\(run.phase.label) \(counters[run.phase]!)", startIndex: run.start, endIndex: run.end + 1)
+            return TrackSegment(name: "\(run.phase.label) \(counters[run.phase]!)", startIndex: run.start, endIndex: run.end + 1, phase: run.phase)
         }
     }
 

@@ -549,7 +549,8 @@ struct ActivityDetailView: View {
             Text("\(Int(stats.elevationGain.rounded())) m").frame(width: 70, alignment: .trailing)
             Text("\(Int(stats.elevationLoss.rounded())) m").frame(width: 70, alignment: .trailing)
             Text(Self.duration(stats.duration)).frame(width: 85, alignment: .trailing)
-            Text(speedText(stats.avgSpeed)).frame(width: 95, alignment: .trailing)
+            // Pendant une pause, le jitter GPS fabrique une « vitesse en mouvement » absurde → pas de vitesse affichée.
+            Text(segment.phase == .pause ? "—" : speedText(stats.avgSpeed)).frame(width: 95, alignment: .trailing)
             Button {
                 setSelectedSegment(segment.id)
                 fullscreenMap = true

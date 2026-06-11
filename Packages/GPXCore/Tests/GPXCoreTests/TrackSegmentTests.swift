@@ -58,12 +58,22 @@ final class TrackSegmentTests: XCTestCase {
 
     func testEncodeDecodeRoundTrip() {
         let segments = [
-            TrackSegment(name: "Montée du col", startIndex: 0, endIndex: 120),
+            TrackSegment(name: "Montée du col", startIndex: 0, endIndex: 120, phase: .ascent),
             TrackSegment(name: "Descente", startIndex: 120, endIndex: 300)
         ]
         let data = TrackSegment.encode(segments)
         XCTAssertNotNil(data)
         XCTAssertEqual(TrackSegment.decode(data), segments)
+        XCTAssertEqual(TrackSegment.decode(data).first?.phase, .ascent)
+    }
+
+    /// Les segments persistés avant l'ajout de `phase` (clé absente) doivent rester décodables.
+    func testDecodeLegacyJSONWithoutPhase() {
+        let legacy = Data(#"[{"id":"6F1C9C4E-2B7A-4E54-9C1D-000000000001","name":"Km 0 – 5","startIndex":0,"endIndex":42}]"#.utf8)
+        let decoded = TrackSegment.decode(legacy)
+        XCTAssertEqual(decoded.count, 1)
+        XCTAssertNil(decoded.first?.phase)
+        XCTAssertEqual(decoded.first?.endIndex, 42)
     }
 
     func testEncodeEmptyReturnsNilAndDecodeNilReturnsEmpty() {
