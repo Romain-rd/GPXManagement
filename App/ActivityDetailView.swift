@@ -98,6 +98,7 @@ struct ActivityDetailView: View {
                         filmLinkSection
                         mapSection
                         profileSection
+                        segmentsSection
                         photosSection
                         notesSection
                     }
@@ -445,6 +446,98 @@ struct ActivityDetailView: View {
     }
 
     private var isClimbing: Bool { activity.activityType == .climbing }
+
+    /// Segments : portions nommées de la trace avec leurs statistiques propres (découpe auto, renommage inline).
+    @ViewBuilder
+    private var segmentsSection: some View {
+        if activity.activityType.tracksDistanceAndSpeed {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Segments", systemImage: "scissors")
+                        .font(.headline)
+                    Spacer()
+                    if !model.segments.isEmpty {
+                        Button("Tout supprimer", role: .destructive) {
+                            Task { await model.deleteAllSegments(activityId: activity.id) }
+                        }
+                        .controlSize(.small)
+                    }
+                    Menu {
+                        Button("Tous les 1 km") { splitSegments(every: 1_000) }
+                        Button("Tous les 5 km") { splitSegments(every: 5_000) }
+                        Button("Tous les 10 km") { splitSegments(every: 10_000) }
+                    } label: {
+                        Label("Découper", systemImage: "scissors")
+                    }
+                    .fixedSize()
+                    .controlSize(.small)
+                    .help("Découpe la trace en segments réguliers (remplace les segments existants)")
+                }
+                if model.segments.isEmpty {
+                    Text("Découpez la trace en segments pour obtenir des statistiques par portion.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    segmentsTable
+                }
+            }
+            .task(id: activity.id) { await model.loadSegments(activityId: activity.id) }
+        }
+    }
+
+    private var segmentsTable: some View {
+        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            GridRow {
+                Text("Nom")
+                Text("Distance")
+                Text("D+")
+                Text("D−")
+                Text("Durée")
+                Text("Vitesse moy.")
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            Divider()
+            ForEach(model.segments) { segment in
+                let stats = model.segmentStats[segment.id] ?? .zero
+                GridRow {
+                    TextField("Nom", text: segmentNameBinding(segment.id))
+                        .textFieldStyle(.plain)
+                        .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
+                        .onSubmit { Task { await model.persistSegments(activityId: activity.id) } }
+                        .help("Renommer le segment (Entrée pour valider)")
+                    Text(distanceText(stats.distance))
+                    Text("\(Int(stats.elevationGain.rounded())) m")
+                    Text("\(Int(stats.elevationLoss.rounded())) m")
+                    Text(Self.duration(stats.duration))
+                    Text(speedText(stats.avgSpeed))
+                    Button {
+                        Task { await model.deleteSegment(id: segment.id, activityId: activity.id) }
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Supprimer ce segment")
+                }
+                .font(.callout)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+    }
+
+    private func segmentNameBinding(_ id: UUID) -> Binding<String> {
+        Binding(
+            get: { model.segments.first(where: { $0.id == id })?.name ?? "" },
+            set: { model.setSegmentName(id: id, name: $0) }
+        )
+    }
+
+    private func splitSegments(every meters: Double) {
+        Task { await model.splitSegments(every: meters, activityId: activity.id) }
+    }
 
     private var mapSection: some View {
         VStack(alignment: .leading, spacing: 8) {

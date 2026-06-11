@@ -23,6 +23,7 @@
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="origin" attributeType="String" defaultValueString="manual_import"/>
         <attribute name="raidId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="segmentsData" optional="YES" attributeType="Binary"/>
         <attribute name="sourceApp" optional="YES" attributeType="String"/>
         <attribute name="sourceFileFormat" attributeType="String" defaultValueString=""/>
         <attribute name="sourceFileName" attributeType="String" defaultValueString=""/>

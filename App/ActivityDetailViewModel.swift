@@ -18,6 +18,10 @@ final class ActivityDetailViewModel {
     var movingTime: TimeInterval?
     var pausedTime: TimeInterval?
 
+    var segments: [TrackSegment] = []
+    var segmentStats: [UUID: ActivityStats] = [:]
+    private var segmentPoints: [TrackPoint] = []
+
     init(repository: CoreDataActivityRepository) {
         self.repository = repository
     }
@@ -61,5 +65,50 @@ final class ActivityDetailViewModel {
             movingTime = moving > 0 ? moving : nil
             pausedTime = bd.paused > 0 ? bd.paused : nil
         } else { ascentTime = nil; descentTime = nil; flatTime = nil; movingTime = nil; pausedTime = nil }
+    }
+
+    // MARK: - Segments
+
+    func loadSegments(activityId: UUID) async {
+        segments = []
+        segmentStats = [:]
+        segmentPoints = []
+        guard let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data), points.count > 1 else { return }
+        segmentPoints = points
+        let segmentsData = (try? await repository.fetchSegmentsData(id: activityId)) ?? nil
+        segments = TrackSegment.decode(segmentsData)
+        recomputeSegmentStats()
+    }
+
+    func splitSegments(every meters: Double, activityId: UUID) async {
+        segments = TrackSegmentBuilder.byDistance(points: segmentPoints, every: meters)
+        recomputeSegmentStats()
+        await persistSegments(activityId: activityId)
+    }
+
+    func setSegmentName(id: UUID, name: String) {
+        guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
+        segments[index].name = name
+    }
+
+    func deleteSegment(id: UUID, activityId: UUID) async {
+        segments.removeAll { $0.id == id }
+        segmentStats[id] = nil
+        await persistSegments(activityId: activityId)
+    }
+
+    func deleteAllSegments(activityId: UUID) async {
+        segments = []
+        segmentStats = [:]
+        await persistSegments(activityId: activityId)
+    }
+
+    func persistSegments(activityId: UUID) async {
+        try? await repository.updateSegmentsData(id: activityId, data: TrackSegment.encode(segments))
+    }
+
+    private func recomputeSegmentStats() {
+        segmentStats = Dictionary(uniqueKeysWithValues: segments.map { ($0.id, $0.stats(in: segmentPoints)) })
     }
 }
