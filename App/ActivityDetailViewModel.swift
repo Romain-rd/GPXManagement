@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import GPXCore
 
 /// État non-UI du détail d'activité : liens publiés (web/film) et métriques dérivées du tracé.
@@ -21,6 +22,7 @@ final class ActivityDetailViewModel {
     var segments: [TrackSegment] = []
     var segmentStats: [UUID: ActivityStats] = [:]
     private var segmentPoints: [TrackPoint] = []
+    private var cumulativeDistances: [Double] = []
 
     init(repository: CoreDataActivityRepository) {
         self.repository = repository
@@ -73,12 +75,57 @@ final class ActivityDetailViewModel {
         segments = []
         segmentStats = [:]
         segmentPoints = []
+        cumulativeDistances = []
         guard let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
               let points = try? TrackPointCodec.decode(data), points.count > 1 else { return }
         segmentPoints = points
+        var cumulative: [Double] = [0]
+        cumulative.reserveCapacity(points.count)
+        for i in 1..<points.count {
+            cumulative.append(cumulative[i - 1] + GeoMath.distance(points[i - 1], points[i]))
+        }
+        cumulativeDistances = cumulative
         let segmentsData = (try? await repository.fetchSegmentsData(id: activityId)) ?? nil
         segments = TrackSegment.decode(segmentsData)
         recomputeSegmentStats()
+    }
+
+    /// Création manuelle depuis le profil : convertit les distances (m) en indices de points.
+    func createSegment(fromMeters: Double, toMeters: Double, activityId: UUID) async {
+        guard let start = pointIndex(atDistance: fromMeters),
+              let end = pointIndex(atDistance: toMeters), end > start else { return }
+        let segment = TrackSegment(
+            name: TrackSegmentBuilder.defaultName(fromMeters: fromMeters, toMeters: toMeters),
+            startIndex: start, endIndex: end)
+        segments.append(segment)
+        segmentStats[segment.id] = segment.stats(in: segmentPoints)
+        await persistSegments(activityId: activityId)
+    }
+
+    /// Coordonnées du segment pour le surlignage sur la carte.
+    func segmentCoordinates(id: UUID) -> [CLLocationCoordinate2D] {
+        guard let segment = segments.first(where: { $0.id == id }) else { return [] }
+        return segment.slice(of: segmentPoints).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    /// Plage du segment en mètres depuis le départ, pour le surlignage sur le profil.
+    func segmentDistanceRange(id: UUID) -> ClosedRange<Double>? {
+        guard let segment = segments.first(where: { $0.id == id }), !cumulativeDistances.isEmpty else { return nil }
+        let lo = max(0, min(segment.startIndex, cumulativeDistances.count - 1))
+        let hi = max(lo, min(segment.endIndex, cumulativeDistances.count - 1))
+        return cumulativeDistances[lo]...cumulativeDistances[hi]
+    }
+
+    /// Index du point le plus proche d'une distance cumulée (recherche binaire).
+    private func pointIndex(atDistance meters: Double) -> Int? {
+        guard !cumulativeDistances.isEmpty else { return nil }
+        var lo = 0, hi = cumulativeDistances.count - 1
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if cumulativeDistances[mid] < meters { lo = mid + 1 } else { hi = mid }
+        }
+        if lo > 0, abs(cumulativeDistances[lo - 1] - meters) < abs(cumulativeDistances[lo] - meters) { return lo - 1 }
+        return lo
     }
 
     func splitSegments(every meters: Double, activityId: UUID) async {

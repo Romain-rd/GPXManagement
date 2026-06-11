@@ -113,16 +113,19 @@ public struct TrackMapView: NSViewRepresentable {
     public var onSelectActivity: ((UUID) -> Void)?
     public var proxy: MapViewProxy?
     public var highlight: CLLocationCoordinate2D?
+    /// Portion de trace surlignée (segment survolé) — polyline épaisse dessinée par-dessus le tracé.
+    public var highlightRange: [CLLocationCoordinate2D]
     public var photos: [PhotoMapItem]
     public var onSelectPhoto: ((String) -> Void)?
     /// Opacité (0…1) de la couche « pentes » IGN superposée au fond. 0 = masquée.
     public var slopeOverlayOpacity: Double
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
         self.highlight = highlight
+        self.highlightRange = highlightRange
         self.photos = photos
         self.slopeOverlayOpacity = slopeOverlayOpacity
         self.onSelectActivity = onSelectActivity
@@ -161,6 +164,7 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: context.coordinator.lastTrackIds != Set(tracks.map(\.activityId)))
         context.coordinator.lastTrackIds = Set(tracks.map(\.activityId))
         context.coordinator.applyHighlight(highlight, to: mapView)
+        context.coordinator.applyHighlightRange(highlightRange, to: mapView)
         context.coordinator.applyPhotos(photos, to: mapView)
     }
 
@@ -302,6 +306,26 @@ public struct TrackMapView: NSViewRepresentable {
             }
         }
 
+        private var rangePolyline: SegmentRangePolyline?
+        private var rangeSignature = ""
+
+        /// Polyline de surlignage d'une portion de trace (segment survolé), dessinée par-dessus le tracé.
+        func applyHighlightRange(_ coords: [CLLocationCoordinate2D], to mapView: MKMapView) {
+            let signature = coords.count >= 2
+                ? "\(coords.count)|\(coords[0].latitude),\(coords[0].longitude)|\(coords[coords.count - 1].latitude),\(coords[coords.count - 1].longitude)"
+                : ""
+            guard signature != rangeSignature else { return }
+            rangeSignature = signature
+            if let existing = rangePolyline {
+                mapView.removeOverlay(existing)
+                rangePolyline = nil
+            }
+            guard coords.count >= 2 else { return }
+            let polyline = SegmentRangePolyline(coordinates: coords, count: coords.count)
+            rangePolyline = polyline
+            mapView.addOverlay(polyline, level: .aboveLabels)
+        }
+
         /// Superpose (ou retire) la couche « pentes » IGN par-dessus le fond, à l'opacité demandée.
         /// Réinséré sous les polylines pour que la trace reste visible.
         func applySlopeOverlay(opacity: Double, to mapView: MKMapView) {
@@ -390,6 +414,15 @@ public struct TrackMapView: NSViewRepresentable {
             }
             if let tile = overlay as? MKTileOverlay {
                 return MKTileOverlayRenderer(tileOverlay: tile)
+            }
+            if let range = overlay as? SegmentRangePolyline {
+                // Jaune fluo (même choix que l'export PNG) : reste lisible sur les verts des fonds IGN.
+                let renderer = MKPolylineRenderer(polyline: range)
+                renderer.strokeColor = NSColor(srgbRed: 1, green: 0.92, blue: 0, alpha: 0.9)
+                renderer.lineWidth = 7
+                renderer.lineJoin = .round
+                renderer.lineCap = .round
+                return renderer
             }
             if let identified = overlay as? IdentifiedPolyline {
                 let renderer = MKPolylineRenderer(polyline: identified)
@@ -512,6 +545,8 @@ final class IdentifiedPolyline: MKPolyline {
 }
 
 final class HighlightAnnotation: MKPointAnnotation {}
+
+final class SegmentRangePolyline: MKPolyline {}
 
 final class PhotoAnnotation: MKPointAnnotation {
     var id: String = ""

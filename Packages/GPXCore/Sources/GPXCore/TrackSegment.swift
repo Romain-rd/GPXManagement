@@ -47,18 +47,19 @@ public enum TrackSegmentBuilder {
         for i in 1..<points.count {
             cumulative += GeoMath.distance(points[i - 1], points[i])
             if cumulative - startDistance >= meters {
-                segments.append(TrackSegment(name: name(from: startDistance, to: cumulative), startIndex: startIndex, endIndex: i))
+                segments.append(TrackSegment(name: defaultName(fromMeters: startDistance, toMeters: cumulative), startIndex: startIndex, endIndex: i))
                 startIndex = i
                 startDistance = cumulative
             }
         }
         if startIndex < points.count - 1 {
-            segments.append(TrackSegment(name: name(from: startDistance, to: cumulative), startIndex: startIndex, endIndex: points.count - 1))
+            segments.append(TrackSegment(name: defaultName(fromMeters: startDistance, toMeters: cumulative), startIndex: startIndex, endIndex: points.count - 1))
         }
         return segments
     }
 
-    private static func name(from start: Double, to end: Double) -> String {
+    /// Nom par défaut d'un segment (« Km 2 – 7,5 »), partagé entre découpe auto et création manuelle.
+    public static func defaultName(fromMeters start: Double, toMeters end: Double) -> String {
         "Km \(kmLabel(start)) – \(kmLabel(end))"
     }
 

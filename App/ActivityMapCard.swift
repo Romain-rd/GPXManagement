@@ -34,6 +34,7 @@ struct ActivityMapCard: View {
     let repository: CoreDataActivityRepository
     @Binding var layer: MapLayer
     let highlight: CLLocationCoordinate2D?
+    var highlightRange: [CLLocationCoordinate2D] = []
     let photos: [PhotoMapItem]
     var slopeOverlayOpacity: Double = 0
     var trackColorMode: TrackColorMode = .uniform
@@ -50,7 +51,7 @@ struct ActivityMapCard: View {
             } else if tracks.isEmpty {
                 ContentUnavailableView("Pas de tracé", systemImage: "map", description: Text("La trace ne contient pas de coordonnées."))
             } else {
-                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, photos: photos, slopeOverlayOpacity: slopeOverlayOpacity, onSelectPhoto: onSelectPhoto)
+                TrackMapView(tracks: tracks, layer: $layer, highlight: highlight, highlightRange: highlightRange, photos: photos, slopeOverlayOpacity: slopeOverlayOpacity, onSelectPhoto: onSelectPhoto)
                     .overlay(alignment: .bottomLeading) {
                         if let credit = layer.attribution {
                             Text(credit)

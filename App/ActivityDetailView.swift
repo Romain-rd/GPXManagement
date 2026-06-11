@@ -27,6 +27,9 @@ struct ActivityDetailView: View {
     @State private var profileMode: ProfileMode = .distance
     @State private var profileMetric: ProfileMetric = .altitude
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
+    @State private var hoveredSegmentId: UUID?
+    @State private var hoveredSegmentCoords: [CLLocationCoordinate2D] = []
+    @State private var hoveredSegmentRange: ClosedRange<Double>?
     @State private var photoAssets: [PHAsset] = []
     @State private var photoMapItems: [PhotoMapItem] = []
     @State private var previewURL: URL?
@@ -435,9 +438,16 @@ struct ActivityDetailView: View {
                     .fixedSize()
                 }
             }
-            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate)
-                .frame(height: 280)
-                .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+            ElevationProfileTabView(
+                activityId: activity.id, activityType: activity.activityType, repository: repository,
+                mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate,
+                highlightedDistanceRange: hoveredSegmentRange,
+                onSelectRange: activity.activityType.tracksDistanceAndSpeed ? { start, end in
+                    Task { await model.createSegment(fromMeters: start, toMeters: end, activityId: activity.id) }
+                } : nil
+            )
+            .frame(height: 280)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
         }
         .onChange(of: activity.id, initial: true) {
             if isClimbing { profileMetric = .altitude; profileMode = .time }
@@ -458,6 +468,7 @@ struct ActivityDetailView: View {
                     Spacer()
                     if !model.segments.isEmpty {
                         Button("Tout supprimer", role: .destructive) {
+                            setHoveredSegment(nil)
                             Task { await model.deleteAllSegments(activityId: activity.id) }
                         }
                         .controlSize(.small)
@@ -474,7 +485,7 @@ struct ActivityDetailView: View {
                     .help("Découpe la trace en segments réguliers (remplace les segments existants)")
                 }
                 if model.segments.isEmpty {
-                    Text("Découpez la trace en segments pour obtenir des statistiques par portion.")
+                    Text("Glissez horizontalement sur le profil pour créer un segment, ou utilisez le menu Découper.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
@@ -482,50 +493,74 @@ struct ActivityDetailView: View {
                 }
             }
             .task(id: activity.id) { await model.loadSegments(activityId: activity.id) }
+            .onChange(of: activity.id) { _, _ in setHoveredSegment(nil) }
         }
     }
 
     private var segmentsTable: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-            GridRow {
-                Text("Nom")
-                Text("Distance")
-                Text("D+")
-                Text("D−")
-                Text("Durée")
-                Text("Vitesse moy.")
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Text("Nom").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Distance").frame(width: 80, alignment: .trailing)
+                Text("D+").frame(width: 70, alignment: .trailing)
+                Text("D−").frame(width: 70, alignment: .trailing)
+                Text("Durée").frame(width: 85, alignment: .trailing)
+                Text("Vitesse moy.").frame(width: 95, alignment: .trailing)
+                Color.clear.frame(width: 30, height: 1)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             Divider()
             ForEach(model.segments) { segment in
-                let stats = model.segmentStats[segment.id] ?? .zero
-                GridRow {
-                    TextField("Nom", text: segmentNameBinding(segment.id))
-                        .textFieldStyle(.plain)
-                        .frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
-                        .onSubmit { Task { await model.persistSegments(activityId: activity.id) } }
-                        .help("Renommer le segment (Entrée pour valider)")
-                    Text(distanceText(stats.distance))
-                    Text("\(Int(stats.elevationGain.rounded())) m")
-                    Text("\(Int(stats.elevationLoss.rounded())) m")
-                    Text(Self.duration(stats.duration))
-                    Text(speedText(stats.avgSpeed))
-                    Button {
-                        Task { await model.deleteSegment(id: segment.id, activityId: activity.id) }
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Supprimer ce segment")
-                }
-                .font(.callout)
+                segmentRow(segment)
             }
         }
-        .padding(12)
+        .padding(6)
         .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+    }
+
+    /// Ligne du tableau : survol = surlignage du segment sur la carte et le profil.
+    private func segmentRow(_ segment: TrackSegment) -> some View {
+        let stats = model.segmentStats[segment.id] ?? .zero
+        return HStack(spacing: 0) {
+            TextField("Nom", text: segmentNameBinding(segment.id))
+                .textFieldStyle(.plain)
+                .onSubmit { Task { await model.persistSegments(activityId: activity.id) } }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help("Renommer le segment (Entrée pour valider)")
+            Text(distanceText(stats.distance)).frame(width: 80, alignment: .trailing)
+            Text("\(Int(stats.elevationGain.rounded())) m").frame(width: 70, alignment: .trailing)
+            Text("\(Int(stats.elevationLoss.rounded())) m").frame(width: 70, alignment: .trailing)
+            Text(Self.duration(stats.duration)).frame(width: 85, alignment: .trailing)
+            Text(speedText(stats.avgSpeed)).frame(width: 95, alignment: .trailing)
+            Button {
+                if hoveredSegmentId == segment.id { setHoveredSegment(nil) }
+                Task { await model.deleteSegment(id: segment.id, activityId: activity.id) }
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .frame(width: 30, alignment: .trailing)
+            .help("Supprimer ce segment")
+        }
+        .font(.callout.monospacedDigit())
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 6).fill(hoveredSegmentId == segment.id ? Color.accentColor.opacity(0.10) : .clear))
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside { setHoveredSegment(segment.id) }
+            else if hoveredSegmentId == segment.id { setHoveredSegment(nil) }
+        }
+    }
+
+    private func setHoveredSegment(_ id: UUID?) {
+        hoveredSegmentId = id
+        hoveredSegmentCoords = id.map { model.segmentCoordinates(id: $0) } ?? []
+        hoveredSegmentRange = id.flatMap { model.segmentDistanceRange(id: $0) }
     }
 
     private func segmentNameBinding(_ id: UUID) -> Binding<String> {
@@ -560,6 +595,7 @@ struct ActivityDetailView: View {
                 repository: repository,
                 layer: mapLayerBinding,
                 highlight: highlightedCoordinate,
+                highlightRange: hoveredSegmentCoords,
                 photos: mapPhotos,
                 slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
                 trackColorMode: trackColorMode,

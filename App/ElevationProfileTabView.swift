@@ -70,6 +70,10 @@ struct ElevationProfileTabView: View {
     @Binding var mode: ProfileMode
     @Binding var metric: ProfileMetric
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
+    /// Plage surlignée en mètres depuis le départ (segment survolé dans le tableau).
+    var highlightedDistanceRange: ClosedRange<Double>? = nil
+    /// Création de segment : appelé en fin de glissement avec les distances (m) de début et fin.
+    var onSelectRange: ((Double, Double) -> Void)? = nil
 
     private var slopeScale: SlopeScale { activityType.slopeScale }
     private var speedScale: SpeedScale { activityType.speedScale }
@@ -113,6 +117,8 @@ struct ElevationProfileTabView: View {
 
     @State private var hoverSamples: [HoverSample] = []
     @State private var selectedIndex: Int?
+    @State private var dragStartIndex: Int?
+    @State private var dragCurrentIndex: Int?
 
     @State private var totalKm: Double = 0
     @State private var xDomainHi: Double = 0
@@ -276,6 +282,10 @@ struct ElevationProfileTabView: View {
 
     private var chart: some View {
         Chart {
+            if let band = selectionBand {
+                RectangleMark(xStart: .value("x", band.lowerBound), xEnd: .value("x", band.upperBound))
+                    .foregroundStyle(Color.accentColor.opacity(0.16))
+            }
             ForEach(areaPoints) { p in
                 AreaMark(
                     x: .value("x", p.x),
@@ -348,23 +358,73 @@ struct ElevationProfileTabView: View {
             GeometryReader { geo in
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .onContinuousHover { phase in
+                        guard dragStartIndex == nil else { return } // pas de cartouche pendant une sélection
                         switch phase {
                         case .active(let location):
-                            guard let plotFrame = proxy.plotFrame else { return }
-                            let rect = geo[plotFrame]
-                            let xInPlot = location.x - rect.origin.x
-                            guard xInPlot >= 0, xInPlot <= rect.width,
-                                  let xValue: Double = proxy.value(atX: xInPlot) else { return }
-                            let idx = nearestIndex(to: xValue)
+                            guard let idx = sampleIndex(at: location, proxy: proxy, geo: geo) else { return }
                             selectedIndex = idx
-                            highlightedCoordinate = idx.flatMap { hoverSamples[$0].coordinate }
+                            highlightedCoordinate = hoverSamples[idx].coordinate
                         case .ended:
                             selectedIndex = nil
                             highlightedCoordinate = nil
                         }
                     }
+                    .gesture(selectionGesture(proxy: proxy, geo: geo), including: onSelectRange == nil ? .none : .all)
             }
         }
+    }
+
+    /// Glissement horizontal = sélection d'une plage → création d'un segment au lâcher.
+    private func selectionGesture(proxy: ChartProxy, geo: GeometryProxy) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                guard let start = sampleIndex(at: value.startLocation, proxy: proxy, geo: geo),
+                      let current = sampleIndex(at: value.location, proxy: proxy, geo: geo) else { return }
+                dragStartIndex = start
+                dragCurrentIndex = current
+                selectedIndex = nil
+                highlightedCoordinate = nil
+            }
+            .onEnded { _ in
+                defer { dragStartIndex = nil; dragCurrentIndex = nil }
+                guard let a = dragStartIndex, let b = dragCurrentIndex else { return }
+                let lo = min(a, b), hi = max(a, b)
+                guard hi > lo, trimmedProfile.indices.contains(hi) else { return }
+                onSelectRange?(trimmedProfile[lo].distanceFromStart, trimmedProfile[hi].distanceFromStart)
+            }
+    }
+
+    /// Index du point de profil le plus proche d'une position souris (bornée au cadre du graphe).
+    private func sampleIndex(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) -> Int? {
+        guard let plotFrame = proxy.plotFrame else { return nil }
+        let rect = geo[plotFrame]
+        let xInPlot = min(max(location.x - rect.origin.x, 0), rect.width)
+        guard let xValue: Double = proxy.value(atX: xInPlot) else { return nil }
+        return nearestIndex(to: xValue)
+    }
+
+    /// Bande surlignée sur le graphe : sélection en cours (drag) sinon segment survolé dans le tableau.
+    private var selectionBand: ClosedRange<Double>? {
+        guard hoverSamples.count == trimmedProfile.count, !hoverSamples.isEmpty else { return nil }
+        if let a = dragStartIndex, let b = dragCurrentIndex, a != b {
+            return hoverSamples[min(a, b)].x...hoverSamples[max(a, b)].x
+        }
+        if let range = highlightedDistanceRange {
+            let lo = nearestProfileIndex(toMeters: range.lowerBound)
+            let hi = nearestProfileIndex(toMeters: range.upperBound)
+            guard hi > lo else { return nil }
+            return hoverSamples[lo].x...hoverSamples[hi].x
+        }
+        return nil
+    }
+
+    private func nearestProfileIndex(toMeters meters: Double) -> Int {
+        var lo = 0, hi = trimmedProfile.count - 1
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if trimmedProfile[mid].distanceFromStart < meters { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
     }
 
     @ViewBuilder
