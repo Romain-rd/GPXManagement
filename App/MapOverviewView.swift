@@ -277,7 +277,9 @@ struct MapOverviewView: View {
             window.mapExportStatus = ""
         }
         do {
-            let data = try await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: tracks) { progress in
+            // Jaune fluo : seule couleur lisible sur les verts des fonds IGN (les couleurs d'activité s'y fondent).
+            let exportColor = NSColor(srgbRed: 1.0, green: 0.95, blue: 0.0, alpha: 1.0)
+            let data = try await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: tracks, trackColor: exportColor) { progress in
                 Task { @MainActor in
                     window.mapExportFraction = progress.fraction
                     window.mapExportStatus = progress.label
