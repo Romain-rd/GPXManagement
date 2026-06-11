@@ -474,9 +474,19 @@ struct ActivityDetailView: View {
                         .controlSize(.small)
                     }
                     Menu {
-                        Button("Tous les 1 km") { splitSegments(every: 1_000) }
-                        Button("Tous les 5 km") { splitSegments(every: 5_000) }
-                        Button("Tous les 10 km") { splitSegments(every: 10_000) }
+                        Section("Par distance") {
+                            Button("Tous les 1 km") { splitSegments(every: 1_000) }
+                            Button("Tous les 5 km") { splitSegments(every: 5_000) }
+                            Button("Tous les 10 km") { splitSegments(every: 10_000) }
+                        }
+                        Section("Par temps") {
+                            Button("Toutes les 30 min") { splitSegmentsByDuration(every: 1_800) }
+                            Button("Toutes les heures") { splitSegmentsByDuration(every: 3_600) }
+                            Button("Toutes les 2 heures") { splitSegmentsByDuration(every: 7_200) }
+                        }
+                        Section("Par phase") {
+                            Button("Montées, descentes, pauses") { splitSegmentsByPhase() }
+                        }
                     } label: {
                         Label("Découper", systemImage: "scissors")
                     }
@@ -572,6 +582,15 @@ struct ActivityDetailView: View {
 
     private func splitSegments(every meters: Double) {
         Task { await model.splitSegments(every: meters, activityId: activity.id) }
+    }
+
+    private func splitSegmentsByDuration(every seconds: TimeInterval) {
+        Task { await model.splitSegmentsByDuration(every: seconds, activityId: activity.id) }
+    }
+
+    /// Mêmes seuils de pause que le profil et les métriques (préférences Général).
+    private func splitSegmentsByPhase() {
+        Task { await model.splitSegmentsByPhase(pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters, activityId: activity.id) }
     }
 
     private var mapSection: some View {

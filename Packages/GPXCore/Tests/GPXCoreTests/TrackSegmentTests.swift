@@ -72,6 +72,85 @@ final class TrackSegmentTests: XCTestCase {
         XCTAssertTrue(TrackSegment.decode(Data()).isEmpty)
     }
 
+    func testByDurationSplitsAtElapsedTime() {
+        let points = makePoints(count: 30) // 30 s d'intervalle → 14,5 min au total
+        let segments = TrackSegmentBuilder.byDuration(points: points, every: 300)
+
+        XCTAssertEqual(segments.count, 3) // 5 min + 5 min + reliquat 4,5 min
+        XCTAssertEqual(segments[0].startIndex, 0)
+        XCTAssertEqual(segments[0].endIndex, 10)
+        XCTAssertEqual(segments.last?.endIndex, points.count - 1)
+        for (a, b) in zip(segments, segments.dropFirst()) {
+            XCTAssertEqual(a.endIndex, b.startIndex)
+        }
+        XCTAssertEqual(segments[0].name, "0h00 – 0h05")
+    }
+
+    func testByDurationWithoutTimestampsReturnsEmpty() {
+        let points = (0..<10).map { TrackPoint(latitude: 45 + Double($0) * 0.0009, longitude: 6, altitude: 1000) }
+        XCTAssertTrue(TrackSegmentBuilder.byDuration(points: points, every: 300).isEmpty)
+    }
+
+    /// Montée, pause (cluster immobile ≥ seuil), nouvelle montée → 3 segments nommés par phase.
+    func testByPhaseDetectsAscentPauseAscent() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var points: [TrackPoint] = []
+        // Montée 1 : 20 points, ~100 m d'écart, +5 m d'altitude (≈ 5 %), 30 s d'intervalle.
+        for i in 0..<20 {
+            points.append(TrackPoint(latitude: 45 + Double(i) * 0.0009, longitude: 6,
+                                     altitude: 1000 + Double(i) * 5,
+                                     timestamp: start.addingTimeInterval(Double(i) * 30)))
+        }
+        // Pause : 10 points immobiles, 60 s d'intervalle (9 min ≥ seuil de 5 min).
+        let pauseStart = start.addingTimeInterval(20 * 30)
+        for i in 0..<10 {
+            points.append(TrackPoint(latitude: 45 + 19 * 0.0009, longitude: 6,
+                                     altitude: 1095,
+                                     timestamp: pauseStart.addingTimeInterval(Double(i) * 60)))
+        }
+        // Montée 2 : 20 points.
+        let resumeStart = pauseStart.addingTimeInterval(10 * 60)
+        for i in 0..<20 {
+            points.append(TrackPoint(latitude: 45 + (19 + Double(i)) * 0.0009, longitude: 6,
+                                     altitude: 1095 + Double(i) * 5,
+                                     timestamp: resumeStart.addingTimeInterval(Double(i) * 30)))
+        }
+
+        let segments = TrackSegmentBuilder.byPhase(points: points, pauseMinSeconds: 300, pauseRadiusMeters: 40)
+
+        XCTAssertEqual(segments.count, 3, "Phases trouvées : \(segments.map(\.name))")
+        XCTAssertTrue(segments[0].name.hasPrefix("Montée"))
+        XCTAssertTrue(segments[1].name.hasPrefix("Pause"))
+        XCTAssertTrue(segments[2].name.hasPrefix("Montée"))
+        XCTAssertEqual(segments.first?.startIndex, 0)
+        XCTAssertEqual(segments.last?.endIndex, points.count - 1)
+        for (a, b) in zip(segments, segments.dropFirst()) {
+            XCTAssertEqual(a.endIndex, b.startIndex)
+        }
+    }
+
+    /// Aller-retour en montée puis descente franche → au moins une montée et une descente, pas d'émiettement.
+    func testByPhaseSplitsAscentThenDescent() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        var points: [TrackPoint] = []
+        for i in 0..<30 {
+            points.append(TrackPoint(latitude: 45 + Double(i) * 0.0009, longitude: 6,
+                                     altitude: 1000 + Double(i) * 5,
+                                     timestamp: start.addingTimeInterval(Double(i) * 30)))
+        }
+        for i in 0..<30 {
+            points.append(TrackPoint(latitude: 45 + (29 + Double(i)) * 0.0009, longitude: 6,
+                                     altitude: 1145 - Double(i) * 5,
+                                     timestamp: start.addingTimeInterval(Double(30 + i) * 30)))
+        }
+
+        let segments = TrackSegmentBuilder.byPhase(points: points)
+
+        XCTAssertEqual(segments.count, 2, "Phases trouvées : \(segments.map(\.name))")
+        XCTAssertTrue(segments[0].name.hasPrefix("Montée"))
+        XCTAssertTrue(segments[1].name.hasPrefix("Descente"))
+    }
+
     func testSegmentStatsCoverDurationAndElevation() {
         let points = makePoints(count: 30)
         let segment = TrackSegment(name: "Plage", startIndex: 0, endIndex: 10)

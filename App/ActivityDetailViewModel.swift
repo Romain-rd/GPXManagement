@@ -134,6 +134,18 @@ final class ActivityDetailViewModel {
         await persistSegments(activityId: activityId)
     }
 
+    func splitSegmentsByDuration(every seconds: TimeInterval, activityId: UUID) async {
+        segments = TrackSegmentBuilder.byDuration(points: segmentPoints, every: seconds)
+        recomputeSegmentStats()
+        await persistSegments(activityId: activityId)
+    }
+
+    func splitSegmentsByPhase(pauseMinSeconds: Double, pauseRadiusMeters: Double, activityId: UUID) async {
+        segments = TrackSegmentBuilder.byPhase(points: segmentPoints, pauseMinSeconds: pauseMinSeconds, pauseRadiusMeters: pauseRadiusMeters)
+        recomputeSegmentStats()
+        await persistSegments(activityId: activityId)
+    }
+
     func setSegmentName(id: UUID, name: String) {
         guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
         segments[index].name = name
