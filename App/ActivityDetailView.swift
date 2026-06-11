@@ -27,9 +27,9 @@ struct ActivityDetailView: View {
     @State private var profileMode: ProfileMode = .distance
     @State private var profileMetric: ProfileMetric = .altitude
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
-    @State private var hoveredSegmentId: UUID?
-    @State private var hoveredSegmentCoords: [CLLocationCoordinate2D] = []
-    @State private var hoveredSegmentRange: ClosedRange<Double>?
+    @State private var selectedSegmentId: UUID?
+    @State private var selectedSegmentCoords: [CLLocationCoordinate2D] = []
+    @State private var selectedSegmentRange: ClosedRange<Double>?
     @State private var photoAssets: [PHAsset] = []
     @State private var photoMapItems: [PhotoMapItem] = []
     @State private var previewURL: URL?
@@ -441,9 +441,12 @@ struct ActivityDetailView: View {
             ElevationProfileTabView(
                 activityId: activity.id, activityType: activity.activityType, repository: repository,
                 mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate,
-                highlightedDistanceRange: hoveredSegmentRange,
+                highlightedDistanceRange: selectedSegmentRange,
                 onSelectRange: activity.activityType.tracksDistanceAndSpeed ? { start, end in
-                    Task { await model.createSegment(fromMeters: start, toMeters: end, activityId: activity.id) }
+                    Task {
+                        let created = await model.createSegment(fromMeters: start, toMeters: end, activityId: activity.id)
+                        setSelectedSegment(created?.id)
+                    }
                 } : nil
             )
             .frame(height: 280)
@@ -468,7 +471,7 @@ struct ActivityDetailView: View {
                     Spacer()
                     if !model.segments.isEmpty {
                         Button("Tout supprimer", role: .destructive) {
-                            setHoveredSegment(nil)
+                            setSelectedSegment(nil)
                             Task { await model.deleteAllSegments(activityId: activity.id) }
                         }
                         .controlSize(.small)
@@ -503,7 +506,7 @@ struct ActivityDetailView: View {
                 }
             }
             .task(id: activity.id) { await model.loadSegments(activityId: activity.id) }
-            .onChange(of: activity.id) { _, _ in setHoveredSegment(nil) }
+            .onChange(of: activity.id) { _, _ in setSelectedSegment(nil) }
         }
     }
 
@@ -531,9 +534,11 @@ struct ActivityDetailView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
 
-    /// Ligne du tableau : survol = surlignage du segment sur la carte et le profil.
+    /// Ligne du tableau : clic = sélection persistante → segment surligné sur la carte et le profil
+    /// (re-clic pour désélectionner). Le clic sur le champ Nom reste réservé au renommage.
     private func segmentRow(_ segment: TrackSegment) -> some View {
         let stats = model.segmentStats[segment.id] ?? .zero
+        let isSelected = selectedSegmentId == segment.id
         return HStack(spacing: 0) {
             TextField("Nom", text: segmentNameBinding(segment.id))
                 .textFieldStyle(.plain)
@@ -546,7 +551,7 @@ struct ActivityDetailView: View {
             Text(Self.duration(stats.duration)).frame(width: 85, alignment: .trailing)
             Text(speedText(stats.avgSpeed)).frame(width: 95, alignment: .trailing)
             Button {
-                if hoveredSegmentId == segment.id { setHoveredSegment(nil) }
+                if selectedSegmentId == segment.id { setSelectedSegment(nil) }
                 Task { await model.deleteSegment(id: segment.id, activityId: activity.id) }
             } label: {
                 Image(systemName: "trash")
@@ -559,18 +564,16 @@ struct ActivityDetailView: View {
         .font(.callout.monospacedDigit())
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 6).fill(hoveredSegmentId == segment.id ? Color.accentColor.opacity(0.10) : .clear))
+        .background(RoundedRectangle(cornerRadius: 6).fill(isSelected ? Color.accentColor.opacity(0.18) : .clear))
         .contentShape(Rectangle())
-        .onHover { inside in
-            if inside { setHoveredSegment(segment.id) }
-            else if hoveredSegmentId == segment.id { setHoveredSegment(nil) }
-        }
+        .onTapGesture { setSelectedSegment(isSelected ? nil : segment.id) }
+        .help(isSelected ? "Cliquer pour désélectionner" : "Cliquer pour surligner ce segment sur la carte et le profil")
     }
 
-    private func setHoveredSegment(_ id: UUID?) {
-        hoveredSegmentId = id
-        hoveredSegmentCoords = id.map { model.segmentCoordinates(id: $0) } ?? []
-        hoveredSegmentRange = id.flatMap { model.segmentDistanceRange(id: $0) }
+    private func setSelectedSegment(_ id: UUID?) {
+        selectedSegmentId = id
+        selectedSegmentCoords = id.map { model.segmentCoordinates(id: $0) } ?? []
+        selectedSegmentRange = id.flatMap { model.segmentDistanceRange(id: $0) }
     }
 
     private func segmentNameBinding(_ id: UUID) -> Binding<String> {
@@ -581,15 +584,18 @@ struct ActivityDetailView: View {
     }
 
     private func splitSegments(every meters: Double) {
+        setSelectedSegment(nil)
         Task { await model.splitSegments(every: meters, activityId: activity.id) }
     }
 
     private func splitSegmentsByDuration(every seconds: TimeInterval) {
+        setSelectedSegment(nil)
         Task { await model.splitSegmentsByDuration(every: seconds, activityId: activity.id) }
     }
 
     /// Mêmes seuils de pause que le profil et les métriques (préférences Général).
     private func splitSegmentsByPhase() {
+        setSelectedSegment(nil)
         Task { await model.splitSegmentsByPhase(pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters, activityId: activity.id) }
     }
 
@@ -614,7 +620,7 @@ struct ActivityDetailView: View {
                 repository: repository,
                 layer: mapLayerBinding,
                 highlight: highlightedCoordinate,
-                highlightRange: hoveredSegmentCoords,
+                highlightRange: selectedSegmentCoords,
                 photos: mapPhotos,
                 slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
                 trackColorMode: trackColorMode,

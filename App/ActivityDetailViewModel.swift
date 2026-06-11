@@ -91,15 +91,18 @@ final class ActivityDetailViewModel {
     }
 
     /// Création manuelle depuis le profil : convertit les distances (m) en indices de points.
-    func createSegment(fromMeters: Double, toMeters: Double, activityId: UUID) async {
+    /// Retourne le segment créé (pour le sélectionner dans l'UI).
+    @discardableResult
+    func createSegment(fromMeters: Double, toMeters: Double, activityId: UUID) async -> TrackSegment? {
         guard let start = pointIndex(atDistance: fromMeters),
-              let end = pointIndex(atDistance: toMeters), end > start else { return }
+              let end = pointIndex(atDistance: toMeters), end > start else { return nil }
         let segment = TrackSegment(
             name: TrackSegmentBuilder.defaultName(fromMeters: fromMeters, toMeters: toMeters),
             startIndex: start, endIndex: end)
         segments.append(segment)
         segmentStats[segment.id] = segment.stats(in: segmentPoints)
         await persistSegments(activityId: activityId)
+        return segment
     }
 
     /// Coordonnées du segment pour le surlignage sur la carte.
