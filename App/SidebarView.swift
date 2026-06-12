@@ -90,8 +90,13 @@ struct SidebarView: View {
                     }
                         .badge(listVM.count(for: filter))
                         .tag(SidebarDestination.smartFilter(filter.id))
-                        // Double-clic → éditeur (façon boîtes intelligentes de Mail) ; le clic simple sélectionne
-                        // toujours (simultaneousGesture ne capture pas la sélection de la List).
+                        .contentShape(Rectangle())
+                        // Double-clic → éditeur (façon boîtes intelligentes de Mail). Le geste double-clic
+                        // avale le clic simple selon les versions de macOS : on pose donc la sélection
+                        // explicitement au premier clic au lieu de compter sur la List.
+                        .simultaneousGesture(TapGesture(count: 1).onEnded {
+                            navigation.sidebarSelection = .smartFilter(filter.id)
+                        })
                         .simultaneousGesture(TapGesture(count: 2).onEnded {
                             navigation.editingSmartFilter = filter
                         })
