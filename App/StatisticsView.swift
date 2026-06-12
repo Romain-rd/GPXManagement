@@ -44,13 +44,14 @@ struct StatisticsView: View {
 
             Spacer()
 
-            Picker("Métrique", selection: $selectedMetric) {
+            Picker("", selection: $selectedMetric) {
                 Text("Distance").tag(StatsMetric.distance)
                 Text("Dénivelé +").tag(StatsMetric.elevationGain)
                 Text("Temps").tag(StatsMetric.duration)
                 Text("Sorties").tag(StatsMetric.count)
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(maxWidth: 320)
         }
     }
