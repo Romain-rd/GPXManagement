@@ -16,16 +16,6 @@ struct StatisticsView: View {
 
     @State private var mode: Mode = .selection
     @State private var selectedMetric: StatsMetric = .distance
-    @State private var selectedYear: Int
-
-    init(activities: [ActivitySummary], annualActivities: [ActivitySummary], selectionActive: Bool, onOpenActivity: @escaping (UUID) -> Void = { _ in }) {
-        self.activities = activities
-        self.annualActivities = annualActivities
-        self.selectionActive = selectionActive
-        self.onOpenActivity = onOpenActivity
-        let years = Set(annualActivities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) })
-        self._selectedYear = State(initialValue: years.max() ?? Calendar.iso8601UTC.component(.year, from: Date()))
-    }
 
     private var selStats: SelectionStats { SelectionStats.compute(activities) }
 
@@ -225,23 +215,17 @@ struct StatisticsView: View {
 
     @ViewBuilder
     private var annualContent: some View {
-        Picker("Année", selection: $selectedYear) {
-            ForEach(availableYears, id: \.self) { Text(String($0)).tag($0) }
-        }
-        .pickerStyle(.menu)
-        .frame(maxWidth: 160)
-
-        if currentResult.activityCount == 0 {
-            ContentUnavailableView("Aucune activité", systemImage: "tray", description: Text("Aucune donnée pour \(selectedYear)."))
+        if annualActivities.isEmpty {
+            ContentUnavailableView("Aucune activité", systemImage: "tray", description: Text("Aucune donnée à afficher."))
                 .frame(maxWidth: .infinity).padding(.vertical, 40)
         } else {
             annualKPIs
             Divider()
-            breakdownChart(entries: annualBreakdown, title: "Ventilation par activité — \(selectedYear)")
+            breakdownChart(entries: annualBreakdown, title: "Ventilation par activité — toutes années")
             Divider()
             cumulativeChart
             Divider()
-            monthGrid
+            yearGrid
         }
     }
 
@@ -249,15 +233,24 @@ struct StatisticsView: View {
         Set(annualActivities.map { Calendar.iso8601UTC.component(.year, from: $0.startDate) }).sorted(by: >)
     }
 
+    private var currentYear: Int { Calendar.iso8601UTC.component(.year, from: Date()) }
+
     private var currentResult: StatsResult {
-        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(selectedYear)))
+        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(currentYear)))
     }
 
     private var previousResult: StatsResult {
-        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(selectedYear - 1)))
+        StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(currentYear - 1)))
     }
 
     private var annualKPIs: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Année en cours — \(String(currentYear))").font(.headline)
+            annualKPICards
+        }
+    }
+
+    private var annualKPICards: some View {
         HStack(spacing: 12) {
             kpiCard(title: "Distance", value: Self.formatDistance(currentResult.totalDistance), trend: trend(currentResult.totalDistance, previousResult.totalDistance))
             kpiCard(title: "Dénivelé +", value: "\(Int(currentResult.totalElevationGain.rounded())) m", trend: trend(currentResult.totalElevationGain, previousResult.totalElevationGain))
@@ -268,16 +261,14 @@ struct StatisticsView: View {
 
     private var cumulativeChart: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(selectedYear) vs \(selectedYear - 1)").font(.headline)
+            Text("Cumul par année — \(Self.metricLabel(selectedMetric))").font(.headline)
             Chart {
-                ForEach(YearComparisonBuilder.cumulative(activities: annualActivities, year: selectedYear, metric: selectedMetric)) { p in
-                    LineMark(x: .value("Jour", p.dayOfYear), y: .value(selectedMetric.rawValue, p.cumulativeValue), series: .value("Année", "\(selectedYear)"))
-                        .foregroundStyle(.tint)
-                }
-                ForEach(YearComparisonBuilder.cumulative(activities: annualActivities, year: selectedYear - 1, metric: selectedMetric)) { p in
-                    LineMark(x: .value("Jour", p.dayOfYear), y: .value(selectedMetric.rawValue, p.cumulativeValue), series: .value("Année", "\(selectedYear - 1)"))
-                        .foregroundStyle(.secondary)
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                ForEach(availableYears.reversed(), id: \.self) { year in
+                    ForEach(yearCumulative(year)) { p in
+                        LineMark(x: .value("Jour", p.dayOfYear), y: .value(selectedMetric.rawValue, p.cumulativeValue), series: .value("Année", String(year)))
+                            .foregroundStyle(by: .value("Année", String(year)))
+                            .lineStyle(StrokeStyle(lineWidth: year == currentYear ? 2.5 : 1.5))
+                    }
                 }
             }
             .chartXAxis {
@@ -285,32 +276,45 @@ struct StatisticsView: View {
                     AxisValueLabel(Self.monthLabel(forDayOfYear: value.as(Int.self) ?? 1))
                 }
             }
-            .frame(height: 220)
+            .frame(height: 260)
         }
     }
 
-    private var monthGrid: some View {
+    // L'année en cours s'arrête à aujourd'hui (sinon la courbe file à plat jusqu'en décembre).
+    private func yearCumulative(_ year: Int) -> [CumulativePoint] {
+        let points = YearComparisonBuilder.cumulative(activities: annualActivities, year: year, metric: selectedMetric)
+        guard year == currentYear else { return points }
+        let today = Calendar.iso8601UTC.ordinality(of: .day, in: .year, for: Date()) ?? points.count
+        return points.filter { $0.dayOfYear <= today }
+    }
+
+    private var yearGrid: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Tableau croisé — \(selectedYear)").font(.headline)
+            Text("Tableau croisé — \(Self.gridMetricLabel(selectedMetric)) par mois").font(.headline)
             ScrollView(.horizontal) {
                 Grid(horizontalSpacing: 8, verticalSpacing: 4) {
                     GridRow {
-                        Text("Activité").foregroundStyle(.secondary).gridColumnAlignment(.leading)
+                        Text("Année").foregroundStyle(.secondary).gridColumnAlignment(.leading)
                         ForEach(1...12, id: \.self) { month in
                             Text(Self.shortMonth(month)).foregroundStyle(.secondary).frame(width: 48)
                         }
+                        Text("Total").foregroundStyle(.secondary).frame(width: 56)
                     }
-                    Divider().gridCellColumns(13)
-                    ForEach(ActivityType.allCases.filter { currentResult.byActivityType[$0] != nil }, id: \.self) { type in
+                    Divider().gridCellColumns(14)
+                    ForEach(availableYears, id: \.self) { year in
+                        let result = StatsAggregator.compute(activities: annualActivities, query: StatsQuery(period: .year(year)))
                         GridRow {
-                            Text(type.displayName).gridColumnAlignment(.leading)
+                            Text(String(year)).gridColumnAlignment(.leading).font(.callout.monospacedDigit())
                             ForEach(1...12, id: \.self) { month in
-                                let value = monthValue(type: type, month: month)
+                                let value = Self.monthValue(result.byMonth?[month], metric: selectedMetric)
                                 Text(value.isEmpty ? "—" : value)
                                     .frame(width: 48)
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(value.isEmpty ? .secondary : .primary)
                             }
+                            Text(Self.totalValue(result, metric: selectedMetric))
+                                .frame(width: 56)
+                                .font(.caption.monospacedDigit().bold())
                         }
                     }
                 }
@@ -339,7 +343,7 @@ struct StatisticsView: View {
     }
 
     private var selectionBreakdown: [BreakdownEntry] { breakdownEntries(from: selStats.byActivityType) }
-    private var annualBreakdown: [BreakdownEntry] { breakdownEntries(from: currentResult.byActivityType) }
+    private var annualBreakdown: [BreakdownEntry] { breakdownEntries(from: SelectionStats.compute(annualActivities).byActivityType) }
 
     private func breakdownEntries(from byType: [ActivityType: TypeBreakdown]) -> [BreakdownEntry] {
         byType.map { (type, bd) in
@@ -364,7 +368,7 @@ struct StatisticsView: View {
             Text(value).font(.title.monospacedDigit().bold())
             if let trend, trend.isFinite {
                 let pct = (trend * 100).rounded()
-                Label("\(pct >= 0 ? "+" : "")\(Int(pct)) % vs \(selectedYear - 1)", systemImage: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                Label("\(pct >= 0 ? "+" : "")\(Int(pct)) % vs \(String(currentYear - 1))", systemImage: pct >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.caption)
                     .foregroundStyle(pct >= 0 ? .green : .red)
             }
@@ -374,15 +378,31 @@ struct StatisticsView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
 
-    private func monthValue(type: ActivityType, month: Int) -> String {
-        guard let bd = currentResult.byMonth?[month] else { return "" }
-        let v = bd.byActivityType[type] ?? 0
-        guard v > 0 else { return "" }
-        switch selectedMetric {
-        case .distance:      return String(format: "%.0f", v / 1000) + " km"
-        case .elevationGain: return "\(Int(v.rounded()))"
-        case .duration:      return Self.formatDuration(v)
-        case .count:         return "\(Int(v))"
+    private static func monthValue(_ bd: MonthBreakdown?, metric: StatsMetric) -> String {
+        guard let bd, bd.activityCount > 0 else { return "" }
+        switch metric {
+        case .distance:      return String(format: "%.0f", bd.totalDistance / 1000)
+        case .elevationGain: return "\(Int(bd.totalElevationGain.rounded()))"
+        case .duration:      return formatDuration(bd.totalDuration)
+        case .count:         return "\(bd.activityCount)"
+        }
+    }
+
+    private static func totalValue(_ r: StatsResult, metric: StatsMetric) -> String {
+        switch metric {
+        case .distance:      return String(format: "%.0f", r.totalDistance / 1000)
+        case .elevationGain: return "\(Int(r.totalElevationGain.rounded()))"
+        case .duration:      return formatDuration(r.totalDuration)
+        case .count:         return "\(r.activityCount)"
+        }
+    }
+
+    private static func gridMetricLabel(_ m: StatsMetric) -> String {
+        switch m {
+        case .distance:      return "Distance (km)"
+        case .elevationGain: return "Dénivelé + (m)"
+        case .duration:      return "Temps"
+        case .count:         return "Sorties"
         }
     }
 
