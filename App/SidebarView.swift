@@ -10,8 +10,10 @@ struct SidebarView: View {
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
     @AppStorage("sidebarTypesExpanded") private var typesExpanded = false
+    @AppStorage("sidebarYearsExpanded") private var yearsExpanded = true
     @AppStorage("sidebarRaidsExpanded") private var raidsExpanded = true
     @AppStorage("sidebarSmartExpanded") private var smartExpanded = true
+    @State private var expandedYears: Set<Int> = []
 
     private var selectionBinding: Binding<SidebarDestination?> {
         Binding(get: { navigation.sidebarSelection }, set: { navigation.sidebarSelection = $0 ?? .allActivities })
@@ -57,6 +59,29 @@ struct SidebarView: View {
                     .badge(entry.count)
                     .padding(.leading, 18)
                     .tag(SidebarDestination.activityType(entry.type))
+                }
+            }
+
+            if !listVM.availableYears.isEmpty {
+                Section(isExpanded: $yearsExpanded) {
+                    ForEach(listVM.availableYears, id: \.year) { entry in
+                        yearRow(entry.year, count: entry.count)
+                        if expandedYears.contains(entry.year) {
+                            ForEach(listVM.availableActivityTypes(year: entry.year), id: \.type) { sub in
+                                Label {
+                                    Text(sub.type.displayName)
+                                } icon: {
+                                    Image(systemName: sub.type.symbolName)
+                                        .foregroundStyle(Color(nsColor: sub.type.trackColor))
+                                }
+                                .badge(sub.count)
+                                .padding(.leading, 18)
+                                .tag(SidebarDestination.yearType(entry.year, sub.type))
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Années")
                 }
             }
 
@@ -132,6 +157,31 @@ struct SidebarView: View {
                 renamingRaid = nil
             }
         }
+    }
+
+    private func yearRow(_ year: Int, count: Int) -> some View {
+        HStack(spacing: 2) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    if expandedYears.contains(year) { expandedYears.remove(year) } else { expandedYears.insert(year) }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(expandedYears.contains(year) ? 90 : 0))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Label {
+                Text(String(year))
+            } icon: {
+                Image(systemName: "calendar").foregroundStyle(.tint)
+            }
+        }
+        .badge(count)
+        .tag(SidebarDestination.year(year))
     }
 
     @ViewBuilder

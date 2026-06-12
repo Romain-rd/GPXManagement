@@ -223,6 +223,7 @@ struct ContentView: View {
             listVM.smartFilters.first { $0.id == id }
         }
         listVM.activeType = navigation.selectedActivityType
+        listVM.activeYear = navigation.selectedYear
     }
 
     private var editingSmartFilterBinding: Binding<SmartFilter?> {

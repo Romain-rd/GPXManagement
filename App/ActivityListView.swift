@@ -98,10 +98,12 @@ struct ActivityListView: View {
 
     private var headerTitle: String {
         switch navigation.sidebarSelection {
-        case .allActivities:        return "Toutes les activités"
-        case .activityType(let t):  return t.displayName
-        case .smartFilter(let id):  return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
-        case .raid:                 return "Activités"
+        case .allActivities:           return "Toutes les activités"
+        case .activityType(let t):     return t.displayName
+        case .year(let y):             return String(y)
+        case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
+        case .smartFilter(let id):     return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
+        case .raid:                    return "Activités"
         }
     }
 

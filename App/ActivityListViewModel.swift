@@ -9,6 +9,7 @@ final class ActivityListViewModel {
     var smartFilters: [SmartFilter] = []
     var activeSmartFilter: SmartFilter?
     var activeType: ActivityType?
+    var activeYear: Int?
     var filters: ActivityFilters = .init()
     var sortOrder: ActivitySortOrder = .dateDescending
     var searchText: String = ""
@@ -25,6 +26,7 @@ final class ActivityListViewModel {
     var visibleActivities: [ActivitySummary] {
         let filtered = allActivities.filter { activity in
             if let type = activeType, activity.activityType != type { return false }
+            if let year = activeYear, Calendar.current.component(.year, from: activity.startDate) != year { return false }
             if let smart = activeSmartFilter, !smart.matches(activity) { return false }
             if !filters.matches(activity) { return false }
             if !searchText.isEmpty {
@@ -50,7 +52,16 @@ final class ActivityListViewModel {
     }
 
     var availableActivityTypes: [(type: ActivityType, count: Int)] {
-        let grouped = Dictionary(grouping: allActivities, by: \.activityType)
+        activityTypes(in: allActivities)
+    }
+
+    func availableActivityTypes(year: Int) -> [(type: ActivityType, count: Int)] {
+        let cal = Calendar.current
+        return activityTypes(in: allActivities.filter { cal.component(.year, from: $0.startDate) == year })
+    }
+
+    private func activityTypes(in activities: [ActivitySummary]) -> [(type: ActivityType, count: Int)] {
+        let grouped = Dictionary(grouping: activities, by: \.activityType)
         return ActivityType.allCases
             .compactMap { type -> (ActivityType, Int)? in
                 guard let count = grouped[type]?.count else { return nil }

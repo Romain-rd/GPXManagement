@@ -28,6 +28,8 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 enum SidebarDestination: Hashable {
     case allActivities
     case activityType(ActivityType)
+    case year(Int)
+    case yearType(Int, ActivityType)
     case raid(UUID)
     case smartFilter(UUID)
 }
@@ -52,7 +54,18 @@ final class AppNavigationModel {
     }
 
     var selectedActivityType: ActivityType? {
-        if case .activityType(let type) = sidebarSelection { return type }
-        return nil
+        switch sidebarSelection {
+        case .activityType(let type):  return type
+        case .yearType(_, let type):   return type
+        default:                       return nil
+        }
+    }
+
+    var selectedYear: Int? {
+        switch sidebarSelection {
+        case .year(let year):          return year
+        case .yearType(let year, _):   return year
+        default:                       return nil
+        }
     }
 }
