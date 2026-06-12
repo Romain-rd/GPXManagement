@@ -68,8 +68,10 @@ struct StatisticsView: View {
             primaryKPIs
             derivedChips
             Divider()
-            breakdownChart(entries: selectionBreakdown, title: "Ventilation par activité")
-            Divider()
+            if selectionBreakdown.count > 1 {
+                breakdownChart(entries: selectionBreakdown, title: "Ventilation par activité")
+                Divider()
+            }
             distributionChart
             Divider()
             recordsSection
@@ -221,8 +223,10 @@ struct StatisticsView: View {
         } else {
             annualKPIs
             Divider()
-            breakdownChart(entries: annualBreakdown, title: "Ventilation par activité — toutes années")
-            Divider()
+            if annualBreakdown.count > 1 {
+                breakdownChart(entries: annualBreakdown, title: "Ventilation par activité — toutes années")
+                Divider()
+            }
             cumulativeChart
             Divider()
             yearGrid
