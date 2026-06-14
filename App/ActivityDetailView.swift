@@ -25,6 +25,8 @@ struct ActivityDetailView: View {
     @State private var exportError: String?
     @State private var isExportingPDF = false
     @State private var isReprocessing = false
+    @State private var sensorSeries: SensorSeries?
+    @AppStorage("detailSectionHeartRate") private var secHeartRateExpanded = true
     @State private var profileMode: ProfileMode = .distance
     @State private var profileMetric: ProfileMetric = .altitude
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
@@ -116,6 +118,7 @@ struct ActivityDetailView: View {
                             segmentsSection
                         } else {
                             noTrackNotice
+                            sensorSection
                         }
                         photosSection
                         notesSection
@@ -137,14 +140,17 @@ struct ActivityDetailView: View {
             shownPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.shownPhotosKey) ?? [])
             Task { await model.loadPublishState(activityId: activity.id) }
             Task { await loadMediaState() }
+            Task { await loadSensorSeries() }
         }
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
             assetIdentity = [:]
+            sensorSeries = nil
             model.resetPublishState()
             Task { await model.loadPublishState(activityId: activity.id) }
             Task { await loadMediaState() }
+            Task { await loadSensorSeries() }
         }
         .onChange(of: activity.title) { _, newTitle in
             if !titleFocused { titleDraft = newTitle }
@@ -169,6 +175,7 @@ struct ActivityDetailView: View {
                         isReprocessing = true
                         defer { isReprocessing = false }
                         await AppServices.shared.reprocessActivity(id: activity.id)
+                        await loadSensorSeries()
                     }
                 } label: {
                     if isReprocessing {
@@ -450,6 +457,30 @@ struct ActivityDetailView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func loadSensorSeries() async {
+        let data = try? await repository.fetchSensorData(id: activity.id)
+        sensorSeries = SensorSeriesCodec.decode(data)
+    }
+
+    /// Séance sans GPS mais avec FC : on affiche la courbe (sinon ces mesures resteraient invisibles).
+    @ViewBuilder
+    private var sensorSection: some View {
+        if let series = sensorSeries, series.hasHeartRate {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    sectionChevron($secHeartRateExpanded)
+                    Label("Fréquence cardiaque", systemImage: "heart.fill").font(.headline).foregroundStyle(.red)
+                    Spacer()
+                    if secHeartRateExpanded, let st = series.heartRateStats {
+                        Text("moy \(Int(st.avg.rounded())) · max \(Int(st.max.rounded())) bpm")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    }
+                }
+                if secHeartRateExpanded { SensorChartView(series: series) }
+            }
+        }
     }
 
     private var infoSection: some View {
