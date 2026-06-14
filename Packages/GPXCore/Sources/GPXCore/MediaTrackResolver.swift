@@ -63,6 +63,15 @@ public struct MediaTrackResolver {
         return GeoMath.haversine(lat1: latitude, lon1: longitude, lat2: lats[i], lon2: lons[i])
     }
 
+    /// Écart (m le long de la trace) entre la position déduite de l'heure et celle déduite du GPS.
+    /// nil si l'une des deux manque. Un grand écart signale une incohérence (à arbitrer manuellement).
+    public func timeGpsDiscrepancy(captureDate: Date?, gpsLatitude: Double?, gpsLongitude: Double?) -> Double? {
+        guard let date = captureDate, let la = gpsLatitude, let lo = gpsLongitude,
+              let byTime = distance(manualMeters: nil, captureDate: date, gpsLatitude: nil, gpsLongitude: nil),
+              let byGPS = distance(manualMeters: nil, captureDate: nil, gpsLatitude: la, gpsLongitude: lo) else { return nil }
+        return abs(byTime - byGPS)
+    }
+
     private func clamp(_ meters: Double) -> Double { Swift.min(Swift.max(0, meters), totalDistance) }
 
     private func nearestTimeIndex(_ date: Date) -> Int? {

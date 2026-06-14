@@ -17,6 +17,7 @@ struct ActivityPhotosSection: View {
     let reloadToken: Int
     let isShownOnMap: (String) -> Bool
     let isAppCreated: (String) -> Bool
+    var isIncoherent: (String) -> Bool = { _ in false }
     let onToggleMap: (String) -> Void
     let onSelect: (PHAsset) -> Void
     let onEdit: (PHAsset) -> Void
@@ -71,6 +72,7 @@ struct ActivityPhotosSection: View {
                         shownOnMap: isShownOnMap(asset.localIdentifier),
                         mapToggleEnabled: showOnMap,
                         isAppCreated: isAppCreated(asset.localIdentifier),
+                        isIncoherent: isIncoherent(asset.localIdentifier),
                         onToggleMap: { onToggleMap(asset.localIdentifier) },
                         onSelect: { onSelect(asset) },
                         onEdit: { onEdit(asset) },
@@ -108,6 +110,7 @@ private struct PhotoThumbnail: View {
     let shownOnMap: Bool
     let mapToggleEnabled: Bool
     let isAppCreated: Bool
+    let isIncoherent: Bool
     let onToggleMap: () -> Void
     let onSelect: () -> Void
     let onEdit: () -> Void
@@ -161,7 +164,18 @@ private struct PhotoThumbnail: View {
             .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
         }
         .overlay(alignment: .topLeading) {
-            if canEdit && hovering {
+            if isIncoherent {
+                Button(action: onAdjustPosition) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 15))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, Color.orange)
+                        .background(Circle().fill(.black.opacity(0.25)))
+                }
+                .buttonStyle(.plain)
+                .padding(3)
+                .help("Heure et GPS en désaccord — cliquer pour ajuster la position")
+            } else if canEdit && hovering {
                 Button(action: onEdit) {
                     Image(systemName: "pencil.circle.fill")
                         .font(.system(size: 16))

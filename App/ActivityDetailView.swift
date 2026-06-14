@@ -37,6 +37,7 @@ struct ActivityDetailView: View {
     @State private var shownPhotoIDs: Set<String> = []     // idem
     @State private var mediaState: [String: MediaPlacement] = [:]   // état synchronisé (par clé stable nom+date)
     @State private var assetIdentity: [String: (key: String, file: String, date: Double?)] = [:]  // localIdentifier → identité stable
+    @State private var incoherentPhotoIDs: Set<String> = []   // heure et GPS en désaccord (> seuil), non réglés à la main
     @State private var editingMedia: EditingMedia?
     @State private var positioningMedia: PositioningMedia?
     @State private var photosReload = 0
@@ -832,6 +833,7 @@ struct ActivityDetailView: View {
             reloadToken: photosReload,
             isShownOnMap: { isPhotoShown($0) },
             isAppCreated: { isAppCreated($0) },
+            isIncoherent: { incoherentPhotoIDs.contains($0) },
             onToggleMap: togglePhotoOnMap,
             onSelect: previewPhoto,
             onEdit: editMedia,
@@ -1341,12 +1343,20 @@ struct ActivityDetailView: View {
         }
         let resolver = MediaTrackResolver(points: points)
         var items: [PhotoMapItem] = []
+        var incoherent: Set<String> = []
         for asset in assets {
             let manual = placement(for: asset.localIdentifier)?.posMeters
+            // Incohérence : heure et GPS désignent des points éloignés (> 150 m) et l'utilisateur n'a pas tranché.
+            if manual == nil, let c = asset.location?.coordinate,
+               let gap = resolver.timeGpsDiscrepancy(captureDate: asset.creationDate, gpsLatitude: c.latitude, gpsLongitude: c.longitude),
+               gap > 150 {
+                incoherent.insert(asset.localIdentifier)
+            }
             guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, using: resolver, manualMeters: manual) else { continue }
             let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 120, height: 120))
             items.append(PhotoMapItem(id: asset.localIdentifier, coordinate: coord, image: thumb, isVideo: asset.mediaType == .video))
         }
+        incoherentPhotoIDs = incoherent
         photoMapItems = items
     }
 
