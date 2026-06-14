@@ -43,6 +43,12 @@ struct ActivityDetailView: View {
     @State private var photosReload = 0
     @AppStorage("appCreatedAssets") private var appCreatedAssetsJSON = ""
     @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
+    // Sections de la fiche repliables (état mémorisé).
+    @AppStorage("detailSectionInfo") private var secInfoExpanded = true
+    @AppStorage("detailSectionMap") private var secMapExpanded = true
+    @AppStorage("detailSectionProfile") private var secProfileExpanded = true
+    @AppStorage("detailSectionSegments") private var secSegmentsExpanded = true
+    @AppStorage("detailSectionNotes") private var secNotesExpanded = true
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -100,7 +106,7 @@ struct ActivityDetailView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         header
                         Divider()
-                        metricsGrid
+                        infoSection
                         publishedLinkSection
                         filmLinkSection
                         mapSection
@@ -369,6 +375,33 @@ struct ActivityDetailView: View {
         }
     }
 
+    /// Chevron de pliage réutilisé par les en-têtes de section.
+    @ViewBuilder
+    private func sectionChevron(_ expanded: Binding<Bool>) -> some View {
+        Button {
+            withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() }
+        } label: {
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
+                .frame(width: 14, height: 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var infoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                sectionChevron($secInfoExpanded)
+                Label("Informations", systemImage: "info.circle").font(.headline)
+                Spacer()
+            }
+            if secInfoExpanded { metricsGrid }
+        }
+    }
+
     private var metricsGrid: some View {
         // Affichage adapté au type et aux données : on masque les métriques sans objet (distance/vitesse
         // pour l'escalade, la muscu…) ou sans valeur (dénivelé/vitesse à 0).
@@ -423,12 +456,13 @@ struct ActivityDetailView: View {
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                sectionChevron($secProfileExpanded)
                 Label(profileMetric == .speed ? "Profil de vitesse" : "Profil altimétrique",
                       systemImage: profileMetric == .speed ? "speedometer" : "chart.xyaxis.line")
                     .font(.headline)
                 Spacer()
                 // Escalade : pas de vitesse ni de distance pertinentes (sur place) → profil altitude/temps, sans sélecteurs.
-                if !isClimbing {
+                if !isClimbing && secProfileExpanded {
                     Picker("", selection: $profileMetric) {
                         ForEach(ProfileMetric.allCases) { Text($0.label).tag($0) }
                     }
@@ -445,6 +479,7 @@ struct ActivityDetailView: View {
                     .fixedSize()
                 }
             }
+            if secProfileExpanded {
             ElevationProfileTabView(
                 activityId: activity.id, activityType: activity.activityType, repository: repository,
                 mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate,
@@ -458,6 +493,7 @@ struct ActivityDetailView: View {
             )
             .frame(height: 280)
             .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
+            }
         }
         .onChange(of: activity.id, initial: true) {
             if isClimbing { profileMetric = .altitude; profileMode = .time }
@@ -473,9 +509,11 @@ struct ActivityDetailView: View {
         if activity.activityType.tracksDistanceAndSpeed {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    sectionChevron($secSegmentsExpanded)
                     Label("Segments", systemImage: "scissors")
                         .font(.headline)
                     Spacer()
+                    if secSegmentsExpanded {
                     if !model.segments.isEmpty {
                         Button("Tout supprimer", role: .destructive) {
                             setSelectedSegment(nil)
@@ -503,13 +541,16 @@ struct ActivityDetailView: View {
                     .fixedSize()
                     .controlSize(.small)
                     .help("Découpe la trace en segments réguliers (remplace les segments existants)")
+                    }
                 }
-                if model.segments.isEmpty {
-                    Text("Glissez horizontalement sur le profil pour créer un segment, ou utilisez le menu Découper.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    segmentsTable
+                if secSegmentsExpanded {
+                    if model.segments.isEmpty {
+                        Text("Glissez horizontalement sur le profil pour créer un segment, ou utilisez le menu Découper.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        segmentsTable
+                    }
                 }
             }
             .task(id: activity.id) { await model.loadSegments(activityId: activity.id) }
@@ -620,18 +661,22 @@ struct ActivityDetailView: View {
     private var mapSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                sectionChevron($secMapExpanded)
                 Label("Carte", systemImage: "map")
                     .font(.headline)
                 Spacer()
-                TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
-                    .controlSize(.small)
-                if mapLayerBinding.wrappedValue.isIGN {
-                    SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
+                if secMapExpanded {
+                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
+                        .controlSize(.small)
+                    if mapLayerBinding.wrappedValue.isIGN {
+                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
+                            .controlSize(.small)
+                    }
+                    LayerPicker(layer: mapLayerBinding)
                         .controlSize(.small)
                 }
-                LayerPicker(layer: mapLayerBinding)
-                    .controlSize(.small)
             }
+            if secMapExpanded {
             ActivityMapCard(
                 activityId: activity.id,
                 activityType: activity.activityType,
@@ -648,6 +693,7 @@ struct ActivityDetailView: View {
             .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             mapResizeHandle
+            }
         }
     }
 
@@ -1369,13 +1415,17 @@ struct ActivityDetailView: View {
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                sectionChevron($secNotesExpanded)
                 Label("Notes", systemImage: "note.text").font(.headline)
                 Spacer()
-                Button("Enregistrer") {
-                    Task { await listVM.updateNotes(id: activity.id, notes: notesDraft) }
+                if secNotesExpanded {
+                    Button("Enregistrer") {
+                        Task { await listVM.updateNotes(id: activity.id, notes: notesDraft) }
+                    }
+                    .disabled(notesDraft == (activity.notes ?? ""))
                 }
-                .disabled(notesDraft == (activity.notes ?? ""))
             }
+            if secNotesExpanded {
             TextEditor(text: $notesDraft)
                 .frame(minHeight: 100)
                 .padding(6)
@@ -1391,6 +1441,7 @@ struct ActivityDetailView: View {
             Text("Fichier source : \(activity.sourceFileFormat.rawValue.uppercased()) · \(activity.sourceFileName)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+            }
         }
     }
 
