@@ -23,7 +23,6 @@ public struct ElevationProfilePoint: Sendable, Equatable {
 public enum ElevationProfileBuilder {
     private static let earthRadius: Double = 6_371_000
     private static let slopeHalfWindowMeters: Double = 75
-    private static let smoothingWindow = 9
 
     public static func build(points: [TrackPoint]) -> [ElevationProfilePoint] {
         let withAlt = points.filter { $0.altitude != nil }
@@ -38,7 +37,9 @@ public enum ElevationProfileBuilder {
         }
 
         let altitudes = withAlt.map { $0.altitude ?? 0 }
-        let smoothed = movingAverage(altitudes, window: smoothingWindow)
+        // Lissage par distance (≈ ±30 m), pas par nombre de points : sur une trace peu dense, une fenêtre
+        // fixe en points couvrirait des centaines de mètres et aplatirait le profil (pentes faussées).
+        let smoothed = smoothedByDistance(altitudes, distances: distances, halfWindowMeters: 30)
 
         var profile: [ElevationProfilePoint] = []
         profile.reserveCapacity(withAlt.count)
@@ -206,15 +207,19 @@ public enum ElevationProfileBuilder {
         return indices.map { profile[$0] }
     }
 
-    private static func movingAverage(_ values: [Double], window: Int) -> [Double] {
-        guard window > 1, values.count >= window else { return values }
-        let half = window / 2
-        var result = [Double](repeating: 0, count: values.count)
-        for i in 0..<values.count {
-            let lo = max(0, i - half)
-            let hi = min(values.count - 1, i + half)
-            let slice = values[lo...hi]
-            result[i] = slice.reduce(0, +) / Double(slice.count)
+    /// Moyenne glissante des altitudes sur une fenêtre exprimée en distance (mètres), robuste aux traces peu denses.
+    private static func smoothedByDistance(_ altitudes: [Double], distances: [Double], halfWindowMeters: Double) -> [Double] {
+        let n = altitudes.count
+        guard n > 2 else { return altitudes }
+        var result = [Double](repeating: 0, count: n)
+        var lo = 0, hi = 0
+        for i in 0..<n {
+            while lo < i, distances[i] - distances[lo] > halfWindowMeters { lo += 1 }
+            if hi < i { hi = i }
+            while hi < n - 1, distances[hi + 1] - distances[i] <= halfWindowMeters { hi += 1 }
+            var sum = 0.0
+            for k in lo...hi { sum += altitudes[k] }
+            result[i] = sum / Double(hi - lo + 1)
         }
         return result
     }
