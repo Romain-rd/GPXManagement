@@ -355,14 +355,12 @@ public enum TrackVideoExporter {
                            y: projectedPoints[s.lo].y + (projectedPoints[s.hi].y - projectedPoints[s.lo].y) * s.t)
         }
 
-        // Position d'un média le long du parcours : par son heure de prise quand on la connaît — c'est le
-        // seul moyen de lever l'ambiguïté d'un aller-retour, où une même position correspond à deux instants
-        // (sans ça, une photo du retour retombait sur l'aller). Repli sur la position la plus proche sinon.
+        // Position des médias via le résolveur central (manuel → heure → GPS) : l'heure lève l'ambiguïté
+        // des allers-retours (une même position = deux instants ; sans ça une photo du retour retombait sur l'aller).
+        let resolver = MediaTrackResolver(points: pts)
         func distanceForMedia(_ m: TrackVideoMedia) -> Double {
-            if let date = m.date, let idx = nearestTimeIndex(to: date, in: timestamps) {
-                return cumulative[idx]
-            }
-            return cumulative[nearestIndex(to: m.coordinate, in: coords)]
+            resolver.distance(manualMeters: nil, captureDate: m.date,
+                              gpsLatitude: m.coordinate.latitude, gpsLongitude: m.coordinate.longitude) ?? 0
         }
         let ordered = media
             .map { (m: $0, dist: distanceForMedia($0)) }
@@ -841,27 +839,6 @@ public enum TrackVideoExporter {
         let wMap = hMap * aspect
         let uc = zone.x + zone.w / 2, vc = zone.y + zone.h / 2
         return MKMapRect(x: bounding.midX - uc * wMap, y: bounding.midY - vc * hMap, width: wMap, height: hMap)
-    }
-
-    private static func nearestIndex(to coord: CLLocationCoordinate2D, in coords: [CLLocationCoordinate2D]) -> Int {
-        let target = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
-        var best = 0, bestDist = Double.greatestFiniteMagnitude
-        for (i, c) in coords.enumerated() {
-            let d = target.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
-            if d < bestDist { bestDist = d; best = i }
-        }
-        return best
-    }
-
-    private static func nearestTimeIndex(to date: Date, in timestamps: [Date?]) -> Int? {
-        var best: Int?
-        var bestDelta = Double.greatestFiniteMagnitude
-        for (i, t) in timestamps.enumerated() {
-            guard let t else { continue }
-            let delta = abs(t.timeIntervalSince(date))
-            if delta < bestDelta { bestDelta = delta; best = i }
-        }
-        return best
     }
 
     private static func decimate(_ points: [TrackPoint], max: Int) -> [TrackPoint] {

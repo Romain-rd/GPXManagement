@@ -47,19 +47,19 @@ public enum PhotoLibraryService {
         return out
     }
 
-    /// Coordonnée d'un média : sa géolocalisation si présente, sinon le point du tracé le plus proche dans le temps.
-    public static func resolvedCoordinate(for asset: PHAsset, in points: [TrackPoint]) -> CLLocationCoordinate2D? {
-        if let location = asset.location { return location.coordinate }
-        guard let date = asset.creationDate else { return nil }
-        var best: (delta: TimeInterval, coord: CLLocationCoordinate2D)?
-        for p in points {
-            guard let t = p.timestamp else { continue }
-            let delta = abs(t.timeIntervalSince(date))
-            if best == nil || delta < best!.delta {
-                best = (delta, CLLocationCoordinate2D(latitude: p.latitude, longitude: p.longitude))
-            }
-        }
-        return best?.coord
+    /// Coordonnée d'affichage d'un média sur la trace, via le résolveur central (manuel → GPS → heure).
+    public static func resolvedCoordinate(for asset: PHAsset, in points: [TrackPoint], manualMeters: Double? = nil) -> CLLocationCoordinate2D? {
+        resolvedCoordinate(for: asset, using: MediaTrackResolver(points: points), manualMeters: manualMeters)
+    }
+
+    public static func resolvedCoordinate(for asset: PHAsset, using resolver: MediaTrackResolver, manualMeters: Double? = nil) -> CLLocationCoordinate2D? {
+        guard let c = resolver.displayCoordinate(
+            manualMeters: manualMeters,
+            captureDate: asset.creationDate,
+            gpsLatitude: asset.location?.coordinate.latitude,
+            gpsLongitude: asset.location?.coordinate.longitude
+        ) else { return nil }
+        return CLLocationCoordinate2D(latitude: c.latitude, longitude: c.longitude)
     }
 
     /// Bascule le statut « favori » de la photo dans la photothèque. Renvoie true si appliqué.
