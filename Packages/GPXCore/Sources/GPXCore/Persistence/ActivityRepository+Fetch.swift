@@ -21,6 +21,41 @@ extension CoreDataActivityRepository {
         }
     }
 
+    public func setIsCourse(id: UUID, isCourse: Bool) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(isCourse, forKey: "isCourse")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
+    /// Balayage unique : marque comme parcours les traces dont le tracé n'a aucun horodatage.
+    /// Renvoie le nombre de traces reclassées.
+    @discardableResult
+    public func classifyCoursesByMissingTimestamps() async throws -> Int {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "isCourse == NO")
+            let all = try context.fetch(fetch)
+            var reclassified = 0
+            for activity in all {
+                guard let data = activity.value(forKey: "trackData") as? Data,
+                      TrackPointCodec.hasTimestamps(in: data) == false else { continue }
+                activity.setValue(true, forKey: "isCourse")
+                reclassified += 1
+            }
+            if context.hasChanges { try context.save() }
+            return reclassified
+        }
+    }
+
     public func deleteAllActivities() async throws -> Int {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
@@ -416,7 +451,8 @@ enum ActivitySummaryMapper {
             sourceApp: object.value(forKey: "sourceApp") as? String,
             tags: tags,
             notes: object.value(forKey: "notes") as? String,
-            raidId: object.value(forKey: "raidId") as? UUID
+            raidId: object.value(forKey: "raidId") as? UUID,
+            isCourse: object.value(forKey: "isCourse") as? Bool ?? false
         )
     }
 }

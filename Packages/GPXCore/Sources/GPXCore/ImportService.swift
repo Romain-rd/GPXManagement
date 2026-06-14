@@ -20,8 +20,9 @@ public struct ImportProposal: Sendable {
     public let origin: ActivityOrigin
     public let stravaId: String?
     public let sourceApp: String?
+    public let suggestedIsCourse: Bool
 
-    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport, stravaId: String? = nil, sourceApp: String? = nil) {
+    public init(sourceURL: URL, parsed: ParsedTrack, stats: ActivityStats, suggestedActivityType: ActivityType?, suggestedTitle: String, duplicateOfActivityId: UUID?, fileSHA256: String, fileFormat: SourceFileFormat, origin: ActivityOrigin = .manualImport, stravaId: String? = nil, sourceApp: String? = nil, suggestedIsCourse: Bool = false) {
         self.sourceURL = sourceURL
         self.parsed = parsed
         self.stats = stats
@@ -33,6 +34,7 @@ public struct ImportProposal: Sendable {
         self.origin = origin
         self.stravaId = stravaId
         self.sourceApp = sourceApp
+        self.suggestedIsCourse = suggestedIsCourse
     }
 }
 
@@ -50,8 +52,9 @@ public struct ActivityCreationPayload: Sendable {
     public let trackData: Data
     public let fileSHA256: String
     public let stravaId: String?
+    public let isCourse: Bool
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false) {
         self.id = id
         self.title = title
         self.activityType = activityType
@@ -65,6 +68,7 @@ public struct ActivityCreationPayload: Sendable {
         self.trackData = trackData
         self.fileSHA256 = fileSHA256
         self.stravaId = stravaId
+        self.isCourse = isCourse
     }
 }
 
@@ -163,8 +167,15 @@ public actor ImportService {
             fileFormat: format,
             origin: origin,
             stravaId: stravaId,
-            sourceApp: Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin)
+            sourceApp: Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin),
+            suggestedIsCourse: Self.detectIsCourse(parsed: parsed)
         )
+    }
+
+    /// Un parcours (préparation) est un tracé dessiné : il a des points GPS mais aucun horodatage réel.
+    /// Une activité enregistrée porte toujours des timestamps par point.
+    public static func detectIsCourse(parsed: ParsedTrack) -> Bool {
+        !parsed.points.isEmpty && !parsed.points.contains { $0.timestamp != nil }
     }
 
     /// Détermine l'application source à enregistrer. Les fichiers générés en interne (sync API Strava
@@ -229,7 +240,7 @@ public actor ImportService {
         return Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin)
     }
 
-    public func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String) async throws -> UUID {
+    public func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String, isCourse: Bool? = nil) async throws -> UUID {
         let id = UUID()
         let startDate = Self.startDate(for: proposal.parsed)
         let endDate = proposal.parsed.endDate
@@ -260,7 +271,8 @@ public actor ImportService {
             stats: proposal.stats,
             trackData: trackData,
             fileSHA256: proposal.fileSHA256,
-            stravaId: proposal.stravaId
+            stravaId: proposal.stravaId,
+            isCourse: isCourse ?? proposal.suggestedIsCourse
         )
 
         try await repository.createActivity(payload)
