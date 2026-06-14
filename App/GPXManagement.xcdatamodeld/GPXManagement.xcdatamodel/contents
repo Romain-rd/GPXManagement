@@ -17,6 +17,7 @@
         <attribute name="maxLongitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="maxSlope" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="maxSpeed" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="mediaState" optional="YES" attributeType="Binary"/>
         <attribute name="minLatitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="minLongitude" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="movingDuration" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
