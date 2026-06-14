@@ -164,29 +164,31 @@ private struct PhotoThumbnail: View {
             .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
         }
         .overlay(alignment: .topLeading) {
-            if isIncoherent {
+            HStack(spacing: 3) {
+                // Toujours visible : ajuster la position sur le parcours (⚠︎ orange si heure/GPS en désaccord).
                 Button(action: onAdjustPosition) {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                    Image(systemName: isIncoherent ? "exclamationmark.triangle.fill" : "location.viewfinder")
                         .font(.system(size: 15))
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.orange)
-                        .background(Circle().fill(.black.opacity(0.25)))
+                        .foregroundStyle(.white, isIncoherent ? Color.orange : Color.accentColor)
+                        .background(Circle().fill(.black.opacity(0.3)))
                 }
                 .buttonStyle(.plain)
-                .padding(3)
-                .help("Heure et GPS en désaccord — cliquer pour ajuster la position")
-            } else if canEdit && hovering {
-                Button(action: onEdit) {
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.system(size: 16))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.accentColor)
-                        .background(Circle().fill(.black.opacity(0.25)))
+                .help(isIncoherent ? "Heure et GPS en désaccord — ajuster la position sur le parcours"
+                                   : "Ajuster la position sur le parcours")
+                if canEdit && hovering {
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 16))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, Color.accentColor)
+                            .background(Circle().fill(.black.opacity(0.25)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Modifier…")
                 }
-                .buttonStyle(.plain)
-                .padding(3)
-                .help("Modifier…")
             }
+            .padding(3)
         }
         .overlay(alignment: .bottomTrailing) {
             // Favori dans Photos (toujours visible si favori, sinon au survol).
