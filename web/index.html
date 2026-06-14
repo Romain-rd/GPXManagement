@@ -3,81 +3,264 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GPXManagement</title>
-<meta name="description" content="Centralisez, visualisez et partagez vos traces GPS : vélo, moto, marche, randonnée, ski. Cartes IGN, profil altimétrique, statistiques.">
+<title>GPXManagement — vos traces GPS, réunies</title>
+<meta name="description" content="Centralisez, visualisez et partagez vos traces GPS : vélo, moto, marche, randonnée, ski. Cartes IGN, profil altimétrique, statistiques, raids, film du parcours.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --accent:#1E88E5; --bg:#f5f5f7; --fg:#1d1d1f; --sec:#6e6e73; --card:#ffffff; --line:#e3e3e6; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f5f5f7; --sec:#9a9a9e; --card:#2c2c2e; --line:#3a3a3c; } }
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40;
+    --trail:#DD6B1F; --trail-soft:#f4d9bf; --contour:rgba(15,122,87,.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a;
+      --trail:#F0883E; --trail-soft:#3a2a1c; --contour:rgba(63,179,137,.12);
+    }
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  .wrap { max-width:920px; margin:0 auto; padding:64px 20px 56px; }
-  .hero { text-align:center; margin-bottom:48px; }
-  .logo { width:84px; height:84px; border-radius:22px; background:linear-gradient(140deg,var(--accent),#43A047); display:inline-flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(30,136,229,.28); }
-  .logo svg { width:50px; height:50px; }
-  h1 { font-size:42px; font-weight:800; letter-spacing:-.03em; margin:20px 0 8px; }
-  .tagline { font-size:19px; color:var(--sec); margin:0 auto; max-width:560px; }
-  .section-title { text-align:center; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--sec); margin:48px 0 16px; }
-  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-top:8px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; }
-  .card h3 { margin:0 0 6px; font-size:17px; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* Grain overlay */
+  body::after {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 24px; }
+  a { color:var(--green); text-decoration:none; }
+
+  /* ---------- HERO ---------- */
+  .hero { position:relative; padding:88px 0 76px; overflow:hidden; }
+  .hero-bg { position:absolute; inset:0; z-index:0; pointer-events:none; }
+  .hero-bg .glow { position:absolute; width:760px; height:760px; right:-220px; top:-320px;
+    background:radial-gradient(circle, color-mix(in srgb,var(--green) 22%, transparent), transparent 62%); }
+  .hero-bg .contours { position:absolute; right:-160px; top:-120px; width:720px; color:var(--contour); }
+  .hero-inner { position:relative; z-index:1; max-width:680px; }
+  .eyebrow {
+    display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--green-deep);
+    padding:7px 13px; border:1px solid color-mix(in srgb,var(--green) 35%, transparent);
+    border-radius:999px; background:color-mix(in srgb,var(--green) 8%, transparent);
+  }
+  .brandmark { display:inline-flex; width:18px; height:18px; }
+  h1 {
+    font-family:"Fraunces",serif; font-weight:900; font-size:clamp(40px,6.4vw,78px);
+    line-height:.98; letter-spacing:-.022em; margin:24px 0 0;
+  }
+  h1 .accent { color:var(--green); font-style:italic; font-weight:500; }
+  .lead { font-size:clamp(17px,2vw,21px); color:var(--sec); margin:22px 0 0; max-width:560px; }
+  .cta-row { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:34px; }
+  .btn {
+    display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px;
+    padding:14px 24px; border-radius:14px; transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .btn-primary { background:var(--green); color:#fff; box-shadow:0 10px 26px -8px color-mix(in srgb,var(--green) 70%, transparent); }
+  .btn-primary:hover { transform:translateY(-2px); box-shadow:0 16px 32px -8px color-mix(in srgb,var(--green) 70%, transparent); }
+  .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); }
+  .btn-ghost:hover { transform:translateY(-2px); }
+
+  /* elevation trail motif */
+  .trail-card {
+    position:relative; z-index:1; margin-top:56px; background:var(--card);
+    border:1px solid var(--line); border-radius:22px; padding:22px 24px 16px;
+    box-shadow:0 30px 60px -34px rgba(0,0,0,.4);
+  }
+  .trail-meta { display:flex; gap:26px; flex-wrap:wrap; margin-bottom:8px; }
+  .trail-meta div { line-height:1.15; }
+  .trail-meta .k { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--sec); }
+  .trail-meta .v { font-family:"Fraunces",serif; font-weight:600; font-size:21px; }
+  .trail-meta .v.amber { color:var(--trail); }
+  .trail-svg { width:100%; height:120px; display:block; }
+
+  /* ---------- SECTIONS ---------- */
+  .band { padding:34px 0; }
+  .sec-head { display:flex; align-items:baseline; gap:16px; margin:0 0 26px; }
+  .sec-num { font-family:"Fraunces",serif; font-weight:600; font-style:italic; color:var(--trail); font-size:20px; }
+  .sec-title { font-family:"Fraunces",serif; font-weight:600; font-size:clamp(24px,3.2vw,34px); letter-spacing:-.01em; margin:0; }
+  .sec-rule { flex:1; height:1px; background:var(--line); align-self:center; }
+
+  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(248px,1fr)); gap:18px; }
+  .card {
+    position:relative; background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:24px; transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .card:hover { transform:translateY(-4px); border-color:color-mix(in srgb,var(--green) 45%, var(--line)); box-shadow:0 20px 40px -26px rgba(0,0,0,.45); }
+  .card .ic {
+    display:inline-flex; align-items:center; justify-content:center; width:46px; height:46px;
+    font-size:24px; border-radius:13px; margin-bottom:14px;
+    background:color-mix(in srgb,var(--green) 12%, transparent);
+    border:1px solid color-mix(in srgb,var(--green) 22%, transparent);
+  }
+  .card h3 { margin:0 0 6px; font-size:17.5px; font-weight:700; letter-spacing:-.01em; }
   .card p { margin:0; color:var(--sec); font-size:14.5px; }
-  .card .ic { font-size:24px; margin-bottom:10px; display:block; }
-  .acts { margin:28px auto 0; text-align:center; color:var(--sec); font-size:15px; max-width:640px; }
-  .acts b { color:var(--fg); font-weight:600; }
-  .note { margin-top:40px; text-align:center; color:var(--sec); font-size:14px; }
-  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--line); text-align:center; color:var(--sec); font-size:13px; }
-  footer .madeby { color:var(--accent); font-weight:600; }
-  a { color:var(--accent); }
+
+  /* ---------- SHOWCASE ---------- */
+  .showcase { margin:18px 0; }
+  .frame {
+    border-radius:20px; overflow:hidden; border:1px solid var(--line);
+    box-shadow:0 40px 80px -40px rgba(0,0,0,.5); background:var(--paper-2);
+  }
+  .frame img { width:100%; height:auto; display:block; }
+  .showcase figcaption { color:var(--sec); font-size:14px; margin:14px 2px 0; }
+  .showcase figcaption b { color:var(--ink); font-weight:600; }
+
+  /* ---------- CLOSING ---------- */
+  .closing { text-align:center; padding:72px 0 24px; position:relative; }
+  .closing .glow2 { position:absolute; left:50%; top:0; transform:translateX(-50%); width:620px; height:300px;
+    background:radial-gradient(ellipse, color-mix(in srgb,var(--trail) 16%, transparent), transparent 65%); pointer-events:none; }
+  .closing h2 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(28px,4vw,44px); letter-spacing:-.02em; margin:0 0 12px; position:relative; }
+  .closing p { color:var(--sec); margin:0 auto 26px; max-width:480px; position:relative; }
+
+  footer { border-top:1px solid var(--line); padding:28px 0 48px; color:var(--sec); font-size:13px; text-align:center; }
+  footer .madeby { color:var(--green); font-weight:700; letter-spacing:.01em; }
+
+  /* reveal on scroll */
+  .reveal { opacity:0; transform:translateY(26px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce) { .reveal { opacity:1; transform:none; transition:none; } .dot { display:none; } }
+
+  /* hero load stagger */
+  .fadeup { opacity:0; animation:fadeup .8s cubic-bezier(.2,.7,.2,1) forwards; }
+  @keyframes fadeup { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+  .d1{animation-delay:.05s}.d2{animation-delay:.16s}.d3{animation-delay:.28s}.d4{animation-delay:.4s}.d5{animation-delay:.54s}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="hero">
-    <div class="logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 20c2-7 5-3 7-9 1.6-4.8 5-4 5-4"/>
-        <circle cx="17" cy="6" r="2.4" fill="#fff" stroke="none"/>
-        <circle cx="5" cy="20" r="2.4" fill="#fff" stroke="none"/>
-      </svg>
+
+<header class="hero">
+  <div class="hero-bg">
+    <div class="glow"></div>
+    <svg class="contours" viewBox="0 0 600 600" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M300 300m-40 0a40 35 0 1 0 80 0a40 35 0 1 0 -80 0"/>
+      <path d="M300 300m-90 -10a90 70 12 1 0 180 20a90 70 12 1 0 -180 -20"/>
+      <path d="M300 300m-150 -20a150 115 14 1 0 300 40a150 115 14 1 0 -300 -40"/>
+      <path d="M300 300m-215 -30a215 165 16 1 0 430 60a215 165 16 1 0 -430 -60"/>
+      <path d="M300 300m-285 -44a285 215 17 1 0 570 88a285 215 17 1 0 -570 -88"/>
+    </svg>
+  </div>
+
+  <div class="wrap hero-inner">
+    <span class="eyebrow fadeup d1">
+      <span class="brandmark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 20c2-7 5-3 7-9 1.6-4.8 5-4 5-4"/><circle cx="17" cy="6" r="2.2" fill="currentColor" stroke="none"/><circle cx="5" cy="20" r="2.2" fill="currentColor" stroke="none"/>
+        </svg>
+      </span>
+      Application macOS native
+    </span>
+    <h1 class="fadeup d2">Toutes vos traces&nbsp;GPS,<br><span class="accent">du tracé au récit.</span></h1>
+    <p class="lead fadeup d3">Centralisez vélo, moto, marche, randonnée et ski dans une seule bibliothèque iCloud. Cartes IGN, profil altimétrique, statistiques — et le film de chaque sortie.</p>
+    <div class="cta-row fadeup d4">
+      <a class="btn btn-primary" href="/app/">Voir l'application
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a class="btn btn-ghost" href="#features">Tout ce qu'elle fait</a>
     </div>
-    <h1>GPXManagement</h1>
-    <p class="tagline">Centralisez, visualisez et partagez toutes vos traces GPS — vélo, moto, marche, randonnée, ski.</p>
-  </header>
 
-  <p class="acts">Une seule bibliothèque pour <b>vélo</b> (route, VTT, gravel), <b>moto</b>, <b>marche</b>, <b>randonnée</b>, <b>ski</b> et <b>rando à ski</b>.</p>
+    <figure class="trail-card fadeup d5">
+      <div class="trail-meta">
+        <div><div class="k">Distance</div><div class="v">48,2 km</div></div>
+        <div><div class="k">Dénivelé +</div><div class="v amber">1 640 m</div></div>
+        <div><div class="k">Altitude</div><div class="v" id="alt">820 m</div></div>
+      </div>
+      <svg class="trail-svg" viewBox="0 0 720 120" preserveAspectRatio="none" fill="none">
+        <defs>
+          <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--trail)" stop-opacity=".28"/>
+            <stop offset="1" stop-color="var(--trail)" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0 96 C 70 92, 110 60, 170 64 S 250 30, 310 44 C 360 56, 380 18, 440 22 S 540 70, 600 58 C 650 48, 690 70, 720 66 L720 120 L0 120 Z" fill="url(#fill)"/>
+        <path id="line" d="M0 96 C 70 92, 110 60, 170 64 S 250 30, 310 44 C 360 56, 380 18, 440 22 S 540 70, 600 58 C 650 48, 690 70, 720 66" stroke="var(--trail)" stroke-width="2.6" stroke-linecap="round"/>
+        <circle class="dot" r="6" fill="#fff" stroke="var(--trail)" stroke-width="3">
+          <animateMotion dur="6s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+            <mpath href="#line"/>
+          </animateMotion>
+        </circle>
+      </svg>
+    </figure>
+  </div>
+</header>
 
-  <h2 class="section-title">Rassemblez vos traces</h2>
-  <section class="features">
-    <div class="card"><span class="ic">📥</span><h3>Import universel</h3><p>GPX, FIT et TCX par glisser-déposer, avec détection du type d'activité et dédoublonnage.</p></div>
-    <div class="card"><span class="ic">🔗</span><h3>Synchro Strava</h3><p>Importez tout votre historique, puis récupérez les nouvelles sorties à la demande.</p></div>
-    <div class="card"><span class="ic">❤️</span><h3>Apple Santé</h3><p>Récupérez les activités enregistrées dans l'app Santé de l'iPhone et de la Watch.</p></div>
-    <div class="card"><span class="ic">☁️</span><h3>Bibliothèque iCloud</h3><p>Traces et réglages synchronisés entre vos Macs, fichiers classés automatiquement par date et activité.</p></div>
+<main id="features">
+
+  <section class="band wrap">
+    <div class="sec-head reveal"><span class="sec-num">01</span><h2 class="sec-title">Rassemblez vos traces</h2><span class="sec-rule"></span></div>
+    <div class="features">
+      <div class="card reveal"><span class="ic">📥</span><h3>Import universel</h3><p>GPX, FIT et TCX par glisser-déposer, avec détection du type d'activité et dédoublonnage.</p></div>
+      <div class="card reveal"><span class="ic">🔗</span><h3>Synchro Strava</h3><p>Importez tout votre historique, puis récupérez les nouvelles sorties à la demande.</p></div>
+      <div class="card reveal"><span class="ic">❤️</span><h3>Apple Santé</h3><p>Récupérez les activités enregistrées par l'iPhone et l'Apple Watch.</p></div>
+      <div class="card reveal"><span class="ic">☁️</span><h3>Bibliothèque iCloud</h3><p>Traces et réglages synchronisés entre vos Macs, fichiers classés automatiquement.</p></div>
+    </div>
   </section>
 
-  <h2 class="section-title">Visualisez &amp; analysez</h2>
-  <section class="features">
-    <div class="card"><span class="ic">🗺️</span><h3>Cartes IGN</h3><p>Fonds topographiques SCAN 25, Plan v2 et carte des pentes — plus fonds monde et satellite.</p></div>
-    <div class="card"><span class="ic">📈</span><h3>Profil altimétrique</h3><p>Altitude ou vitesse, pente colorée et fréquence cardiaque, survol synchronisé carte ↔ profil.</p></div>
-    <div class="card"><span class="ic">📊</span><h3>Statistiques</h3><p>Distances, dénivelés et temps par période et activité, comparaison d'années et records.</p></div>
-    <div class="card"><span class="ic">🌍</span><h3>Vue d'ensemble</h3><p>Toutes vos sorties sur une même carte, avec filtres par activité, période et distance.</p></div>
-    <div class="card"><span class="ic">✂️</span><h3>Segments</h3><p>Découpez une trace en portions nommées (par distance, temps ou phase) avec leurs propres stats.</p></div>
-    <div class="card"><span class="ic">🧠</span><h3>Filtres intelligents</h3><p>Des dossiers dynamiques façon Mail et Finder, qui se remplissent selon vos règles.</p></div>
+  <section class="band wrap">
+    <figure class="showcase reveal">
+      <div class="frame"><img src="app/raid-thabor.jpg" alt="GPXManagement — raid de ski de randonnée sur carte IGN, avec étapes, profil altimétrique et photos."></div>
+      <figcaption><b>Raid « Thabor 2026 »</b> — étapes multi-jours, carte IGN, profil par pente et photos placées le long du parcours.</figcaption>
+    </figure>
   </section>
 
-  <h2 class="section-title">Racontez &amp; partagez</h2>
-  <section class="features">
-    <div class="card"><span class="ic">🏔️</span><h3>Raids multi-jours</h3><p>Regroupez les étapes d'un séjour, avec participants, dates et statistiques cumulées.</p></div>
-    <div class="card"><span class="ic">📷</span><h3>Photos &amp; vidéos</h3><p>Géolocalisées sur la carte et le profil, avec position ajustable le long du parcours.</p></div>
-    <div class="card"><span class="ic">🎬</span><h3>Film du parcours</h3><p>Générez une vidéo animée de la trace avec vos photos et vidéos placées au bon endroit.</p></div>
-    <div class="card"><span class="ic">📤</span><h3>Export &amp; partage</h3><p>GPX, PDF, image, page web interactive et Share Sheet macOS (Mail, Messages, AirDrop…).</p></div>
+  <section class="band wrap">
+    <div class="sec-head reveal"><span class="sec-num">02</span><h2 class="sec-title">Visualisez &amp; analysez</h2><span class="sec-rule"></span></div>
+    <div class="features">
+      <div class="card reveal"><span class="ic">🗺️</span><h3>Cartes IGN</h3><p>Fonds SCAN 25, Plan v2 et carte des pentes — plus fonds monde et satellite.</p></div>
+      <div class="card reveal"><span class="ic">📈</span><h3>Profil altimétrique</h3><p>Altitude ou vitesse, pente colorée et fréquence cardiaque, survol synchronisé carte ↔ profil.</p></div>
+      <div class="card reveal"><span class="ic">📊</span><h3>Statistiques</h3><p>Distances, dénivelés et temps par période et activité, comparaison d'années, records.</p></div>
+      <div class="card reveal"><span class="ic">🌍</span><h3>Vue d'ensemble</h3><p>Toutes vos sorties sur une même carte, filtrables par activité, période et distance.</p></div>
+      <div class="card reveal"><span class="ic">✂️</span><h3>Segments</h3><p>Découpez une trace en portions nommées — par distance, temps ou phase — avec leurs stats.</p></div>
+      <div class="card reveal"><span class="ic">🧠</span><h3>Filtres intelligents</h3><p>Des dossiers dynamiques façon Mail et Finder, qui se remplissent selon vos règles.</p></div>
+    </div>
   </section>
 
-  <p class="note">Application macOS native. <a href="/app/">Découvrir un exemple de raid →</a></p>
+  <section class="band wrap">
+    <div class="sec-head reveal"><span class="sec-num">03</span><h2 class="sec-title">Racontez &amp; partagez</h2><span class="sec-rule"></span></div>
+    <div class="features">
+      <div class="card reveal"><span class="ic">🏔️</span><h3>Raids multi-jours</h3><p>Regroupez les étapes d'un séjour, avec participants, dates et statistiques cumulées.</p></div>
+      <div class="card reveal"><span class="ic">📷</span><h3>Photos &amp; vidéos</h3><p>Géolocalisées sur la carte et le profil, avec position ajustable le long du parcours.</p></div>
+      <div class="card reveal"><span class="ic">🎬</span><h3>Film du parcours</h3><p>Une vidéo animée de la trace, avec vos photos et vidéos placées au bon endroit.</p></div>
+      <div class="card reveal"><span class="ic">📤</span><h3>Export &amp; partage</h3><p>GPX, PDF, image, page web interactive et Share Sheet macOS (Mail, Messages, AirDrop…).</p></div>
+    </div>
+  </section>
 
-  <footer>
-    <p class="madeby">GPXManagement</p>
-    <p>© Romain Demoustier</p>
-  </footer>
-</div>
+  <section class="closing wrap">
+    <div class="glow2"></div>
+    <h2 class="reveal">Vos montagnes méritent mieux qu'un dossier de fichiers.</h2>
+    <p class="reveal">Une app macOS native, pensée pour qui collectionne les sorties au fil des années.</p>
+    <a class="btn btn-primary reveal" href="/app/">Découvrir un exemple
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </a>
+  </section>
+</main>
+
+<footer>
+  <p class="madeby">GPXManagement</p>
+  <p>© <span id="y">2026</span> Romain Demoustier</p>
+</footer>
+
+<script>
+  // Révélation au défilement.
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, { threshold:.14, rootMargin:'0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    el.style.transitionDelay = (i % 6) * 60 + 'ms';
+    io.observe(el);
+  });
+  // Altitude qui « vit » au rythme du point sur le profil.
+  const altEl = document.getElementById('alt');
+  const alts = [820, 1180, 1460, 1610, 1240, 940, 1120];
+  let k = 0;
+  setInterval(() => { k = (k + 1) % alts.length; if (altEl) altEl.textContent = alts[k].toLocaleString('fr-FR') + ' m'; }, 860);
+  document.getElementById('y').textContent = new Date().getFullYear();
+</script>
 </body>
 </html>
