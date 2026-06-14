@@ -80,6 +80,25 @@
   .trail-meta .v.amber { color:var(--trail); }
   .trail-svg { width:100%; height:120px; display:block; }
 
+  /* ---------- MANIFESTE (résumé) ---------- */
+  .manifesto { position:relative; margin:8px 0 4px; }
+  .manifesto-inner {
+    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    padding:clamp(28px,4vw,48px); position:relative; overflow:hidden;
+  }
+  .manifesto-inner::before {
+    content:""; position:absolute; right:-120px; top:-120px; width:360px; height:360px;
+    background:radial-gradient(circle, color-mix(in srgb,var(--trail) 14%, transparent), transparent 64%); pointer-events:none;
+  }
+  .manifesto .label { font-size:12.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--trail); margin:0 0 14px; }
+  .manifesto blockquote {
+    margin:0; font-family:"Fraunces",serif; font-style:italic; font-weight:500;
+    font-size:clamp(22px,3.2vw,32px); line-height:1.22; letter-spacing:-.01em; max-width:720px;
+  }
+  .manifesto .by { color:var(--sec); font-size:15px; margin:18px 0 22px; max-width:640px; }
+  .manifesto .more { display:inline-flex; align-items:center; gap:8px; font-weight:700; }
+  .manifesto .more:hover { gap:12px; }
+
   /* ---------- SECTIONS ---------- */
   .band { padding:34px 0; }
   .sec-head { display:flex; align-items:baseline; gap:16px; margin:0 0 26px; }
@@ -193,6 +212,19 @@
 <main id="features">
 
   <section class="band wrap">
+    <div class="manifesto reveal">
+      <div class="manifesto-inner">
+        <p class="label">Le manifeste</p>
+        <blockquote>« Ce n'est pas le meilleur logiciel. Mais c'est le mien — et il fait exactement ce dont j'ai besoin. »</blockquote>
+        <p class="by">Pendant des années, mes sorties vivaient éparpillées : une app pour les statistiques, une autre pour les cartes IGN, une troisième pour le reste. Quand l'IA est arrivée, j'ai enfin pu écrire l'outil unique dont je rêvais — préparer, voir et partager mes moments de sport avec mes amis.</p>
+        <a class="more" href="/manifeste/">Lire le manifeste
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="band wrap">
     <div class="sec-head reveal"><span class="sec-num">01</span><h2 class="sec-title">Rassemblez vos traces</h2><span class="sec-rule"></span></div>
     <div class="features">
       <div class="card reveal"><span class="ic">📥</span><h3>Import universel</h3><p>GPX, FIT et TCX par glisser-déposer, avec détection du type d'activité et dédoublonnage.</p></div>
@@ -233,8 +265,8 @@
 
   <section class="closing wrap">
     <div class="glow2"></div>
-    <h2 class="reveal">Vos montagnes méritent mieux qu'un dossier de fichiers.</h2>
-    <p class="reveal">Une app macOS native, pensée pour qui collectionne les sorties au fil des années.</p>
+    <h2 class="reveal">Pas le meilleur logiciel. Le mien.</h2>
+    <p class="reveal">Une app macOS native, écrite pour préparer, voir et partager mes sorties — et peut-être les vôtres.</p>
     <a class="btn btn-primary reveal" href="/app/">Découvrir un exemple
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
     </a>
