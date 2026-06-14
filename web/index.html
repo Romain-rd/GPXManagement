@@ -16,11 +16,14 @@
   .logo svg { width:50px; height:50px; }
   h1 { font-size:42px; font-weight:800; letter-spacing:-.03em; margin:20px 0 8px; }
   .tagline { font-size:19px; color:var(--sec); margin:0 auto; max-width:560px; }
+  .section-title { text-align:center; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--sec); margin:48px 0 16px; }
   .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-top:8px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; }
   .card h3 { margin:0 0 6px; font-size:17px; }
   .card p { margin:0; color:var(--sec); font-size:14.5px; }
   .card .ic { font-size:24px; margin-bottom:10px; display:block; }
+  .acts { margin:28px auto 0; text-align:center; color:var(--sec); font-size:15px; max-width:640px; }
+  .acts b { color:var(--fg); font-weight:600; }
   .note { margin-top:40px; text-align:center; color:var(--sec); font-size:14px; }
   footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--line); text-align:center; color:var(--sec); font-size:13px; }
   footer .madeby { color:var(--accent); font-weight:600; }
@@ -41,14 +44,35 @@
     <p class="tagline">Centralisez, visualisez et partagez toutes vos traces GPS — vélo, moto, marche, randonnée, ski.</p>
   </header>
 
+  <p class="acts">Une seule bibliothèque pour <b>vélo</b> (route, VTT, gravel), <b>moto</b>, <b>marche</b>, <b>randonnée</b>, <b>ski</b> et <b>rando à ski</b>.</p>
+
+  <h2 class="section-title">Rassemblez vos traces</h2>
   <section class="features">
-    <div class="card"><span class="ic">🗺️</span><h3>Cartes IGN</h3><p>Fonds topographiques SCAN 25, Plan v2, pentes — et fonds monde commutables.</p></div>
-    <div class="card"><span class="ic">📈</span><h3>Profil altimétrique</h3><p>Dénivelé, pente et fréquence cardiaque, survol synchronisé avec la carte.</p></div>
-    <div class="card"><span class="ic">📊</span><h3>Statistiques</h3><p>Distances, dénivelés et temps agrégés par période et par activité.</p></div>
-    <div class="card"><span class="ic">🌐</span><h3>Publication web</h3><p>Chaque sortie devient une page partageable, avec carte interactive et photos.</p></div>
+    <div class="card"><span class="ic">📥</span><h3>Import universel</h3><p>GPX, FIT et TCX par glisser-déposer, avec détection du type d'activité et dédoublonnage.</p></div>
+    <div class="card"><span class="ic">🔗</span><h3>Synchro Strava</h3><p>Importez tout votre historique, puis récupérez les nouvelles sorties à la demande.</p></div>
+    <div class="card"><span class="ic">❤️</span><h3>Apple Santé</h3><p>Récupérez les activités enregistrées dans l'app Santé de l'iPhone et de la Watch.</p></div>
+    <div class="card"><span class="ic">☁️</span><h3>Bibliothèque iCloud</h3><p>Traces et réglages synchronisés entre vos Macs, fichiers classés automatiquement par date et activité.</p></div>
   </section>
 
-  <p class="note">Application macOS native. <a href="/app/">Découvrir l'application →</a></p>
+  <h2 class="section-title">Visualisez &amp; analysez</h2>
+  <section class="features">
+    <div class="card"><span class="ic">🗺️</span><h3>Cartes IGN</h3><p>Fonds topographiques SCAN 25, Plan v2 et carte des pentes — plus fonds monde et satellite.</p></div>
+    <div class="card"><span class="ic">📈</span><h3>Profil altimétrique</h3><p>Altitude ou vitesse, pente colorée et fréquence cardiaque, survol synchronisé carte ↔ profil.</p></div>
+    <div class="card"><span class="ic">📊</span><h3>Statistiques</h3><p>Distances, dénivelés et temps par période et activité, comparaison d'années et records.</p></div>
+    <div class="card"><span class="ic">🌍</span><h3>Vue d'ensemble</h3><p>Toutes vos sorties sur une même carte, avec filtres par activité, période et distance.</p></div>
+    <div class="card"><span class="ic">✂️</span><h3>Segments</h3><p>Découpez une trace en portions nommées (par distance, temps ou phase) avec leurs propres stats.</p></div>
+    <div class="card"><span class="ic">🧠</span><h3>Filtres intelligents</h3><p>Des dossiers dynamiques façon Mail et Finder, qui se remplissent selon vos règles.</p></div>
+  </section>
+
+  <h2 class="section-title">Racontez &amp; partagez</h2>
+  <section class="features">
+    <div class="card"><span class="ic">🏔️</span><h3>Raids multi-jours</h3><p>Regroupez les étapes d'un séjour, avec participants, dates et statistiques cumulées.</p></div>
+    <div class="card"><span class="ic">📷</span><h3>Photos &amp; vidéos</h3><p>Géolocalisées sur la carte et le profil, avec position ajustable le long du parcours.</p></div>
+    <div class="card"><span class="ic">🎬</span><h3>Film du parcours</h3><p>Générez une vidéo animée de la trace avec vos photos et vidéos placées au bon endroit.</p></div>
+    <div class="card"><span class="ic">📤</span><h3>Export &amp; partage</h3><p>GPX, PDF, image, page web interactive et Share Sheet macOS (Mail, Messages, AirDrop…).</p></div>
+  </section>
+
+  <p class="note">Application macOS native. <a href="/app/">Découvrir un exemple de raid →</a></p>
 
   <footer>
     <p class="madeby">GPXManagement</p>
