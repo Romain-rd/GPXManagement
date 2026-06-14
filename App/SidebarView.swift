@@ -40,8 +40,18 @@ struct SidebarView: View {
                 Image(systemName: "tray.full").foregroundStyle(.tint)
             }
         }
-        .badge(listVM.allActivities.count)
+        .badge(listVM.activitiesCount)
         .tag(SidebarDestination.allActivities)
+    }
+
+    private var allCoursesRow: some View {
+        Label {
+            Text("Tous les parcours")
+        } icon: {
+            Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").foregroundStyle(.tint)
+        }
+        .badge(listVM.coursesCount)
+        .tag(SidebarDestination.allCourses)
     }
 
     var body: some View {
@@ -61,6 +71,8 @@ struct SidebarView: View {
                     .tag(SidebarDestination.activityType(entry.type))
                 }
             }
+
+            allCoursesRow
 
             if !listVM.availableYears.isEmpty {
                 Section(isExpanded: $yearsExpanded) {

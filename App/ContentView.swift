@@ -99,6 +99,7 @@ struct ContentView: View {
         .focusedSceneValue(\.windowModel, window)
         .task {
             await listVM.reload()
+            await listVM.classifyCoursesIfNeeded()
             syncActiveSmartFilter()
         }
         .onChange(of: navigation.sidebarSelection) { _, _ in
@@ -224,6 +225,7 @@ struct ContentView: View {
         }
         listVM.activeType = navigation.selectedActivityType
         listVM.activeYear = navigation.selectedYear
+        listVM.scope = navigation.sidebarSelection == .allCourses ? .courses : .activities
     }
 
     private var editingSmartFilterBinding: Binding<SmartFilter?> {

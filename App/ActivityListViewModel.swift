@@ -1,10 +1,16 @@
 import Foundation
 import GPXCore
 
+enum LibraryScope {
+    case activities  // traces réellement effectuées
+    case courses     // parcours de préparation
+}
+
 @MainActor
 @Observable
 final class ActivityListViewModel {
     var allActivities: [ActivitySummary] = []
+    var scope: LibraryScope = .activities
     var raids: [Raid] = []
     var smartFilters: [SmartFilter] = []
     var activeSmartFilter: SmartFilter?
@@ -23,8 +29,21 @@ final class ActivityListViewModel {
         self.repository = repository
     }
 
+    /// Traces réellement effectuées (alimente Années / Types / Raids / Filtres et les stats).
+    var realActivities: [ActivitySummary] { allActivities.filter { !$0.isCourse } }
+    /// Parcours de préparation (flux « Tous les parcours »).
+    var courseActivities: [ActivitySummary] { allActivities.filter { $0.isCourse } }
+
+    /// Ensemble visible selon le flux courant.
+    private var scopedActivities: [ActivitySummary] {
+        scope == .courses ? courseActivities : realActivities
+    }
+
+    var activitiesCount: Int { realActivities.count }
+    var coursesCount: Int { courseActivities.count }
+
     var visibleActivities: [ActivitySummary] {
-        let filtered = allActivities.filter { activity in
+        let filtered = scopedActivities.filter { activity in
             if let type = activeType, activity.activityType != type { return false }
             if let year = activeYear, Calendar.current.component(.year, from: activity.startDate) != year { return false }
             if let smart = activeSmartFilter, !smart.matches(activity) { return false }
@@ -47,17 +66,17 @@ final class ActivityListViewModel {
 
     var availableYears: [(year: Int, count: Int)] {
         let cal = Calendar.current
-        let grouped = Dictionary(grouping: allActivities) { cal.component(.year, from: $0.startDate) }
+        let grouped = Dictionary(grouping: realActivities) { cal.component(.year, from: $0.startDate) }
         return grouped.map { ($0.key, $0.value.count) }.sorted { $0.year > $1.year }
     }
 
     var availableActivityTypes: [(type: ActivityType, count: Int)] {
-        activityTypes(in: allActivities)
+        activityTypes(in: realActivities)
     }
 
     func availableActivityTypes(year: Int) -> [(type: ActivityType, count: Int)] {
         let cal = Calendar.current
-        return activityTypes(in: allActivities.filter { cal.component(.year, from: $0.startDate) == year })
+        return activityTypes(in: realActivities.filter { cal.component(.year, from: $0.startDate) == year })
     }
 
     private func activityTypes(in activities: [ActivitySummary]) -> [(type: ActivityType, count: Int)] {
@@ -71,7 +90,7 @@ final class ActivityListViewModel {
 
     var availableTags: [(tag: String, count: Int)] {
         var counts: [String: Int] = [:]
-        for activity in allActivities {
+        for activity in realActivities {
             for tag in activity.tags { counts[tag, default: 0] += 1 }
         }
         return counts.map { ($0.key, $0.value) }.sorted { $0.tag < $1.tag }
@@ -79,13 +98,13 @@ final class ActivityListViewModel {
 
     var availableSources: [(source: ActivitySource, count: Int)] {
         var counts: [ActivitySource: Int] = [:]
-        for activity in allActivities { counts[activity.source, default: 0] += 1 }
+        for activity in realActivities { counts[activity.source, default: 0] += 1 }
         return counts.map { ($0.key, $0.value) }.sorted { $0.source.sortKey < $1.source.sortKey }
     }
 
     var availableRaids: [(raid: Raid, count: Int)] {
         var counts: [UUID: Int] = [:]
-        for activity in allActivities {
+        for activity in realActivities {
             if let raidId = activity.raidId { counts[raidId, default: 0] += 1 }
         }
         return raids
@@ -151,7 +170,7 @@ final class ActivityListViewModel {
     }
 
     func count(for filter: SmartFilter) -> Int {
-        allActivities.filter { filter.matches($0) }.count
+        realActivities.filter { filter.matches($0) }.count
     }
 
     func saveSmartFilter(_ filter: SmartFilter) async {
@@ -271,6 +290,34 @@ final class ActivityListViewModel {
     func updateType(ids: Set<UUID>, type: ActivityType) async {
         for id in ids {
             await updateType(id: id, type: type)
+        }
+    }
+
+    func setIsCourse(id: UUID, isCourse: Bool) async {
+        do {
+            try await repository.setIsCourse(id: id, isCourse: isCourse)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingIsCourse(isCourse)
+            }
+        } catch {
+            self.error = "Échec du changement de catégorie : \(error.localizedDescription)"
+        }
+    }
+
+    func setIsCourse(ids: Set<UUID>, isCourse: Bool) async {
+        for id in ids { await setIsCourse(id: id, isCourse: isCourse) }
+    }
+
+    /// Reclassement unique des traces existantes sans horodatage en parcours (joué une seule fois).
+    func classifyCoursesIfNeeded() async {
+        let key = "didClassifyCoursesByTimestamps"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        do {
+            let count = try await repository.classifyCoursesByMissingTimestamps()
+            UserDefaults.standard.set(true, forKey: key)
+            if count > 0 { await reload() }
+        } catch {
+            self.error = "Échec du reclassement des parcours : \(error.localizedDescription)"
         }
     }
 

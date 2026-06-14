@@ -99,6 +99,7 @@ struct ActivityListView: View {
     private var headerTitle: String {
         switch navigation.sidebarSelection {
         case .allActivities:           return "Toutes les activités"
+        case .allCourses:              return "Tous les parcours"
         case .activityType(let t):     return t.displayName
         case .year(let y):             return String(y)
         case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
@@ -108,9 +109,11 @@ struct ActivityListView: View {
     }
 
     private var headerSubtitle: String {
+        let isCourses = navigation.sidebarSelection == .allCourses
         let visible = listVM.visibleActivities.count
-        let total = listVM.allActivities.count
-        if visible == total { return "\(total) activité(s)" }
+        let total = isCourses ? listVM.coursesCount : listVM.activitiesCount
+        let noun = isCourses ? "parcours" : "activité(s)"
+        if visible == total { return "\(total) \(noun)" }
         return "\(visible) sur \(total)"
     }
 

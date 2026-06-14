@@ -27,6 +27,7 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 
 enum SidebarDestination: Hashable {
     case allActivities
+    case allCourses
     case activityType(ActivityType)
     case year(Int)
     case yearType(Int, ActivityType)
