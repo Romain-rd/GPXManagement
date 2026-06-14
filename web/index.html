@@ -144,7 +144,7 @@
   /* reveal on scroll */
   .reveal { opacity:0; transform:translateY(26px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
   .reveal.in { opacity:1; transform:none; }
-  @media (prefers-reduced-motion:reduce) { .reveal { opacity:1; transform:none; transition:none; } .dot { display:none; } }
+  @media (prefers-reduced-motion:reduce) { .reveal { opacity:1; transform:none; transition:none; } }
 
   /* hero load stagger */
   .fadeup { opacity:0; animation:fadeup .8s cubic-bezier(.2,.7,.2,1) forwards; }
@@ -188,7 +188,7 @@
       <div class="trail-meta">
         <div><div class="k">Distance</div><div class="v">48,2 km</div></div>
         <div><div class="k">Dénivelé +</div><div class="v amber">1 640 m</div></div>
-        <div><div class="k">Altitude</div><div class="v" id="alt">820 m</div></div>
+        <div><div class="k">Altitude</div><div class="v">1 610 m</div></div>
       </div>
       <svg class="trail-svg" viewBox="0 0 720 120" preserveAspectRatio="none" fill="none">
         <defs>
@@ -199,11 +199,7 @@
         </defs>
         <path d="M0 96 C 70 92, 110 60, 170 64 S 250 30, 310 44 C 360 56, 380 18, 440 22 S 540 70, 600 58 C 650 48, 690 70, 720 66 L720 120 L0 120 Z" fill="url(#fill)"/>
         <path id="line" d="M0 96 C 70 92, 110 60, 170 64 S 250 30, 310 44 C 360 56, 380 18, 440 22 S 540 70, 600 58 C 650 48, 690 70, 720 66" stroke="var(--trail)" stroke-width="2.6" stroke-linecap="round"/>
-        <circle class="dot" r="6" fill="#fff" stroke="var(--trail)" stroke-width="3">
-          <animateMotion dur="6s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
-            <mpath href="#line"/>
-          </animateMotion>
-        </circle>
+        <circle cx="440" cy="22" r="6" fill="#fff" stroke="var(--trail)" stroke-width="3"/>
       </svg>
     </figure>
   </div>
@@ -287,11 +283,6 @@
     el.style.transitionDelay = (i % 6) * 60 + 'ms';
     io.observe(el);
   });
-  // Altitude qui « vit » au rythme du point sur le profil.
-  const altEl = document.getElementById('alt');
-  const alts = [820, 1180, 1460, 1610, 1240, 940, 1120];
-  let k = 0;
-  setInterval(() => { k = (k + 1) % alts.length; if (altEl) altEl.textContent = alts[k].toLocaleString('fr-FR') + ' m'; }, 860);
   document.getElementById('y').textContent = new Date().getFullYear();
 </script>
 </body>
