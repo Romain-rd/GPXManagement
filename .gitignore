@@ -32,3 +32,6 @@ Packages/*/.swiftpm/
 # Secrets — see Secrets.xcconfig.example
 Secrets.xcconfig
 build/
+
+# DMG de release placé pour déploiement (binaire, non versionné)
+web/download/*.dmg

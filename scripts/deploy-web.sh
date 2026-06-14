@@ -29,7 +29,15 @@ echo "  zone: $ZONE_NAME · host: $ZONE_HOST"
 ctype() { case "${1##*.}" in
   html) echo "text/html; charset=utf-8";; png) echo "image/png";; jpg|jpeg) echo "image/jpeg";;
   css) echo "text/css";; js) echo "application/javascript";; svg) echo "image/svg+xml";;
-  *) echo "application/octet-stream";; esac; }
+  dmg) echo "application/x-apple-diskimage";; *) echo "application/octet-stream";; esac; }
+
+# Si un DMG fraîchement construit par scripts/release.sh existe, le placer dans download/ pour publication.
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist 2>/dev/null || echo "")
+DMG_SRC="build/GPXManagement-$VERSION.dmg"
+if [ -n "$VERSION" ] && [ -f "$DMG_SRC" ]; then
+  cp "$DMG_SRC" "web/download/GPXManagement-$VERSION.dmg"
+  echo "▸ DMG inclus : GPXManagement-$VERSION.dmg ($(du -h "$DMG_SRC" | cut -f1))"
+fi
 
 # Pages marketing à publier (jamais traces/ ni films/).
 FILES=$(cd web && find . -type f ! -name ".DS_Store" -not -path "./traces/*" | sed 's|^\./||')
