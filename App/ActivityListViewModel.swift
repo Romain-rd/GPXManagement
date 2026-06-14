@@ -308,12 +308,12 @@ final class ActivityListViewModel {
         for id in ids { await setIsCourse(id: id, isCourse: isCourse) }
     }
 
-    /// Reclassement unique des traces existantes sans horodatage en parcours (joué une seule fois).
+    /// Reclassement unique des traces existantes depuis leur tracé (joué une seule fois).
     func classifyCoursesIfNeeded() async {
-        let key = "didClassifyCoursesByTimestamps"
+        let key = "didReconcileCoursesV2"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         do {
-            let count = try await repository.classifyCoursesByMissingTimestamps()
+            let count = try await repository.reconcileCoursesFromTracks()
             UserDefaults.standard.set(true, forKey: key)
             if count > 0 { await reload() }
         } catch {

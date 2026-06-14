@@ -120,12 +120,14 @@ public enum TrackPointCodec {
         return points
     }
 
-    /// Indique si le tracé encodé porte au moins un horodatage, sans décoder tous les points
-    /// (lecture du seul drapeau d'en-tête). `nil` si la donnée est illisible.
-    public static func hasTimestamps(in data: Data) -> Bool? {
-        guard let raw = try? decompress(data), raw.count >= 6 else { return nil }
+    /// Nombre de points et présence d'horodatage, lus dans le seul en-tête (sans décoder les points).
+    /// `nil` si la donnée est illisible.
+    public static func headerInfo(in data: Data) -> (pointCount: Int, hasTimestamps: Bool)? {
+        guard let raw = try? decompress(data), raw.count >= 10 else { return nil }
         guard Array(raw[0..<4]) == magic else { return nil }
-        return Flags(rawValue: raw[5]).contains(.hasTime)
+        let hasTime = Flags(rawValue: raw[5]).contains(.hasTime)
+        let count = raw.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 6, as: UInt32.self).littleEndian }
+        return (Int(count), hasTime)
     }
 
     private static func unwrapNaN(_ v: Double) -> Double? {

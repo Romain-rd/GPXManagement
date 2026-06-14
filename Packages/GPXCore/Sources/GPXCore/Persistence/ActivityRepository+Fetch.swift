@@ -35,24 +35,30 @@ extension CoreDataActivityRepository {
         }
     }
 
-    /// Balayage unique : marque comme parcours les traces dont le tracé n'a aucun horodatage.
-    /// Renvoie le nombre de traces reclassées.
+    /// Réconciliation unique de la catégorie depuis le tracé : parcours = des points GPS mais aucun
+    /// horodatage (tracé dessiné). Une séance sans GPS (escalade, fitness… 0 point) reste une activité.
+    /// Recalcule dans les deux sens. Renvoie le nombre de traces modifiées.
     @discardableResult
-    public func classifyCoursesByMissingTimestamps() async throws -> Int {
+    public func reconcileCoursesFromTracks() async throws -> Int {
         let context = persistence.container.newBackgroundContext()
         return try await context.perform {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
-            fetch.predicate = NSPredicate(format: "isCourse == NO")
             let all = try context.fetch(fetch)
-            var reclassified = 0
+            var changed = 0
             for activity in all {
-                guard let data = activity.value(forKey: "trackData") as? Data,
-                      TrackPointCodec.hasTimestamps(in: data) == false else { continue }
-                activity.setValue(true, forKey: "isCourse")
-                reclassified += 1
+                var shouldBeCourse = false
+                if let data = activity.value(forKey: "trackData") as? Data,
+                   let info = TrackPointCodec.headerInfo(in: data) {
+                    shouldBeCourse = info.pointCount > 0 && !info.hasTimestamps
+                }
+                let current = (activity.value(forKey: "isCourse") as? Bool) ?? false
+                if current != shouldBeCourse {
+                    activity.setValue(shouldBeCourse, forKey: "isCourse")
+                    changed += 1
+                }
             }
             if context.hasChanges { try context.save() }
-            return reclassified
+            return changed
         }
     }
 
