@@ -525,9 +525,11 @@ struct ElevationProfileTabView: View {
             hasAltitude = !raw.isEmpty
             // Sans altitude (ex. voile), on retombe sur un profil « mouvement » pour la vitesse.
             let working = raw.isEmpty ? ElevationProfileBuilder.buildMotion(points: trackPoints) : raw
+            // Seuil élevé : une sortie ordinaire (jusqu'à ~20 000 points) est affichée intégralement. La décimation
+            // Douglas-Peucker écrase les montées régulières (profil quasi rectiligne) → réservée aux traces énormes.
             let trimmed = hasAltitude
-                ? ElevationProfileBuilder.decimate(working, tolerance: 1.0, maxPoints: 5_000)
-                : Self.capped(working, maxN: 5_000)
+                ? ElevationProfileBuilder.decimate(working, tolerance: 0.5, maxPoints: 20_000)
+                : Self.capped(working, maxN: 20_000)
             let summary = computeAltStats(profile: raw)
 
             trimmedProfile = trimmed
