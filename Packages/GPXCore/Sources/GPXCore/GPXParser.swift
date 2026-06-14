@@ -6,6 +6,9 @@ public struct ParsedTrack: Sendable, Equatable {
     public let startDate: Date?
     public let endDate: Date?
     public let points: [TrackPoint]
+    /// Mesures capteurs horodatées des échantillons SANS position (FC, altitude…) — sinon perdues.
+    /// Vide pour une activité GPS (les capteurs sont déjà dans `points`).
+    public let sensorSamples: [SensorSample]
     public let summary: Summary?
     /// Chaîne brute de l'application/appareil source (creator GPX, fabricant FIT, Author/Creator TCX).
     public let creator: String?
@@ -37,12 +40,13 @@ public struct ParsedTrack: Sendable, Equatable {
         }
     }
 
-    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], summary: Summary? = nil, creator: String? = nil) {
+    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], sensorSamples: [SensorSample] = [], summary: Summary? = nil, creator: String? = nil) {
         self.name = name
         self.activityHint = activityHint
         self.startDate = startDate
         self.endDate = endDate
         self.points = points
+        self.sensorSamples = sensorSamples
         self.summary = summary
         self.creator = creator
     }

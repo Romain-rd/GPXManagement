@@ -16,6 +16,7 @@ public struct FITParser: Sendable {
         try decoder.readHeader()
 
         var points: [TrackPoint] = []
+        var sensorSamples: [SensorSample] = []  // records sans position (FC, altitude…) — sinon perdus
         let trackName: String? = nil // FIT n'a pas de nom de séance ; le titre est dérivé du fichier à l'import
         var activityHint: String?
         var manufacturerId: UInt32?
@@ -45,6 +46,9 @@ public struct FITParser: Sendable {
                     if let point = Self.buildTrackPoint(from: fields, def: def, compressedTimeOffset: timeOffset, previousTimestamp: decoder.lastTimestamp) {
                         points.append(point)
                         if let ts = point.timestamp { decoder.lastTimestamp = ts }
+                    } else if let s = Self.buildSensorSample(from: fields, compressedTimeOffset: timeOffset, previousTimestamp: decoder.lastTimestamp) {
+                        sensorSamples.append(s)
+                        decoder.lastTimestamp = s.time
                     }
                 }
             } else if header & 0x40 != 0 {
@@ -62,6 +66,9 @@ public struct FITParser: Sendable {
                     if let point = Self.buildTrackPoint(from: fields, def: def, compressedTimeOffset: nil, previousTimestamp: decoder.lastTimestamp) {
                         points.append(point)
                         if let ts = point.timestamp { decoder.lastTimestamp = ts }
+                    } else if let s = Self.buildSensorSample(from: fields, compressedTimeOffset: nil, previousTimestamp: decoder.lastTimestamp) {
+                        sensorSamples.append(s)
+                        decoder.lastTimestamp = s.time
                     }
                 case 18, 12:
                     if let sport = fields[5]?.uint8Value { pendingSport = sport }
@@ -108,12 +115,16 @@ public struct FITParser: Sendable {
         } else {
             summary = nil
         }
+        // Les capteurs sans GPS ne sont conservés que si l'activité n'a aucun tracé (sinon ils sont déjà dans les points).
+        let keptSensors = points.isEmpty ? sensorSamples : []
+        let sensorTimes = keptSensors.map(\.time)
         return ParsedTrack(
             name: trackName,
             activityHint: activityHint,
-            startDate: timestamps.first,
-            endDate: timestamps.last,
+            startDate: timestamps.first ?? sensorTimes.first,
+            endDate: timestamps.last ?? sensorTimes.last,
             points: points,
+            sensorSamples: keptSensors,
             summary: summary,
             creator: creator
         )
@@ -157,18 +168,7 @@ public struct FITParser: Sendable {
             altitude = nil
         }
 
-        let timestamp: Date?
-        if let raw = fields[253]?.uint32Value {
-            timestamp = fitEpoch.addingTimeInterval(TimeInterval(raw))
-        } else if let offset = compressedTimeOffset, let prev = previousTimestamp {
-            let prevSec = UInt32(prev.timeIntervalSince(fitEpoch))
-            let prevOffset = UInt8(prevSec & 0x1F)
-            var delta = Int(offset) - Int(prevOffset)
-            if delta < 0 { delta += 32 }
-            timestamp = prev.addingTimeInterval(TimeInterval(delta))
-        } else {
-            timestamp = nil
-        }
+        let timestamp = Self.timestamp(from: fields, compressedTimeOffset: compressedTimeOffset, previousTimestamp: previousTimestamp)
 
         let hr = fields[3]?.doubleValue
         let cadence = fields[4]?.doubleValue
@@ -183,6 +183,28 @@ public struct FITParser: Sendable {
             cadence: cadence,
             power: power
         )
+    }
+
+    private static func timestamp(from fields: [UInt8: FITValue], compressedTimeOffset: UInt8?, previousTimestamp: Date?) -> Date? {
+        if let raw = fields[253]?.uint32Value {
+            return fitEpoch.addingTimeInterval(TimeInterval(raw))
+        } else if let offset = compressedTimeOffset, let prev = previousTimestamp {
+            let prevSec = UInt32(prev.timeIntervalSince(fitEpoch))
+            let prevOffset = UInt8(prevSec & 0x1F)
+            var delta = Int(offset) - Int(prevOffset)
+            if delta < 0 { delta += 32 }
+            return prev.addingTimeInterval(TimeInterval(delta))
+        }
+        return nil
+    }
+
+    /// Échantillon capteurs d'un record SANS position : on garde FC/altitude/cadence/puissance horodatées.
+    private static func buildSensorSample(from fields: [UInt8: FITValue], compressedTimeOffset: UInt8?, previousTimestamp: Date?) -> SensorSample? {
+        guard let time = timestamp(from: fields, compressedTimeOffset: compressedTimeOffset, previousTimestamp: previousTimestamp) else { return nil }
+        let altitude: Double? = (fields[2]?.doubleValue ?? fields[78]?.doubleValue).map { ($0 / 5.0) - 500.0 }
+        let sample = SensorSample(time: time, heartRate: fields[3]?.doubleValue, altitude: altitude,
+                                  cadence: fields[4]?.doubleValue, power: fields[7]?.doubleValue)
+        return sample.hasData ? sample : nil
     }
 
     private static func sportName(sport: UInt8, subSport: UInt8?) -> String {
