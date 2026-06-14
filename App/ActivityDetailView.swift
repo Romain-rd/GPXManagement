@@ -55,6 +55,7 @@ struct ActivityDetailView: View {
     @State private var videoPublish = false
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
+    @State private var isUnpublishingWeb = false
     @State private var webOptions = WebExportOptions()
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
@@ -107,7 +108,6 @@ struct ActivityDetailView: View {
                         header
                         Divider()
                         infoSection
-                        publishedLinkSection
                         filmLinkSection
                         mapSection
                         profileSection
@@ -359,6 +359,17 @@ struct ActivityDetailView: View {
                         Image(systemName: "doc.on.doc")
                     }
                     .help("Copier le lien")
+                    Button(role: .destructive) {
+                        Task { await unpublishWeb() }
+                    } label: {
+                        if isUnpublishingWeb {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("Supprimer", systemImage: "trash")
+                        }
+                    }
+                    .disabled(isUnpublishingWeb || !BunnyStorageService.isConfigured)
+                    .help("Retire la page publiée du web")
                 }
                 .controlSize(.small)
                 Link(destination: url) {
@@ -398,7 +409,10 @@ struct ActivityDetailView: View {
                 Label("Informations", systemImage: "info.circle").font(.headline)
                 Spacer()
             }
-            if secInfoExpanded { metricsGrid }
+            if secInfoExpanded {
+                metricsGrid
+                publishedLinkSection
+            }
         }
     }
 
@@ -880,6 +894,7 @@ struct ActivityDetailView: View {
             isShownOnMap: { isPhotoShown($0) },
             isAppCreated: { isAppCreated($0) },
             isIncoherent: { incoherentPhotoIDs.contains($0) },
+            isManuallyPlaced: { placement(for: $0)?.posMeters != nil },
             onToggleMap: togglePhotoOnMap,
             onSelect: previewPhoto,
             onEdit: editMedia,
@@ -1590,6 +1605,21 @@ struct ActivityDetailView: View {
         model.publishConfigJSON = configJSON
     }
 
+
+    /// Retire la publication web : supprime le dossier Bunny + efface le lien stocké.
+    private func unpublishWeb() async {
+        guard let uuid = model.existingPublishUUID() else { return }
+        isUnpublishingWeb = true
+        defer { isUnpublishingWeb = false }
+        do {
+            try await BunnyStorageService.unpublish(folder: "traces/\(uuid)")
+            try await repository.clearWebPublished(id: activity.id)
+            model.publishedURL = nil
+            model.publishConfigJSON = nil
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
 
     /// Republie avec les paramètres de la publication d'origine (même UUID via le lien stocké).
     private func republishWeb() async {

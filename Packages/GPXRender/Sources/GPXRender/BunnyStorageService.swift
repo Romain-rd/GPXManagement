@@ -63,6 +63,14 @@ public enum BunnyStorageService {
         await purgeCache(folder: folder)
     }
 
+    /// Dépublie : supprime le dossier du stockage Bunny et purge le cache CDN.
+    public static func unpublish(folder: String) async throws {
+        guard isConfigured else { throw BunnyStorageError.notConfigured }
+        let zone = try await resolveZone()
+        try await deleteFolder(folder, zone: zone)
+        await purgeCache(folder: folder)
+    }
+
     private static let publicBase = "https://www.gpxmanagement.net/"
 
     /// Purge le cache CDN de la pull zone pour le dossier publié (sinon l'ancienne version reste servie).

@@ -18,6 +18,7 @@ struct ActivityPhotosSection: View {
     let isShownOnMap: (String) -> Bool
     let isAppCreated: (String) -> Bool
     var isIncoherent: (String) -> Bool = { _ in false }
+    var isManuallyPlaced: (String) -> Bool = { _ in false }
     let onToggleMap: (String) -> Void
     let onSelect: (PHAsset) -> Void
     let onEdit: (PHAsset) -> Void
@@ -81,6 +82,7 @@ struct ActivityPhotosSection: View {
                         mapToggleEnabled: showOnMap,
                         isAppCreated: isAppCreated(asset.localIdentifier),
                         isIncoherent: isIncoherent(asset.localIdentifier),
+                        isManuallyPlaced: isManuallyPlaced(asset.localIdentifier),
                         onToggleMap: { onToggleMap(asset.localIdentifier) },
                         onSelect: { onSelect(asset) },
                         onEdit: { onEdit(asset) },
@@ -119,6 +121,7 @@ private struct PhotoThumbnail: View {
     let mapToggleEnabled: Bool
     let isAppCreated: Bool
     let isIncoherent: Bool
+    let isManuallyPlaced: Bool
     let onToggleMap: () -> Void
     let onSelect: () -> Void
     let onEdit: () -> Void
@@ -160,31 +163,39 @@ private struct PhotoThumbnail: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            // Trois boutons alignés, toujours visibles : afficher sur la carte · ajuster la position · modifier.
+            // Édition + position, toujours visibles. Vides par défaut, fond bleu si une modification a été faite.
             HStack(spacing: 3) {
-                Button(action: onToggleMap) {
-                    badgeIcon(shownOnMap ? "mappin.circle.fill" : "mappin.slash.circle.fill",
-                              tint: shownOnMap ? Color.accentColor : Color.secondary)
-                }
-                .buttonStyle(.plain)
-                .opacity(mapToggleEnabled ? 1 : 0.45)
-                .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
-
                 Button(action: onAdjustPosition) {
-                    badgeIcon(isIncoherent ? "exclamationmark.triangle.fill" : "location.viewfinder",
-                              tint: isIncoherent ? Color.orange : Color.accentColor)
+                    badgeIcon(isIncoherent ? "exclamationmark.triangle.fill" : "location",
+                              background: isIncoherent ? .orange : (isManuallyPlaced ? .accentColor : .black.opacity(0.4)))
                 }
                 .buttonStyle(.plain)
                 .help(isIncoherent ? "Heure et GPS en désaccord — ajuster la position sur le parcours"
-                                   : "Ajuster la position sur le parcours")
+                                   : (isManuallyPlaced ? "Position ajustée — modifier" : "Ajuster la position sur le parcours"))
 
                 if canEdit {
-                    Button(action: onEdit) { badgeIcon("pencil.circle.fill", tint: Color.accentColor) }
-                        .buttonStyle(.plain)
-                        .help("Modifier…")
+                    Button(action: onEdit) {
+                        badgeIcon("pencil", background: isAppCreated ? .accentColor : .black.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
+                    .help(isAppCreated ? "Photo modifiée — modifier à nouveau" : "Modifier…")
                 }
             }
             .padding(3)
+        }
+        .overlay(alignment: .topTrailing) {
+            // Indication d'affichage sur la carte, cadrée à droite.
+            Button(action: onToggleMap) {
+                Image(systemName: shownOnMap ? "mappin.circle.fill" : "mappin.slash.circle.fill")
+                    .font(.system(size: 16))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, shownOnMap ? Color.accentColor : Color.secondary)
+                    .background(Circle().fill(.black.opacity(0.3)))
+            }
+            .buttonStyle(.plain)
+            .padding(3)
+            .opacity(mapToggleEnabled ? 1 : 0.45)
+            .help(shownOnMap ? "Masquer sur la carte" : "Afficher sur la carte")
         }
         .overlay(alignment: .bottomTrailing) {
             // Favori dans Photos (toujours visible si favori, sinon au survol).
@@ -216,12 +227,12 @@ private struct PhotoThumbnail: View {
         }
     }
 
-    private func badgeIcon(_ name: String, tint: Color) -> some View {
+    private func badgeIcon(_ name: String, background: Color) -> some View {
         Image(systemName: name)
-            .font(.system(size: 16))
-            .symbolRenderingMode(.palette)
-            .foregroundStyle(.white, tint)
-            .background(Circle().fill(.black.opacity(0.3)))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(background))
     }
 
     private static func durationText(_ seconds: TimeInterval) -> String {
