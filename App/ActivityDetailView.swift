@@ -109,9 +109,13 @@ struct ActivityDetailView: View {
                         Divider()
                         infoSection
                         filmLinkSection
-                        mapSection
-                        profileSection
-                        segmentsSection
+                        if model.hasTrack {
+                            mapSection
+                            profileSection
+                            segmentsSection
+                        } else {
+                            noTrackNotice
+                        }
                         photosSection
                         notesSection
                     }
@@ -491,7 +495,42 @@ struct ActivityDetailView: View {
             if activity.activityType == .climbing, let n = model.climbCount {
                 MetricCard(icon: "figure.climbing", value: "\(n)", label: "Montées", tint: .brown)
             }
+            // Séance sans tracé GPS : on n'a pas de carte/profil, on expose donc les repères horaires
+            // et l'appareil source pour donner du contexte.
+            if !model.hasTrack {
+                MetricCard(icon: "clock.badge.checkmark", value: Self.timeOnly(activity.startDate), label: "Début", tint: .indigo)
+                MetricCard(icon: "clock.badge.xmark", value: Self.timeOnly(activity.endDate), label: "Fin", tint: .indigo)
+                if let device = deviceLabel {
+                    MetricCard(icon: "applewatch", value: device, label: "Appareil", tint: .gray)
+                }
+            }
         }
+    }
+
+    /// Nom lisible de l'appareil/app source (ex. « Watch6,18 », « Strava »), si connu.
+    private var deviceLabel: String? {
+        if let app = activity.sourceApp, !app.isEmpty { return app }
+        let name = activity.source.displayName
+        return name.isEmpty ? nil : name
+    }
+
+    /// Bandeau affiché à la place de la carte/profil pour une séance sans tracé GPS.
+    private var noTrackNotice: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "mappin.slash")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pas de tracé GPS")
+                    .font(.callout.weight(.semibold))
+                Text("Cette séance a été enregistrée sans position (activité sur place). Les mesures disponibles sont affichées ci-dessus.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
 
     private var profileSection: some View {
@@ -1691,6 +1730,14 @@ struct ActivityDetailView: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: "fr_FR")
         f.dateStyle = .long
+        f.timeStyle = .short
+        return f.string(from: d)
+    }
+
+    private static func timeOnly(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateStyle = .none
         f.timeStyle = .short
         return f.string(from: d)
     }

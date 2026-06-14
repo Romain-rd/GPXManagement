@@ -12,6 +12,8 @@ final class ActivityDetailViewModel {
     var filmPublishedURL: String?
     var publishConfigJSON: String?
 
+    /// Faux quand l'activité n'a aucun point GPS (séance sans tracé : escalade en salle, fitness…).
+    var hasTrack: Bool = true
     var climbCount: Int?
     var ascentTime: TimeInterval?
     var descentTime: TimeInterval?
@@ -47,9 +49,13 @@ final class ActivityDetailViewModel {
 
     func loadDerivedMetrics(for activity: ActivitySummary, pauseMinSeconds: Double, pauseRadiusMeters: Double) async {
         guard let data = try? await repository.fetchTrackData(id: activity.id), !data.isEmpty,
-              let points = try? TrackPointCodec.decode(data) else {
-            climbCount = nil; ascentTime = nil; descentTime = nil; return
+              let points = try? TrackPointCodec.decode(data), !points.isEmpty else {
+            hasTrack = false
+            climbCount = nil; ascentTime = nil; descentTime = nil
+            movingTime = nil; pausedTime = nil; flatTime = nil
+            return
         }
+        hasTrack = true
         if activity.activityType == .climbing {
             let altitudes = points.compactMap(\.altitude)
             climbCount = altitudes.count >= 2 ? ClimbCounter.count(altitudes: altitudes) : nil
