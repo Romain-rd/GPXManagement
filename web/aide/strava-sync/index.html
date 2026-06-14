@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connecter et synchroniser Strava — Aide GPXManagement</title>
+<meta name="description" content="Connecter votre compte Strava à GPXManagement, puis synchroniser automatiquement vos nouvelles activités.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40;
+    --trail:#DD6B1F; --strava:#FC4C02;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a;
+      --trail:#F0883E; --strava:#FC5B1A;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 24px; }
+  .topbar { padding:26px 0 0; }
+  .crumbs { font-size:14px; color:var(--sec); }
+  .crumbs a { font-weight:600; }
+
+  header.intro { padding:30px 0 8px; }
+  .badge-strava { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#fff; background:var(--strava); padding:6px 12px; border-radius:999px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:18px 0 0; }
+  .dek { font-size:18px; color:var(--sec); margin:14px 0 0; }
+
+  .callout { display:flex; gap:13px; background:color-mix(in srgb,var(--trail) 9%, var(--card)); border:1px solid color-mix(in srgb,var(--trail) 30%, var(--line));
+    border-radius:14px; padding:15px 18px; margin:26px 0 8px; font-size:14.5px; }
+  .callout svg { flex:none; color:var(--trail); margin-top:2px; }
+  .callout b { color:var(--ink); }
+
+  .phase { font-family:"Fraunces",serif; font-style:italic; font-weight:500; color:var(--trail); font-size:14px;
+    text-transform:uppercase; letter-spacing:.06em; margin:44px 0 6px; }
+
+  .steps { list-style:none; margin:8px 0 0; padding:0; }
+  .step { position:relative; padding:0 0 30px 56px; }
+  .step:not(:last-child)::before { content:""; position:absolute; left:18px; top:38px; bottom:-2px; width:2px; background:var(--line); }
+  .step-num { position:absolute; left:0; top:0; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-family:"Fraunces",serif; font-weight:600;
+    color:#fff; background:var(--green); box-shadow:0 6px 16px -8px color-mix(in srgb,var(--green) 80%, transparent); }
+  .step h3 { margin:6px 0 6px; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .step p { margin:0; color:var(--sec); font-size:15px; }
+  .path { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; color:var(--ink); }
+
+  figure.shot { margin:14px 0 0; }
+  figure.shot img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid var(--line); box-shadow:0 18px 40px -28px rgba(0,0,0,.5); }
+  figure.shot .ph { display:none; }
+  figure.shot.todo img { display:none; }
+  figure.shot.todo .ph { display:flex; align-items:center; gap:9px; color:var(--sec); font-size:13px;
+    border:1.5px dashed var(--line); border-radius:12px; padding:18px; background:var(--paper-2); }
+  figure.shot .ph code { font-size:12px; }
+
+  .endcta { display:flex; flex-wrap:wrap; gap:14px; margin:36px 0 0; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px; padding:13px 22px; border-radius:13px; transition:transform .18s ease; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); }
+  .btn:hover { transform:translateY(-2px); }
+
+  footer { border-top:1px solid var(--line); padding:28px 0 48px; margin-top:44px; color:var(--sec); font-size:13px; text-align:center; }
+  footer .madeby { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topbar"><p class="crumbs"><a href="/">GPXManagement</a> · <a href="/aide/">Aide</a> · Synchroniser Strava</p></nav>
+
+  <header class="intro">
+    <span class="badge-strava">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M15.4 21 12.4 15h2.4l1.8 3 1.8-3H21l-3 6h-2.6ZM9.8 3l5 9.6h-3L9.8 9 6.6 12.6h-3L9.8 3Z"/></svg>
+      Strava
+    </span>
+    <h1>Connecter &amp; synchroniser Strava</h1>
+    <p class="dek">Une fois votre historique importé, reliez votre compte Strava pour récupérer automatiquement vos nouvelles sorties.</p>
+
+    <div class="callout">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div><b>Import et synchronisation, deux usages complémentaires.</b> L'<a href="/aide/strava/">import d'archive</a> récupère tout votre historique en une fois. La connexion ci-dessous garde ensuite votre bibliothèque à jour, sortie après sortie.</div>
+    </div>
+  </header>
+
+  <p class="phase">Première connexion</p>
+  <ol class="steps">
+    <li class="step">
+      <span class="step-num">1</span>
+      <h3>Ouvrez les réglages Strava</h3>
+      <p>Menu <span class="path">GPXManagement ▸ Réglages…</span> (<span class="path">⌘ ,</span>), puis onglet <b>Strava</b>.</p>
+      <figure class="shot"><img src="img/etape-1.png" alt="Onglet Strava des réglages de GPXManagement" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/strava-sync/img/etape-1.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">2</span>
+      <h3>Cliquez sur « Se connecter avec Strava »</h3>
+      <p>Votre navigateur s'ouvre sur la page d'autorisation de Strava. L'app affiche « Autorisation dans le navigateur… » en attendant.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">3</span>
+      <h3>Autorisez l'accès</h3>
+      <p>Connectez-vous à Strava si besoin, puis cliquez <b>Autoriser</b>. Laissez cochée l'option <b>« Voir les données de toutes vos activités »</b> — sans elle, la synchronisation ne peut pas récupérer vos sorties.</p>
+      <figure class="shot"><img src="img/etape-3.png" alt="Page d'autorisation Strava avec le bouton Autoriser" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/strava-sync/img/etape-3.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">4</span>
+      <h3>De retour dans l'app</h3>
+      <p>L'état passe à <b>Connecté</b> et votre nom d'athlète s'affiche. La connexion est mémorisée (jeton stocké dans le trousseau).</p>
+    </li>
+  </ol>
+
+  <p class="phase">Synchroniser</p>
+  <ol class="steps" start="5">
+    <li class="step">
+      <span class="step-num">5</span>
+      <h3>Lancez la synchronisation</h3>
+      <p>Dans la section <b>Synchronisation</b>, cliquez <span class="path">Synchroniser ▸ Maintenant</span>. GPXManagement récupère vos activités GPS depuis la dernière synchro, avec <b>déduplication automatique</b> (rien n'est importé en double, même si vous aviez déjà l'archive).</p>
+      <figure class="shot"><img src="img/etape-5.png" alt="Section Synchronisation, bouton Maintenant" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/strava-sync/img/etape-5.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">6</span>
+      <h3>Gros historique : laissez reprendre</h3>
+      <p>Le débit de l'API Strava est limité. Sur un grand nombre d'activités, la synchro peut s'arrêter en cours : relancez simplement <b>Maintenant</b>, elle reprend là où elle s'était arrêtée. La date de dernière synchro et un résumé s'affichent sous le bouton.</p>
+    </li>
+  </ol>
+
+  <div class="endcta">
+    <a class="btn btn-ghost" href="/aide/">← Toutes les aides</a>
+    <a class="btn btn-primary" href="/">Accueil</a>
+  </div>
+
+  <footer>
+    <p class="madeby">GPXManagement</p>
+    <p>© <span id="y">2026</span> Romain Demoustier</p>
+  </footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>
