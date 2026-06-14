@@ -12,8 +12,11 @@ enum AppConfig {
         return "\(short) (\(buildNumber))"
     }
 
-    /// Page de la version alpha, ouverte au clic sur le bandeau.
-    static let alphaURL = URL(string: "https://www.gpxmanagement.net/alpha/")!
+    /// Page de la version alpha (téléchargement), ouverte au clic sur le bandeau.
+    static let alphaURL = URL(string: "https://www.gpxmanagement.net/download/")!
+
+    /// Page d'aide du site, ouverte depuis le menu Aide.
+    static let helpURL = URL(string: "https://www.gpxmanagement.net/aide/")!
 
     /// Date d'expiration de la version alpha : à partir de cette date, l'app refuse de s'ouvrir.
     static let alphaExpiry: Date = {

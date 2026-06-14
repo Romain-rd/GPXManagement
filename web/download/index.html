@@ -5,32 +5,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Télécharger GPXManagement — Alpha</title>
 <meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --accent:#1E88E5; --bg:#f5f5f7; --fg:#1d1d1f; --sec:#6e6e73; --card:#ffffff; --line:#e3e3e6; --warn:#B26A00; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#1c1c1e; --fg:#f5f5f7; --sec:#9a9a9e; --card:#2c2c2e; --line:#3a3a3c; --warn:#FFD60A; } }
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40;
+    --trail:#DD6B1F; --warn:#B26A00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a;
+      --trail:#F0883E; --warn:#FFD60A;
+    }
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  .wrap { max-width:640px; margin:0 auto; padding:64px 20px 56px; text-align:center; }
-  .logo { width:84px; height:84px; border-radius:22px; background:linear-gradient(140deg,var(--accent),#43A047); display:inline-flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(30,136,229,.28); }
-  .logo svg { width:50px; height:50px; }
-  h1 { font-size:34px; font-weight:800; letter-spacing:-.03em; margin:20px 0 6px; }
-  .version { color:var(--sec); margin:0 0 18px; }
-  .badge { display:inline-block; padding:5px 12px; border-radius:999px; font-size:13px; font-weight:700; letter-spacing:.02em; color:#fff; background:var(--warn); }
-  .alpha-note { margin:22px auto 0; max-width:520px; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:12px; padding:14px 18px; text-align:left; color:var(--sec); font-size:14.5px; }
-  .dl { display:inline-flex; align-items:center; gap:10px; margin-top:28px; padding:15px 28px; border-radius:14px; background:var(--accent); color:#fff; text-decoration:none; font-size:18px; font-weight:700; box-shadow:0 6px 20px rgba(30,136,229,.3); }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .crumbs { max-width:640px; margin:0 auto; padding:26px 24px 0; font-size:14px; color:var(--sec); }
+  .crumbs a { font-weight:600; }
+
+  .wrap { max-width:640px; margin:0 auto; padding:30px 24px 56px; text-align:center; position:relative; }
+  .glow { position:absolute; left:50%; top:-40px; transform:translateX(-50%); width:560px; height:360px; z-index:-1; pointer-events:none;
+    background:radial-gradient(ellipse, color-mix(in srgb,var(--green) 18%, transparent), transparent 64%); }
+  .logo { width:88px; height:88px; border-radius:24px; background:linear-gradient(140deg,var(--green),var(--trail));
+    display:inline-flex; align-items:center; justify-content:center; box-shadow:0 16px 40px -14px color-mix(in srgb,var(--green) 80%, transparent); }
+  .logo svg { width:52px; height:52px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(34px,6vw,52px); letter-spacing:-.02em; margin:22px 0 6px; }
+  .version { color:var(--sec); margin:0 0 16px; font-variant-numeric:tabular-nums; }
+  .badge { display:inline-block; padding:6px 14px; border-radius:999px; font-size:12.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:#fff; background:var(--trail); }
+
+  .alpha-note { margin:24px auto 0; max-width:520px; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--trail);
+    border-radius:14px; padding:15px 18px; text-align:left; color:var(--sec); font-size:14.5px; }
+  .alpha-note strong { color:var(--ink); }
+
+  .dl { display:inline-flex; align-items:center; gap:11px; margin-top:30px; padding:16px 30px; border-radius:15px;
+    background:var(--green); color:#fff; font-size:18px; font-weight:700; box-shadow:0 14px 34px -12px color-mix(in srgb,var(--green) 75%, transparent);
+    transition:transform .18s ease, box-shadow .18s ease; }
+  .dl:hover { transform:translateY(-2px); box-shadow:0 20px 40px -12px color-mix(in srgb,var(--green) 75%, transparent); }
   .dl small { font-weight:500; opacity:.85; }
   .meta { margin-top:14px; color:var(--sec); font-size:13px; }
-  .steps { max-width:520px; margin:36px auto 0; text-align:left; }
-  .steps h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--sec); margin:0 0 10px; }
-  .steps ol { margin:0; padding-left:20px; color:var(--fg); }
-  .steps li { margin:4px 0; }
-  footer { margin-top:48px; padding-top:20px; border-top:1px solid var(--line); color:var(--sec); font-size:13px; }
-  footer .madeby { color:var(--accent); font-weight:600; }
-  a.home { color:var(--accent); }
+
+  .steps { max-width:520px; margin:42px auto 0; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:8px 22px 18px; }
+  .steps h2 { font-family:"Fraunces",serif; font-weight:600; font-size:18px; margin:16px 0 8px; }
+  .steps ol { margin:0; padding-left:20px; }
+  .steps li { margin:6px 0; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; }
+
+  footer { margin-top:48px; padding-top:22px; border-top:1px solid var(--line); color:var(--sec); font-size:13px; }
+  footer .madeby { color:var(--green); font-weight:700; }
 </style>
 </head>
 <body>
+<nav class="crumbs"><a href="/">GPXManagement</a> · Télécharger</nav>
 <div class="wrap">
+  <div class="glow"></div>
   <div class="logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M5 20c2-7 5-3 7-9 1.6-4.8 5-4 5-4"/>
@@ -38,9 +74,9 @@
       <circle cx="5" cy="20" r="2.4" fill="#fff" stroke="none"/>
     </svg>
   </div>
-  <h1>GPXManagement</h1>
+  <h1>Télécharger GPXManagement</h1>
   <p class="version">Version 1.0 (build 7) — macOS</p>
-  <span class="badge">ALPHA · SUR INVITATION</span>
+  <span class="badge">Alpha · sur invitation</span>
 
   <div class="alpha-note">
     <strong>Version alpha, distribuée sur invitation.</strong> Elle peut contenir des bugs et évoluer sans préavis.
@@ -48,7 +84,8 @@
   </div>
 
   <a class="dl" href="GPXManagement-1.0.dmg" download>
-    ⬇︎ Télécharger le DMG <small>· 1.0</small>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>
+    Télécharger le DMG <small>· 1.0</small>
   </a>
   <p class="meta">macOS 15 (Sequoia) ou plus récent · signé Developer ID et notarisé Apple</p>
 
@@ -63,8 +100,10 @@
 
   <footer>
     <p class="madeby">GPXManagement</p>
-    <p>© Romain Demoustier · <a class="home" href="/">Accueil</a></p>
+    <p><a href="/manifeste/">Manifeste</a> · <a href="/aide/">Aide</a></p>
+    <p>© <span id="y">2026</span> Romain Demoustier</p>
   </footer>
 </div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
 </body>
 </html>

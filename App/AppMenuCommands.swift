@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import GPXCore
 import GPXMapKit
 
@@ -71,6 +72,11 @@ struct AppMenuCommands: Commands {
             }
             .keyboardShortcut("r", modifiers: .command)
             .help("Re-télécharge les tuiles des cartes visibles (utile si une carte ne s'est pas chargée)")
+        }
+
+        // Menu Aide : renvoie vers la page d'aide du site (remplace l'entrée d'aide native sans livre d'aide).
+        CommandGroup(replacing: .help) {
+            Button("Aide GPXManagement") { NSWorkspace.shared.open(AppConfig.helpURL) }
         }
 
         // Menu Activité : actions sur la sélection (fenêtre active).
