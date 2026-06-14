@@ -1134,20 +1134,6 @@ struct ActivityDetailView: View {
             url = chosen
         }
 
-        let config = VideoConfig(
-            width: dims.width,
-            height: dims.height,
-            layout: layout,
-            transition: MediaTransition(rawValue: videoTransitionRaw) ?? .fade,
-            showHeartRate: videoHeartRateOn && layout.profile != nil,
-            showIntro: videoIntroOn,
-            showOutro: videoOutroOn,
-            mapLayer: MapLayer(rawValue: videoMapLayerRaw) ?? .ignScan25,
-            title: activity.title,
-            dateText: Self.formatDate(activity.startDate),
-            summary: videoSummaryLines()
-        )
-
         Task {
             isExportingVideo = true
             videoProgress = 0
@@ -1159,6 +1145,22 @@ struct ActivityDetailView: View {
                 return
             }
 
+            // Titre relu depuis Core Data : prend le renommage le plus récent, même si la fenêtre porte un résumé en cache.
+            let currentTitle = (try? await repository.fetchTitle(id: activity.id)) ?? activity.title
+            let config = VideoConfig(
+                width: dims.width,
+                height: dims.height,
+                layout: layout,
+                transition: MediaTransition(rawValue: videoTransitionRaw) ?? .fade,
+                showHeartRate: videoHeartRateOn && layout.profile != nil,
+                showIntro: videoIntroOn,
+                showOutro: videoOutroOn,
+                mapLayer: MapLayer(rawValue: videoMapLayerRaw) ?? .ignScan25,
+                title: currentTitle,
+                dateText: Self.formatDate(activity.startDate),
+                summary: videoSummaryLines()
+            )
+
             // Médias sélectionnés (épingle active) et géolocalisés.
             var media: [TrackVideoMedia] = []
             for asset in photoAssets where isPhotoShown(asset.localIdentifier) {
@@ -1166,10 +1168,10 @@ struct ActivityDetailView: View {
                 let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                 if asset.mediaType == .video {
                     if let av = await PhotoLibraryService.avAsset(for: asset) {
-                        media.append(.video(asset: av, thumbnail: thumb, coordinate: coord))
+                        media.append(.video(asset: av, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
                     }
                 } else if let image = await PhotoLibraryService.fullImage(for: asset) {
-                    media.append(.photo(image: image, thumbnail: thumb, coordinate: coord))
+                    media.append(.photo(image: image, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
                 }
             }
 
@@ -1178,7 +1180,7 @@ struct ActivityDetailView: View {
                     Task { @MainActor in videoProgress = publish ? fraction * 0.5 : fraction }
                 }
                 if publish {
-                    await publishVideo(localURL: url)
+                    await publishVideo(localURL: url, title: currentTitle)
                     try? FileManager.default.removeItem(at: url)
                 } else {
                     NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -1190,10 +1192,10 @@ struct ActivityDetailView: View {
     }
 
     /// Upload le film sur Bunny Storage + une page wrapper `<video>`, puis ouvre/copie l'URL publique.
-    private func publishVideo(localURL: URL) async {
+    private func publishVideo(localURL: URL, title: String) async {
         guard let data = try? Data(contentsOf: localURL) else { exportError = "Vidéo introuvable après le rendu."; return }
         let folder = "films/\(activity.id.uuidString.lowercased())"
-        let html = Self.videoPageHTML(title: activity.title, dateText: Self.formatDate(activity.startDate))
+        let html = Self.videoPageHTML(title: title, dateText: Self.formatDate(activity.startDate))
         let files: [String: Data] = ["film.mp4": data, "index.html": Data(html.utf8)]
         do {
             try await BunnyStorageService.publish(files: files, folder: folder) { f, s in

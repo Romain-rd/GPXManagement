@@ -8,17 +8,23 @@ import GPXCore
 import GPXMapKit
 
 public enum TrackVideoMedia {
-    case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D)
-    case video(asset: AVAsset, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D)
+    case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?)
+    case video(asset: AVAsset, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?)
 
     public var coordinate: CLLocationCoordinate2D {
         switch self {
-        case .photo(_, _, let c), .video(_, _, let c): return c
+        case .photo(_, _, let c, _), .video(_, _, let c, _): return c
         }
     }
     public var thumbnail: NSImage? {
         switch self {
-        case .photo(_, let t, _), .video(_, let t, _): return t
+        case .photo(_, let t, _, _), .video(_, let t, _, _): return t
+        }
+    }
+    /// Heure de prise du média (EXIF/PHAsset) : sert à positionner le média dans le temps du parcours.
+    public var date: Date? {
+        switch self {
+        case .photo(_, _, _, let d), .video(_, _, _, let d): return d
         }
     }
     public var isVideo: Bool { if case .video = self { return true }; return false }
@@ -349,8 +355,17 @@ public enum TrackVideoExporter {
                            y: projectedPoints[s.lo].y + (projectedPoints[s.hi].y - projectedPoints[s.lo].y) * s.t)
         }
 
+        // Position d'un média le long du parcours : par son heure de prise quand on la connaît — c'est le
+        // seul moyen de lever l'ambiguïté d'un aller-retour, où une même position correspond à deux instants
+        // (sans ça, une photo du retour retombait sur l'aller). Repli sur la position la plus proche sinon.
+        func distanceForMedia(_ m: TrackVideoMedia) -> Double {
+            if let date = m.date, let idx = nearestTimeIndex(to: date, in: timestamps) {
+                return cumulative[idx]
+            }
+            return cumulative[nearestIndex(to: m.coordinate, in: coords)]
+        }
         let ordered = media
-            .map { (m: $0, dist: cumulative[nearestIndex(to: $0.coordinate, in: coords)]) }
+            .map { (m: $0, dist: distanceForMedia($0)) }
             .sorted { $0.dist < $1.dist }
 
         let profilePad = 8.0 * scale
@@ -410,7 +425,7 @@ public enum TrackVideoExporter {
             let overlay = profileOverlay(atMeters: entry.dist)
             let anim = Swift.max(1, Int(animSeconds * Double(fps)))
             switch entry.m {
-            case .photo(let image, _, _):
+            case .photo(let image, _, _, _):
                 let total = Int(photoSeconds * Double(fps))
                 for i in 0..<total {
                     autoreleasepool {
@@ -420,7 +435,7 @@ public enum TrackVideoExporter {
                         append(renderFrame(background: background, point: point, hud: info, encart: image, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, appearance: app))
                     }
                 }
-            case .video(let asset, _, _):
+            case .video(let asset, _, _, _):
                 let start = Double(frameIndex) / Double(fps)
                 let emitted = await emitVideoSegment(asset: asset, background: background, point: point, hud: info, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, transition: config.transition, animFrames: anim, ciContext: ciContext, append: append)
                 if emitted > 0 { audioInserts.append(AudioInsert(asset: asset, start: start, duration: Double(emitted) / Double(fps))) }
@@ -834,6 +849,17 @@ public enum TrackVideoExporter {
         for (i, c) in coords.enumerated() {
             let d = target.distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
             if d < bestDist { bestDist = d; best = i }
+        }
+        return best
+    }
+
+    private static func nearestTimeIndex(to date: Date, in timestamps: [Date?]) -> Int? {
+        var best: Int?
+        var bestDelta = Double.greatestFiniteMagnitude
+        for (i, t) in timestamps.enumerated() {
+            guard let t else { continue }
+            let delta = abs(t.timeIntervalSince(date))
+            if delta < bestDelta { bestDelta = delta; best = i }
         }
         return best
     }
