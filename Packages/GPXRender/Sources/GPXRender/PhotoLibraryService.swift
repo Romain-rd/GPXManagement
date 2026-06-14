@@ -14,11 +14,18 @@ public enum PhotoLibraryService {
         }
     }
 
-    /// Clé d'identité stable d'un média entre Macs : nom de fichier d'origine + heure de prise.
+    /// Identité stable d'un média entre Macs : nom de fichier d'origine + heure de prise (décomposée).
     /// (Le `localIdentifier` diffère sur chaque photothèque ; ces métadonnées, elles, suivent la photo.)
-    public static func stableKey(for asset: PHAsset) -> String {
-        let name = PHAssetResource.assetResources(for: asset).first?.originalFilename ?? asset.localIdentifier
-        return MediaPlacement.key(file: name, date: asset.creationDate?.timeIntervalSince1970)
+    public static func identity(for asset: PHAsset) -> (key: String, file: String, date: Double?) {
+        let file = PHAssetResource.assetResources(for: asset).first?.originalFilename ?? asset.localIdentifier
+        let date = asset.creationDate?.timeIntervalSince1970
+        return (MediaPlacement.key(file: file, date: date), file, date)
+    }
+
+    public static func stableKey(for asset: PHAsset) -> String { identity(for: asset).key }
+
+    public static func asset(withLocalIdentifier id: String) -> PHAsset? {
+        PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
     }
 
     /// Photos de la photothèque prises dans la fenêtre temporelle ET géolocalisées à proximité du tracé.

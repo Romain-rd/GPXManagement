@@ -33,8 +33,10 @@ struct ActivityDetailView: View {
     @State private var photoAssets: [PHAsset] = []
     @State private var photoMapItems: [PhotoMapItem] = []
     @State private var previewURL: URL?
-    @State private var hiddenPhotoIDs: Set<String> = []   // photos explicitement désélectionnées
-    @State private var shownPhotoIDs: Set<String> = []     // photos explicitement sélectionnées
+    @State private var hiddenPhotoIDs: Set<String> = []   // ancien état local (par localIdentifier) — source de migration
+    @State private var shownPhotoIDs: Set<String> = []     // idem
+    @State private var mediaState: [String: MediaPlacement] = [:]   // état synchronisé (par clé stable nom+date)
+    @State private var assetIdentity: [String: (key: String, file: String, date: Double?)] = [:]  // localIdentifier → identité stable
     @State private var editingMedia: EditingMedia?
     @State private var photosReload = 0
     @AppStorage("appCreatedAssets") private var appCreatedAssetsJSON = ""
@@ -121,12 +123,15 @@ struct ActivityDetailView: View {
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
             shownPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.shownPhotosKey) ?? [])
             Task { await model.loadPublishState(activityId: activity.id) }
+            Task { await loadMediaState() }
         }
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
+            assetIdentity = [:]
             model.resetPublishState()
             Task { await model.loadPublishState(activityId: activity.id) }
+            Task { await loadMediaState() }
         }
         .onChange(of: activity.title) { _, newTitle in
             if !titleFocused { titleDraft = newTitle }
@@ -761,10 +766,53 @@ struct ActivityDetailView: View {
     private static let shownPhotosKey = "photosShownExplicit"
 
     /// État de sélection d'une photo : explicite (montrée/cachée) sinon valeur par défaut (préférence).
+    /// Source de vérité : `mediaState` (synchronisé) ; repli sur l'ancien état local en attendant la migration.
     private func isPhotoShown(_ id: String) -> Bool {
+        if let onMap = placement(for: id)?.onMap { return onMap }
         if shownPhotoIDs.contains(id) { return true }
         if hiddenPhotoIDs.contains(id) { return false }
         return photosSelectedByDefault
+    }
+
+    private func placement(for localID: String) -> MediaPlacement? {
+        guard let identity = assetIdentity[localID] else { return nil }
+        return mediaState[identity.key]
+    }
+
+    private func loadMediaState() async {
+        let data = try? await repository.fetchMediaState(id: activity.id)
+        mediaState = MediaStateCodec.decode(data)
+    }
+
+    private func persistMediaState() {
+        let data = MediaStateCodec.encode(mediaState)
+        let id = activity.id
+        Task { try? await repository.updateMediaState(id: id, data: data) }
+    }
+
+    /// Calcule l'identité stable (clé nom+date) des assets chargés, puis migre l'ancien état local par localIdentifier.
+    private func rebuildAssetIdentity(_ assets: [PHAsset]) {
+        var map: [String: (key: String, file: String, date: Double?)] = [:]
+        for asset in assets { map[asset.localIdentifier] = PhotoLibraryService.identity(for: asset) }
+        assetIdentity = map
+        migrateLegacySelection()
+    }
+
+    /// Bascule l'ancienne sélection (par localIdentifier, locale à ce Mac) vers `mediaState` (par clé stable, synchronisé).
+    /// Ne touche qu'aux entrées encore indécises : `mediaState` (éventuellement venu d'un autre Mac) prime.
+    private func migrateLegacySelection() {
+        var changed = false
+        for (localID, identity) in assetIdentity {
+            var p = mediaState[identity.key] ?? MediaPlacement(file: identity.file, date: identity.date)
+            var touched = false
+            if p.onMap == nil {
+                if shownPhotoIDs.contains(localID) { p.onMap = true; touched = true }
+                else if hiddenPhotoIDs.contains(localID) { p.onMap = false; touched = true }
+            }
+            if !p.appCreated, appCreatedAssets.contains(localID) { p.appCreated = true; touched = true }
+            if touched, !p.isDefault { mediaState[identity.key] = p; changed = true }
+        }
+        if changed { persistMediaState() }
     }
 
     private var mapPhotos: [PhotoMapItem] {
@@ -782,13 +830,14 @@ struct ActivityDetailView: View {
             showOnMap: $photosOnMapEnabled,
             reloadToken: photosReload,
             isShownOnMap: { isPhotoShown($0) },
-            isAppCreated: { appCreatedAssets.contains($0) },
+            isAppCreated: { isAppCreated($0) },
             onToggleMap: togglePhotoOnMap,
             onSelect: previewPhoto,
             onEdit: editMedia,
             onDelete: deleteMedia
         )
         .onChange(of: photoAssets) { _, newAssets in
+            rebuildAssetIdentity(newAssets)
             Task { await buildPhotoMapItems(newAssets) }
         }
         .sheet(item: $editingMedia) { media in
@@ -809,25 +858,39 @@ struct ActivityDetailView: View {
     }
 
     private func togglePhotoOnMap(_ id: String) {
-        if isPhotoShown(id) {
-            hiddenPhotoIDs.insert(id); shownPhotoIDs.remove(id)
-        } else {
-            shownPhotoIDs.insert(id); hiddenPhotoIDs.remove(id)
-        }
-        UserDefaults.standard.set(Array(hiddenPhotoIDs), forKey: Self.hiddenPhotosKey)
-        UserDefaults.standard.set(Array(shownPhotoIDs), forKey: Self.shownPhotosKey)
+        guard let identity = assetIdentity[id] else { return }
+        let newOnMap = !isPhotoShown(id)
+        var p = mediaState[identity.key] ?? MediaPlacement(file: identity.file, date: identity.date)
+        p.onMap = newOnMap
+        mediaState[identity.key] = p
+        persistMediaState()
     }
 
     // MARK: - Édition des médias
 
+    // Ancien marquage local (par localIdentifier) — conservé en lecture seule comme repli de migration.
     private var appCreatedAssets: Set<String> {
         guard let d = appCreatedAssetsJSON.data(using: .utf8),
               let arr = try? JSONDecoder().decode([String].self, from: d) else { return [] }
         return Set(arr)
     }
-    private func setAppCreatedAssets(_ set: Set<String>) {
-        if let d = try? JSONEncoder().encode(Array(set)), let s = String(data: d, encoding: .utf8) { appCreatedAssetsJSON = s }
+
+    /// Média créé par l'app (donc supprimable) : lu dans `mediaState`, repli sur l'ancien marquage local.
+    private func isAppCreated(_ localID: String) -> Bool {
+        if let appCreated = placement(for: localID)?.appCreated { return appCreated }
+        return appCreatedAssets.contains(localID)
     }
+
+    /// Marque un asset (par son identité stable) comme créé par l'app, dans l'état synchronisé.
+    private func markAppCreated(localID: String) {
+        guard let asset = PhotoLibraryService.asset(withLocalIdentifier: localID) else { return }
+        let identity = PhotoLibraryService.identity(for: asset)
+        var p = mediaState[identity.key] ?? MediaPlacement(file: identity.file, date: identity.date)
+        p.appCreated = true
+        mediaState[identity.key] = p
+        persistMediaState()
+    }
+
     private func editMedia(_ asset: PHAsset) {
         editingMedia = EditingMedia(id: asset.localIdentifier, asset: asset)
     }
@@ -835,7 +898,7 @@ struct ActivityDetailView: View {
         editingMedia = nil
         Task {
             if let id = await PhotoLibraryService.createImageAsset(jpeg: jpeg, creationDate: asset.creationDate, location: asset.location) {
-                setAppCreatedAssets(appCreatedAssets.union([id]))
+                markAppCreated(localID: id)
             }
             photosReload += 1
         }
@@ -844,7 +907,7 @@ struct ActivityDetailView: View {
         editingMedia = nil
         Task {
             if let id = await PhotoLibraryService.createVideoAsset(fileURL: url, creationDate: asset.creationDate, location: asset.location) {
-                setAppCreatedAssets(appCreatedAssets.union([id]))
+                markAppCreated(localID: id)
             }
             try? FileManager.default.removeItem(at: url)
             photosReload += 1
@@ -853,9 +916,10 @@ struct ActivityDetailView: View {
 
     private func deleteMedia(_ asset: PHAsset) {
         let id = asset.localIdentifier
+        let key = assetIdentity[id]?.key
         Task {
             if await PhotoLibraryService.deleteAssets([id]) {
-                setAppCreatedAssets(appCreatedAssets.subtracting([id]))
+                if let key { mediaState[key] = nil; persistMediaState() }
                 photosReload += 1
             }
         }
