@@ -24,6 +24,7 @@ struct ActivityDetailView: View {
     @State private var isShareSheetPresented = false
     @State private var exportError: String?
     @State private var isExportingPDF = false
+    @State private var isReprocessing = false
     @State private var profileMode: ProfileMode = .distance
     @State private var profileMetric: ProfileMetric = .altitude
     @State private var highlightedCoordinate: CLLocationCoordinate2D?
@@ -162,6 +163,22 @@ struct ActivityDetailView: View {
                 }
                 .disabled(listVM.renamingIds.contains(activity.id) || !model.hasTrack)
                 .help("Renomme l'activité avec lieu de départ → point de passage → arrivée")
+
+                Button {
+                    Task {
+                        isReprocessing = true
+                        defer { isReprocessing = false }
+                        await AppServices.shared.reprocessActivity(id: activity.id)
+                    }
+                } label: {
+                    if isReprocessing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Réparer", systemImage: "wrench.and.screwdriver")
+                    }
+                }
+                .disabled(isReprocessing)
+                .help("Ré-analyse le fichier source et rafraîchit les statistiques (distance, dénivelé, fréquence cardiaque…)")
 
                 Button {
                     Task { await exportGPX() }

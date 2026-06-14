@@ -253,6 +253,22 @@ extension CoreDataActivityRepository {
         }
     }
 
+    public func fetchSourceRecomputeEntry(id: UUID) async throws -> SourceRecomputeEntry? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let object = try context.fetch(fetch).first,
+                  let path = object.value(forKey: "sourceFileName") as? String, !path.isEmpty,
+                  let formatRaw = object.value(forKey: "sourceFileFormat") as? String,
+                  let format = SourceFileFormat(rawValue: formatRaw) else { return nil }
+            let origin = ActivityOrigin(rawValue: object.value(forKey: "origin") as? String ?? "") ?? .manualImport
+            let type = ActivityType(rawValue: object.value(forKey: "activityType") as? String ?? "") ?? .other
+            return SourceRecomputeEntry(id: id, relativePath: path, format: format, origin: origin, activityType: type)
+        }
+    }
+
     public func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {

@@ -116,6 +116,33 @@ extension AppServices {
 
     /// Re-traite tous les fichiers stockés : recalcule tracé + statistiques (corrige les tracés
     /// pollués, ex. Scenic) et met à jour la source. Réaffecte le type déduit si resté générique.
+    /// Répare une activité : ré-analyse son fichier source et rafraîchit ses statistiques (utile pour les
+    /// activités importées par une ancienne version — ex. FC d'une séance sans GPS jamais enregistrée).
+    @discardableResult
+    func reprocessActivity(id: UUID) async -> Bool {
+        guard let repo = coreDataRepository,
+              let entry = try? await repo.fetchSourceRecomputeEntry(id: id) else {
+            importError = "Activité sans fichier source exploitable."
+            return false
+        }
+        do {
+            let url = try await storage.url(forRelativePath: entry.relativePath)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                importError = "Fichier source introuvable dans le conteneur iCloud."
+                return false
+            }
+            let result = try await importer.reprocess(fileAt: url, origin: entry.origin)
+            // Ne reclasse que si le type est resté générique (« Autre »).
+            let newType: ActivityType? = (entry.activityType == .other && (result.suggestedType ?? .other) != .other) ? result.suggestedType : nil
+            try await repo.applyReprocess(id: id, result: result, newType: newType)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la réparation : \(error.localizedDescription)"
+            return false
+        }
+    }
+
     func reprocessAllFromSource() async {
         guard let repo = coreDataRepository else { return }
         isReprocessing = true
