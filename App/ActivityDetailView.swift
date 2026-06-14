@@ -160,7 +160,7 @@ struct ActivityDetailView: View {
                         Label("Nommer d'après le parcours", systemImage: "mappin.and.ellipse")
                     }
                 }
-                .disabled(listVM.renamingIds.contains(activity.id))
+                .disabled(listVM.renamingIds.contains(activity.id) || !model.hasTrack)
                 .help("Renomme l'activité avec lieu de départ → point de passage → arrivée")
 
                 Button {
@@ -168,6 +168,7 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Exporter en GPX", systemImage: "arrow.down.doc")
                 }
+                .disabled(!model.hasTrack)
                 Button {
                     Task { await exportPDF() }
                 } label: {
@@ -177,7 +178,7 @@ struct ActivityDetailView: View {
                         Label("Exporter en PDF", systemImage: "doc.richtext")
                     }
                 }
-                .disabled(isExportingPDF)
+                .disabled(isExportingPDF || !model.hasTrack)
                 Button {
                     showWebExportOptions = true
                 } label: {
@@ -187,7 +188,7 @@ struct ActivityDetailView: View {
                         Label("Exporter en page web", systemImage: "globe")
                     }
                 }
-                .disabled(isExportingWeb)
+                .disabled(isExportingWeb || !model.hasTrack)
                 .help("Génère une page web de présentation (même contenu que le détail), prête pour un CDN")
                 Button {
                     showVideoOptions = true
@@ -198,7 +199,7 @@ struct ActivityDetailView: View {
                         Label("Créer une vidéo", systemImage: "film")
                     }
                 }
-                .disabled(isExportingVideo)
+                .disabled(isExportingVideo || !model.hasTrack)
                 .help("Crée un film du parcours (point animé) avec les photos/vidéos sélectionnées")
 
                 Button {
@@ -206,6 +207,7 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
+                .disabled(!model.hasTrack)
                 } else if isStandaloneWindow {
                     // Plein écran (fenêtre autonome) : sortie dans la toolbar (reçoit le clic, au-dessus de la carte).
                     Button { fullscreenMap = false } label: {
