@@ -269,8 +269,17 @@ struct ActivityDetailView: View {
                         if !focused { commitTitle() }
                     }
                     .help("Renommer le tracé")
-                Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text("\(activity.activityType.displayName) · \(Self.formatDate(activity.startDate))")
+                        .foregroundStyle(.secondary)
+                    if activity.isCourse {
+                        Label("Parcours", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Capsule().fill(.tint.opacity(0.18)))
+                            .foregroundStyle(.tint)
+                    }
+                }
                 if !activity.tags.isEmpty {
                     HStack(spacing: 6) {
                         ForEach(activity.tags, id: \.self) { tag in
@@ -283,6 +292,24 @@ struct ActivityDetailView: View {
                 }
             }
             Spacer()
+            Menu {
+                Button {
+                    Task { await listVM.setIsCourse(id: activity.id, isCourse: false) }
+                } label: {
+                    Label("Activité réelle", systemImage: activity.isCourse ? "circle" : "checkmark")
+                }
+                Button {
+                    Task { await listVM.setIsCourse(id: activity.id, isCourse: true) }
+                } label: {
+                    Label("Parcours (préparation)", systemImage: activity.isCourse ? "checkmark" : "circle")
+                }
+            } label: {
+                Image(systemName: "arrow.left.arrow.right.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Classer comme activité réelle ou parcours")
         }
     }
 

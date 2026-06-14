@@ -291,9 +291,9 @@ final class AppServices {
         pendingImports = proposals
     }
 
-    func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String) async {
+    func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String, isCourse: Bool? = nil) async {
         do {
-            _ = try await importer.confirmImport(proposal, activityType: activityType, title: title)
+            _ = try await importer.confirmImport(proposal, activityType: activityType, title: title, isCourse: isCourse)
             pendingImports.removeAll { $0.sourceURL == proposal.sourceURL }
             importedCount += 1
         } catch {

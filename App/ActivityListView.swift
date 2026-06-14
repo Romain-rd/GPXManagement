@@ -263,6 +263,17 @@ struct ActivityListView: View {
                 }
             }
             Divider()
+            if ids.contains(where: { id in listVM.allActivities.first(where: { $0.id == id })?.isCourse == false }) {
+                Button("Classer comme parcours") {
+                    Task { await listVM.setIsCourse(ids: ids, isCourse: true) }
+                }
+            }
+            if ids.contains(where: { id in listVM.allActivities.first(where: { $0.id == id })?.isCourse == true }) {
+                Button("Classer comme activité") {
+                    Task { await listVM.setIsCourse(ids: ids, isCourse: false) }
+                }
+            }
+            Divider()
             Button("Supprimer", role: .destructive) {
                 Task {
                     for id in ids { await listVM.delete(id: id) }

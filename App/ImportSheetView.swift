@@ -19,6 +19,7 @@ struct ImportSheetView: View {
     @Bindable var services: AppServices
     @State private var editedTitle: String = ""
     @State private var editedType: ActivityType = .cyclingRoad
+    @State private var editedIsCourse: Bool = false
     @State private var isNaming = false
 
     private var currentProposal: ImportProposal? {
@@ -125,6 +126,23 @@ struct ImportSheetView: View {
                 }
                 Spacer()
             }
+            HStack(spacing: 8) {
+                Text("Catégorie")
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $editedIsCourse) {
+                    Text("Activité réelle").tag(false)
+                    Text("Parcours").tag(true)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+                if proposal.suggestedIsCourse {
+                    Label("Tracé sans horodatage", systemImage: "wand.and.stars")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
         }
     }
 
@@ -174,7 +192,7 @@ struct ImportSheetView: View {
             }
             Button("Importer") {
                 Task {
-                    await services.confirmImport(proposal, activityType: editedType, title: editedTitle)
+                    await services.confirmImport(proposal, activityType: editedType, title: editedTitle, isCourse: editedIsCourse)
                 }
             }
             .keyboardShortcut(.defaultAction)
@@ -189,6 +207,7 @@ struct ImportSheetView: View {
         if let p = currentProposal {
             editedType = p.suggestedActivityType ?? .cyclingRoad
             editedTitle = p.defaultTitle(for: editedType)
+            editedIsCourse = p.suggestedIsCourse
         }
     }
 
