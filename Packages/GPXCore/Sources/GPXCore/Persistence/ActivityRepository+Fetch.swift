@@ -142,6 +142,16 @@ extension CoreDataActivityRepository {
         }
     }
 
+    public func fetchSensorData(id: UUID) async throws -> Data? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "sensorData") as? Data
+        }
+    }
+
     public func updateTitle(id: UUID, title: String) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
@@ -294,6 +304,7 @@ extension CoreDataActivityRepository {
             activity.setValue(stats.boundingBox.minLongitude, forKey: "minLongitude")
             activity.setValue(stats.boundingBox.maxLongitude, forKey: "maxLongitude")
             activity.setValue(result.trackData, forKey: "trackData")
+            activity.setValue(result.sensorData.isEmpty ? nil : result.sensorData, forKey: "sensorData")
             activity.setValue(result.sourceApp, forKey: "sourceApp")
             if let newType { activity.setValue(newType.rawValue, forKey: "activityType") }
             activity.setValue(Date(), forKey: "updatedAt")

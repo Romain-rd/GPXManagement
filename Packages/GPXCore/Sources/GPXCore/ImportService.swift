@@ -50,11 +50,12 @@ public struct ActivityCreationPayload: Sendable {
     public let endDate: Date
     public let stats: ActivityStats
     public let trackData: Data
+    public let sensorData: Data   // série capteurs sans GPS (vide si activité GPS ou sans capteurs)
     public let fileSHA256: String
     public let stravaId: String?
     public let isCourse: Bool
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, sensorData: Data = Data(), fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false) {
         self.id = id
         self.title = title
         self.activityType = activityType
@@ -66,6 +67,7 @@ public struct ActivityCreationPayload: Sendable {
         self.endDate = endDate
         self.stats = stats
         self.trackData = trackData
+        self.sensorData = sensorData
         self.fileSHA256 = fileSHA256
         self.stravaId = stravaId
         self.isCourse = isCourse
@@ -77,14 +79,16 @@ public struct ReprocessResult: Sendable {
     public let startDate: Date
     public let endDate: Date
     public let trackData: Data
+    public let sensorData: Data
     public let sourceApp: String?
     public let suggestedType: ActivityType?
 
-    public init(stats: ActivityStats, startDate: Date, endDate: Date, trackData: Data, sourceApp: String?, suggestedType: ActivityType?) {
+    public init(stats: ActivityStats, startDate: Date, endDate: Date, trackData: Data, sensorData: Data = Data(), sourceApp: String?, suggestedType: ActivityType?) {
         self.stats = stats
         self.startDate = startDate
         self.endDate = endDate
         self.trackData = trackData
+        self.sensorData = sensorData
         self.sourceApp = sourceApp
         self.suggestedType = suggestedType
     }
@@ -216,6 +220,7 @@ public actor ImportService {
             startDate: startDate,
             endDate: endDate,
             trackData: trackData,
+            sensorData: Self.encodeSensors(parsed),
             sourceApp: Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin),
             suggestedType: ActivityTypeDetector.detect(hint: parsed.activityHint, fileFormat: format)
                 ?? ActivityTypeDetector.detect(source: ActivitySource(rawCreator: parsed.creator))
@@ -270,6 +275,7 @@ public actor ImportService {
             endDate: endDate,
             stats: proposal.stats,
             trackData: trackData,
+            sensorData: Self.encodeSensors(proposal.parsed),
             fileSHA256: proposal.fileSHA256,
             stravaId: proposal.stravaId,
             isCourse: isCourse ?? proposal.suggestedIsCourse
@@ -293,16 +299,22 @@ public actor ImportService {
         parsed.startDate ?? parsed.summary?.startDate ?? Date()
     }
 
+    private static func encodeSensors(_ parsed: ParsedTrack) -> Data {
+        guard !parsed.sensorSamples.isEmpty else { return Data() }
+        return SensorSeriesCodec.encode(SensorSeries(samples: parsed.sensorSamples)) ?? Data()
+    }
+
     private static func makeStats(for parsed: ParsedTrack) -> ActivityStats {
         guard parsed.points.isEmpty else {
             return ActivityStatsCalculator.compute(points: parsed.points)
         }
         // Activité sans tracé GPS (ex. séance enregistrée sans position) : on reprend les stats du
-        // résumé de séance (FIT) au lieu de tout laisser à 0 ; la vitesse moyenne est calculée à défaut.
+        // résumé de séance (FIT), avec repli sur la série de capteurs pour la FC ; vitesse moy. calculée à défaut.
         let s = parsed.summary
         let duration = s?.duration ?? 0
         let distance = s?.distance ?? 0
         let avgSpeed = s?.avgSpeed ?? (duration > 0 ? distance / duration : 0)
+        let hrStats = parsed.sensorSamples.isEmpty ? nil : SensorSeries(samples: parsed.sensorSamples).heartRateStats
         return ActivityStats(
             distance: distance,
             duration: duration,
@@ -312,8 +324,8 @@ public actor ImportService {
             avgSpeed: avgSpeed,
             maxSpeed: s?.maxSpeed ?? 0,
             maxSlope: 0,
-            avgHeartRate: s?.avgHeartRate,
-            maxHeartRate: s?.maxHeartRate,
+            avgHeartRate: s?.avgHeartRate ?? hrStats?.avg,
+            maxHeartRate: s?.maxHeartRate ?? hrStats?.max,
             boundingBox: .zero
         )
     }
