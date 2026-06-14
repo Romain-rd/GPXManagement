@@ -898,20 +898,23 @@ struct RaidDetailView: View {
                 var media: [TrackVideoMedia] = []
                 if status == .authorized || status == .limited {
                     let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                    let mediaState = MediaStateCodec.decode(try? await repository.fetchMediaState(id: member.id))
+                    let resolver = MediaTrackResolver(points: points)
                     let assets = PhotoLibraryService.photos(
                         start: member.startDate.addingTimeInterval(-1800),
                         end: member.endDate.addingTimeInterval(1800),
                         near: coords, maxDistance: 300
                     )
                     for asset in assets {
-                        guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
+                        let manual = mediaState[PhotoLibraryService.stableKey(for: asset)]?.posMeters
+                        guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, using: resolver, manualMeters: manual) else { continue }
                         let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                         if asset.mediaType == .video {
                             if let av = await PhotoLibraryService.avAsset(for: asset) {
-                                media.append(.video(asset: av, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
+                                media.append(.video(asset: av, thumbnail: thumb, coordinate: coord, date: asset.creationDate, manualMeters: manual))
                             }
                         } else if let image = await PhotoLibraryService.fullImage(for: asset) {
-                            media.append(.photo(image: image, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
+                            media.append(.photo(image: image, thumbnail: thumb, coordinate: coord, date: asset.creationDate, manualMeters: manual))
                         }
                     }
                 }

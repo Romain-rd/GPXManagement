@@ -2,6 +2,7 @@ import SwiftUI
 import AVKit
 import MapKit
 import Photos
+import Charts
 import GPXCore
 import GPXMapKit
 import GPXRender
@@ -36,6 +37,223 @@ enum CropRatio: String, CaseIterable, Identifiable {
 struct EditingMedia: Identifiable {
     let id: String
     let asset: PHAsset
+}
+
+// MARK: - Réglage de la position d'un média sur la trace
+
+struct PositioningMedia: Identifiable {
+    let id: String
+    let asset: PHAsset
+    let manualMeters: Double?
+}
+
+/// Éditeur « Position sur le parcours » : carte (marqueur) + profil (scrubber) synchronisés.
+/// Le glisser pose une position manuelle (posMeters) ; « Réinitialiser » revient à l'auto (heure→GPS).
+struct MediaPositionEditor: View {
+    let asset: PHAsset
+    let activityId: UUID
+    let activityType: ActivityType
+    let repository: CoreDataActivityRepository
+    let initialManualMeters: Double?
+    let onSave: (Double?) -> Void
+    let onCancel: () -> Void
+
+    @AppStorage("defaultMapLayer") private var defaultMapLayerRaw = MapLayer.ignScan25.rawValue
+
+    @State private var points: [TrackPoint] = []
+    @State private var profile: [ElevationProfilePoint] = []
+    @State private var resolver: MediaTrackResolver?
+    @State private var meters: Double = 0
+    @State private var manual: Bool = false
+    @State private var thumbnail: NSImage?
+    @State private var layer: MapLayer = .ignScan25
+    @State private var loaded = false
+
+    private var total: Double { resolver?.totalDistance ?? 0 }
+    private var gps: CLLocationCoordinate2D? { asset.location?.coordinate }
+    private var timeMeters: Double? {
+        guard let date = asset.creationDate else { return nil }
+        return resolver?.distance(manualMeters: nil, captureDate: date, gpsLatitude: nil, gpsLongitude: nil)
+    }
+    private var gpsMeters: Double? {
+        guard let c = gps else { return nil }
+        return resolver?.distance(manualMeters: nil, captureDate: nil, gpsLatitude: c.latitude, gpsLongitude: c.longitude)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            if loaded, let resolver, !resolver.isEmpty {
+                map(resolver)
+                profileChart
+                readout
+                sourceButtons
+            } else if loaded {
+                ContentUnavailableView("Tracé indisponible", systemImage: "map", description: Text("Impossible de charger le parcours de cette activité."))
+                    .frame(maxWidth: .infinity, minHeight: 200)
+            } else {
+                ProgressView().frame(maxWidth: .infinity, minHeight: 320)
+            }
+            Divider()
+            footer
+        }
+        .padding(20)
+        .frame(width: 560)
+        .task { await load() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Group {
+                if let thumbnail {
+                    Image(nsImage: thumbnail).resizable().scaledToFill()
+                } else {
+                    RoundedRectangle(cornerRadius: 6).fill(.quaternary)
+                }
+            }
+            .frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Position sur le parcours").font(.headline)
+                if let date = asset.creationDate {
+                    Text("Pris à \(Self.timeFormatter.string(from: date))").font(.caption).foregroundStyle(.secondary)
+                }
+                if let c = gps, let off = resolver?.distanceFromTrack(latitude: c.latitude, longitude: c.longitude), off > 80 {
+                    Label("GPS à \(Int(off)) m de la trace", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private func map(_ resolver: MediaTrackResolver) -> some View {
+        let coord = resolver.coordinate(atMeters: meters)
+        let c = CLLocationCoordinate2D(latitude: coord.latitude, longitude: coord.longitude)
+        return TrackMapView(
+            tracks: [TrackOverlayInput(activityId: activityId, activityType: activityType,
+                                       coordinates: points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })],
+            layer: $layer,
+            highlight: c,
+            photos: [PhotoMapItem(id: asset.localIdentifier, coordinate: c, image: thumbnail, isVideo: asset.mediaType == .video)]
+        )
+        .frame(height: 240)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var profileChart: some View {
+        Chart {
+            ForEach(Array(profile.enumerated()), id: \.offset) { _, p in
+                AreaMark(x: .value("km", p.distanceFromStart / 1000), y: .value("alt", p.altitude))
+                    .foregroundStyle(.tint.opacity(0.15))
+                LineMark(x: .value("km", p.distanceFromStart / 1000), y: .value("alt", p.altitude))
+                    .foregroundStyle(.tint)
+            }
+            if let t = timeMeters {
+                RuleMark(x: .value("heure", t / 1000)).foregroundStyle(.secondary)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+            }
+            if let g = gpsMeters {
+                RuleMark(x: .value("gps", g / 1000)).foregroundStyle(.gray)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            }
+            RuleMark(x: .value("position", meters / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 2))
+        }
+        .chartYAxis(.hidden)
+        .frame(height: 110)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                        guard let plot = proxy.plotFrame else { return }
+                        let x = value.location.x - geo[plot].origin.x
+                        if let km: Double = proxy.value(atX: x) {
+                            meters = min(max(0, km * 1000), total)
+                            manual = true
+                        }
+                    })
+            }
+        }
+    }
+
+    private var readout: some View {
+        let sample = sampleAt(meters)
+        return HStack(spacing: 16) {
+            Label(String(format: "%.1f km", meters / 1000), systemImage: "location")
+            if let t = sample.time { Label(Self.timeFormatter.string(from: t), systemImage: "clock") }
+            if let a = sample.altitude { Label("\(Int(a.rounded())) m", systemImage: "mountain.2") }
+            Spacer()
+            if manual { Text("Position manuelle").font(.caption).foregroundStyle(.orange) }
+            else { Text("Auto").font(.caption).foregroundStyle(.secondary) }
+        }
+        .font(.callout.monospacedDigit())
+    }
+
+    private var sourceButtons: some View {
+        HStack(spacing: 10) {
+            if let t = timeMeters {
+                Button("Aligner sur l'heure") { meters = t; manual = true }
+            }
+            if let g = gpsMeters {
+                Button("Aligner sur le GPS") { meters = g; manual = true }
+            }
+            Button("Réinitialiser (auto)") {
+                manual = false
+                meters = autoMeters() ?? 0
+            }.disabled(!manual)
+        }
+        .controlSize(.small)
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button("Annuler", role: .cancel) { onCancel() }
+            Button("Valider") { onSave(manual ? meters : nil) }.keyboardShortcut(.defaultAction)
+        }
+    }
+
+    private func autoMeters() -> Double? {
+        resolver?.distance(manualMeters: nil, captureDate: asset.creationDate,
+                           gpsLatitude: gps?.latitude, gpsLongitude: gps?.longitude)
+    }
+
+    private func sampleAt(_ m: Double) -> (altitude: Double?, time: Date?) {
+        guard !profile.isEmpty else { return (nil, nil) }
+        var lo = profile[0]
+        for p in profile {
+            if p.distanceFromStart >= m {
+                let span = p.distanceFromStart - lo.distanceFromStart
+                let t = span > 0 ? (m - lo.distanceFromStart) / span : 0
+                let alt = lo.altitude + (p.altitude - lo.altitude) * t
+                let time: Date? = {
+                    guard let t0 = lo.timestamp, let t1 = p.timestamp else { return lo.timestamp ?? p.timestamp }
+                    return t0.addingTimeInterval(t1.timeIntervalSince(t0) * t)
+                }()
+                return (alt, time)
+            }
+            lo = p
+        }
+        return (profile.last?.altitude, profile.last?.timestamp)
+    }
+
+    private func load() async {
+        layer = MapLayer(rawValue: defaultMapLayerRaw) ?? .ignScan25
+        thumbnail = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
+        if let data = try? await repository.fetchTrackData(id: activityId), !data.isEmpty,
+           let decoded = try? TrackPointCodec.decode(data) {
+            points = decoded
+            let r = MediaTrackResolver(points: decoded)
+            resolver = r
+            profile = ElevationProfileBuilder.decimate(ElevationProfileBuilder.build(points: decoded), maxPoints: 600)
+            if let m = initialManualMeters { meters = m; manual = true }
+            else { meters = r.distance(manualMeters: nil, captureDate: asset.creationDate, gpsLatitude: gps?.latitude, gpsLongitude: gps?.longitude) ?? 0 }
+        }
+        loaded = true
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "HH:mm"; return f
+    }()
 }
 
 /// Recadrage d'une photo selon un ratio, puis enregistrement d'une nouvelle photo dans la photothèque.

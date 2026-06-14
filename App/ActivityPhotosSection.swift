@@ -20,6 +20,7 @@ struct ActivityPhotosSection: View {
     let onToggleMap: (String) -> Void
     let onSelect: (PHAsset) -> Void
     let onEdit: (PHAsset) -> Void
+    let onAdjustPosition: (PHAsset) -> Void
     let onDelete: (PHAsset) -> Void
 
     @State private var status: PHAuthorizationStatus = .notDetermined
@@ -73,6 +74,7 @@ struct ActivityPhotosSection: View {
                         onToggleMap: { onToggleMap(asset.localIdentifier) },
                         onSelect: { onSelect(asset) },
                         onEdit: { onEdit(asset) },
+                        onAdjustPosition: { onAdjustPosition(asset) },
                         onDelete: { onDelete(asset) }
                     )
                 }
@@ -109,6 +111,7 @@ private struct PhotoThumbnail: View {
     let onToggleMap: () -> Void
     let onSelect: () -> Void
     let onEdit: () -> Void
+    let onAdjustPosition: () -> Void
     let onDelete: () -> Void
     @State private var image: NSImage?
     @State private var hovering = false
@@ -192,6 +195,7 @@ private struct PhotoThumbnail: View {
         .onHover { hovering = $0 }
         .contextMenu {
             if canEdit { Button("Modifier…") { onEdit() } }
+            Button("Ajuster la position sur le parcours…") { onAdjustPosition() }
             if isAppCreated { Button("Supprimer", role: .destructive) { onDelete() } }
         }
         .task(id: asset.localIdentifier) {

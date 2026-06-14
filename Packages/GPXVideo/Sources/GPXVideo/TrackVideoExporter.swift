@@ -8,23 +8,29 @@ import GPXCore
 import GPXMapKit
 
 public enum TrackVideoMedia {
-    case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?)
-    case video(asset: AVAsset, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?)
+    case photo(image: NSImage, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?, manualMeters: Double?)
+    case video(asset: AVAsset, thumbnail: NSImage?, coordinate: CLLocationCoordinate2D, date: Date?, manualMeters: Double?)
 
     public var coordinate: CLLocationCoordinate2D {
         switch self {
-        case .photo(_, _, let c, _), .video(_, _, let c, _): return c
+        case .photo(_, _, let c, _, _), .video(_, _, let c, _, _): return c
         }
     }
     public var thumbnail: NSImage? {
         switch self {
-        case .photo(_, let t, _, _), .video(_, let t, _, _): return t
+        case .photo(_, let t, _, _, _), .video(_, let t, _, _, _): return t
         }
     }
     /// Heure de prise du média (EXIF/PHAsset) : sert à positionner le média dans le temps du parcours.
     public var date: Date? {
         switch self {
-        case .photo(_, _, _, let d), .video(_, _, _, let d): return d
+        case .photo(_, _, _, let d, _), .video(_, _, _, let d, _): return d
+        }
+    }
+    /// Position manuelle réglée par l'utilisateur (mètres le long de la trace) ; nil = auto.
+    public var manualMeters: Double? {
+        switch self {
+        case .photo(_, _, _, _, let m), .video(_, _, _, _, let m): return m
         }
     }
     public var isVideo: Bool { if case .video = self { return true }; return false }
@@ -359,7 +365,7 @@ public enum TrackVideoExporter {
         // des allers-retours (une même position = deux instants ; sans ça une photo du retour retombait sur l'aller).
         let resolver = MediaTrackResolver(points: pts)
         func distanceForMedia(_ m: TrackVideoMedia) -> Double {
-            resolver.distance(manualMeters: nil, captureDate: m.date,
+            resolver.distance(manualMeters: m.manualMeters, captureDate: m.date,
                               gpsLatitude: m.coordinate.latitude, gpsLongitude: m.coordinate.longitude) ?? 0
         }
         let ordered = media
@@ -423,7 +429,7 @@ public enum TrackVideoExporter {
             let overlay = profileOverlay(atMeters: entry.dist)
             let anim = Swift.max(1, Int(animSeconds * Double(fps)))
             switch entry.m {
-            case .photo(let image, _, _, _):
+            case .photo(let image, _, _, _, _):
                 let total = Int(photoSeconds * Double(fps))
                 for i in 0..<total {
                     autoreleasepool {
@@ -433,7 +439,7 @@ public enum TrackVideoExporter {
                         append(renderFrame(background: background, point: point, hud: info, encart: image, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, appearance: app))
                     }
                 }
-            case .video(let asset, _, _, _):
+            case .video(let asset, _, _, _, _):
                 let start = Double(frameIndex) / Double(fps)
                 let emitted = await emitVideoSegment(asset: asset, background: background, point: point, hud: info, width: width, height: height, scale: scale, profile: overlay, hudBottom: hudBottom, mediaRect: mediaRect, transition: config.transition, animFrames: anim, ciContext: ciContext, append: append)
                 if emitted > 0 { audioInserts.append(AudioInsert(asset: asset, start: start, duration: Double(emitted) / Double(fps))) }

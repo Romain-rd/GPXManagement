@@ -56,6 +56,13 @@ public struct MediaTrackResolver {
         return (lats[lo] + (lats[hi] - lats[lo]) * t, lons[lo] + (lons[hi] - lons[lo]) * t)
     }
 
+    /// Écart entre un point GPS et la trace (mètres) : sert à signaler une incohérence heure/GPS.
+    public func distanceFromTrack(latitude: Double, longitude: Double) -> Double? {
+        guard !isEmpty else { return nil }
+        let i = nearestGPSIndex(latitude, longitude)
+        return GeoMath.haversine(lat1: latitude, lon1: longitude, lat2: lats[i], lon2: lons[i])
+    }
+
     private func clamp(_ meters: Double) -> Double { Swift.min(Swift.max(0, meters), totalDistance) }
 
     private func nearestTimeIndex(_ date: Date) -> Int? {

@@ -38,6 +38,7 @@ struct ActivityDetailView: View {
     @State private var mediaState: [String: MediaPlacement] = [:]   // état synchronisé (par clé stable nom+date)
     @State private var assetIdentity: [String: (key: String, file: String, date: Double?)] = [:]  // localIdentifier → identité stable
     @State private var editingMedia: EditingMedia?
+    @State private var positioningMedia: PositioningMedia?
     @State private var photosReload = 0
     @AppStorage("appCreatedAssets") private var appCreatedAssetsJSON = ""
     @AppStorage("photosSelectedByDefault") private var photosSelectedByDefault = true
@@ -834,6 +835,7 @@ struct ActivityDetailView: View {
             onToggleMap: togglePhotoOnMap,
             onSelect: previewPhoto,
             onEdit: editMedia,
+            onAdjustPosition: adjustPosition,
             onDelete: deleteMedia
         )
         .onChange(of: photoAssets) { _, newAssets in
@@ -855,6 +857,32 @@ struct ActivityDetailView: View {
                 )
             }
         }
+        .sheet(item: $positioningMedia) { media in
+            MediaPositionEditor(
+                asset: media.asset,
+                activityId: activity.id,
+                activityType: activity.activityType,
+                repository: repository,
+                initialManualMeters: media.manualMeters,
+                onSave: { meters in setManualMeters(media.asset, meters); positioningMedia = nil },
+                onCancel: { positioningMedia = nil }
+            )
+        }
+    }
+
+    private func adjustPosition(_ asset: PHAsset) {
+        positioningMedia = PositioningMedia(id: asset.localIdentifier, asset: asset,
+                                            manualMeters: placement(for: asset.localIdentifier)?.posMeters)
+    }
+
+    /// Enregistre (ou efface) la position manuelle d'un média dans `mediaState`, puis recalcule la carte.
+    private func setManualMeters(_ asset: PHAsset, _ meters: Double?) {
+        guard let identity = assetIdentity[asset.localIdentifier] else { return }
+        var p = mediaState[identity.key] ?? MediaPlacement(file: identity.file, date: identity.date)
+        p.posMeters = meters
+        if p.isDefault { mediaState[identity.key] = nil } else { mediaState[identity.key] = p }
+        persistMediaState()
+        Task { await buildPhotoMapItems(photoAssets) }
     }
 
     private func togglePhotoOnMap(_ id: String) {
@@ -1228,14 +1256,15 @@ struct ActivityDetailView: View {
             // Médias sélectionnés (épingle active) et géolocalisés.
             var media: [TrackVideoMedia] = []
             for asset in photoAssets where isPhotoShown(asset.localIdentifier) {
-                guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
+                let manual = placement(for: asset.localIdentifier)?.posMeters
+                guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points, manualMeters: manual) else { continue }
                 let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 160, height: 160))
                 if asset.mediaType == .video {
                     if let av = await PhotoLibraryService.avAsset(for: asset) {
-                        media.append(.video(asset: av, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
+                        media.append(.video(asset: av, thumbnail: thumb, coordinate: coord, date: asset.creationDate, manualMeters: manual))
                     }
                 } else if let image = await PhotoLibraryService.fullImage(for: asset) {
-                    media.append(.photo(image: image, thumbnail: thumb, coordinate: coord, date: asset.creationDate))
+                    media.append(.photo(image: image, thumbnail: thumb, coordinate: coord, date: asset.creationDate, manualMeters: manual))
                 }
             }
 
@@ -1310,9 +1339,11 @@ struct ActivityDetailView: View {
            let decoded = try? TrackPointCodec.decode(data) {
             points = decoded
         }
+        let resolver = MediaTrackResolver(points: points)
         var items: [PhotoMapItem] = []
         for asset in assets {
-            guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points) else { continue }
+            let manual = placement(for: asset.localIdentifier)?.posMeters
+            guard let coord = PhotoLibraryService.resolvedCoordinate(for: asset, using: resolver, manualMeters: manual) else { continue }
             let thumb = await PhotoLibraryService.thumbnail(for: asset, size: CGSize(width: 120, height: 120))
             items.append(PhotoMapItem(id: asset.localIdentifier, coordinate: coord, image: thumb, isVideo: asset.mediaType == .video))
         }

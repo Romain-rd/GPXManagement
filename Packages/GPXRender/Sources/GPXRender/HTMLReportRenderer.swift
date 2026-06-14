@@ -95,8 +95,11 @@ public enum HTMLReportRenderer {
 
         var photoItems: [PhotoItem] = []
         if options.includePhotos {
+            let mediaState = MediaStateCodec.decode(try? await repository.fetchMediaState(id: activity.id))
+            let resolver = MediaTrackResolver(points: points)
             for asset in photos {
-                let coord = PhotoLibraryService.resolvedCoordinate(for: asset, in: points)
+                let manual = mediaState[PhotoLibraryService.stableKey(for: asset)]?.posMeters
+                let coord = PhotoLibraryService.resolvedCoordinate(for: asset, using: resolver, manualMeters: manual)
                 if asset.mediaType == .video {
                     if let mp4 = await PhotoLibraryService.exportVideo(for: asset) {
                         let poster = await PhotoLibraryService.fullImage(for: asset)?.jpeg(quality: 0.8)
