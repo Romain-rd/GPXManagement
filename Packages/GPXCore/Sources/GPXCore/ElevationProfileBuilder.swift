@@ -39,7 +39,7 @@ public enum ElevationProfileBuilder {
         let altitudes = withAlt.map { $0.altitude ?? 0 }
         // Lissage par distance (≈ ±30 m), pas par nombre de points : sur une trace peu dense, une fenêtre
         // fixe en points couvrirait des centaines de mètres et aplatirait le profil (pentes faussées).
-        let smoothed = smoothedByDistance(altitudes, distances: distances, halfWindowMeters: 30)
+        let smoothed = smoothedByDistance(altitudes, distances: distances, halfWindowMeters: 15)
 
         var profile: [ElevationProfilePoint] = []
         profile.reserveCapacity(withAlt.count)
