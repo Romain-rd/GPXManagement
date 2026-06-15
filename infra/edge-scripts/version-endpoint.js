@@ -60,10 +60,10 @@ async function recordPing(params) {
 
 BunnySDK.net.http.servePullZone().onOriginRequest(async (ctx) => {
   const url = new URL(ctx.request.url);
-  // Tout sauf /version.json : on laisse filer vers l'origine (site servi normalement).
-  if (!url.pathname.endsWith("/version.json")) return;
+  // Tout sauf /version.json : renvoyer ctx.request = passthrough normal vers l'origine (site servi normalement).
+  if (!url.pathname.endsWith("/version.json")) return ctx.request;
 
-  // /version.json : on relève le ping (sans jamais bloquer) puis on renvoie la politique.
+  // /version.json : on relève le ping (sans jamais bloquer) puis on court-circuite avec la politique.
   try { await recordPing(url.searchParams); } catch (_) { /* ignore */ }
   const policy = await storageGet(POLICY_PATH);
   return new Response(policy ?? '{"latestBuild":0,"minimumBuild":0}', {
