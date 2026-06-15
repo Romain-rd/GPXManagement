@@ -393,6 +393,15 @@ struct VideoEditor: View {
     @State private var ratio: CropRatio = .original
     @State private var crop = CGRect(x: 0.05, y: 0.05, width: 0.9, height: 0.5)
     @State private var isExporting = false
+    @State private var thumbnails: [CGImage] = []
+
+    private let filmstripCount = 12
+    /// Taille d'affichage du film (lecteur + contrôles partagent cette largeur).
+    private var filmSize: CGSize {
+        let box = CGSize(width: 620, height: 340)
+        let src = (displaySize.width > 0 && displaySize.height > 0) ? displaySize : CGSize(width: 16, height: 9)
+        return PhotoCropEditor.fit(src, in: box).size
+    }
 
     private var imageAspect: CGFloat { displaySize.height > 0 ? displaySize.width / displaySize.height : 16.0 / 9.0 }
     private var normalizedAspect: CGFloat? {
@@ -404,42 +413,46 @@ struct VideoEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let film = filmSize
+        VStack(alignment: .center, spacing: 14) {
             Text("Recadrer / extraire la vidéo").font(.title3.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
             Picker("Format", selection: $ratio) {
                 ForEach(CropRatio.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented).fixedSize()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: ratio) { _, _ in resetCrop() }
 
-            GeometryReader { geo in
+            // Le lecteur occupe exactement la taille affichée du film ; les contrôles dessous reprennent
+            // cette même largeur → bouton lecture au bord gauche du film, fin des poignées au bord droit.
+            ZStack(alignment: .topLeading) {
                 if let playback, displaySize != .zero {
-                    let iv = PhotoCropEditor.fit(displaySize, in: geo.size)
-                    ZStack(alignment: .topLeading) {
-                        VideoPlayerSurface(player: playback.player)
-                            .frame(width: iv.width, height: iv.height)
-                            .position(x: iv.midX, y: iv.midY)
-                        CropDim(crop: crop, imageRect: iv).fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
-                        CropRectView(crop: $crop, imageRect: iv, normalizedAspect: normalizedAspect)
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .coordinateSpace(name: "crop")
+                    let iv = CGRect(origin: .zero, size: film)
+                    VideoPlayerSurface(player: playback.player)
+                        .frame(width: film.width, height: film.height)
+                    CropDim(crop: crop, imageRect: iv).fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
+                    CropRectView(crop: $crop, imageRect: iv, normalizedAspect: normalizedAspect)
                 } else {
-                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ProgressView().frame(width: film.width, height: film.height)
                 }
             }
-            .frame(height: 320)
+            .frame(width: film.width, height: film.height)
+            .coordinateSpace(name: "crop")
 
             HStack(spacing: 12) {
                 Button { togglePlay() } label: {
                     Image(systemName: (playback?.isPlaying ?? false) ? "pause.fill" : "play.fill").frame(width: 16)
                 }
                 .disabled(playback == nil)
-                TrimBar(duration: duration, start: $startT, end: $endT, playhead: playheadBinding)
-                    .frame(height: 34)
+                TrimBar(duration: duration, start: $startT, end: $endT, playhead: playheadBinding, thumbnails: thumbnails, slotCount: filmstripCount)
+                    .frame(height: 50)
             }
+            .frame(width: film.width)
+
             Text("Extrait : \(Self.time(startT)) → \(Self.time(endT))  ·  \(Self.time(endT - startT))")
                 .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack {
                 if isExporting { ProgressView().controlSize(.small); Text("Export…").font(.caption).foregroundStyle(.secondary) }
@@ -449,6 +462,7 @@ struct VideoEditor: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(avAsset == nil || isExporting || endT - startT < 0.3)
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(20)
         .frame(width: 660)
@@ -466,6 +480,9 @@ struct VideoEditor: View {
             model.start = 0; model.end = duration
             playback = model
             resetCrop()
+            // Analyse de la pellicule en tâche de fond : n'empêche pas l'éditeur de s'afficher,
+            // les vignettes apparaissent au fur et à mesure.
+            Task { await generateFilmstrip(from: a, duration: duration, count: filmstripCount) }
         }
         .onChange(of: startT) { _, v in playback?.start = v }
         .onChange(of: endT) { _, v in playback?.end = v }
@@ -497,52 +514,116 @@ struct VideoEditor: View {
         }
     }
 
+    /// Pellicule : quelques images réparties sur toute la durée, affichées dans la barre (façon QuickTime/Photos).
+    private func generateFilmstrip(from asset: AVAsset, duration: Double, count: Int = 12) async {
+        guard duration > 0 else { return }
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: 200, height: 200)
+        gen.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
+        gen.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
+        thumbnails = []
+        for i in 0..<count {
+            let t = duration * (Double(i) + 0.5) / Double(count)
+            if let img = try? await gen.image(at: CMTime(seconds: t, preferredTimescale: 600)).image {
+                thumbnails.append(img)
+            }
+        }
+    }
+
     static func time(_ s: Double) -> String {
         let total = Int(max(0, s).rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 
+/// Sélecteur d'extrait façon Apple (Photos/QuickTime) : cadre jaune autour de la portion conservée,
+/// zones à rogner assombries, poignées jaunes aux extrémités. Les glissements sont rapportés à la barre
+/// (coordinateSpace nommé) — la version précédente lisait les coordonnées dans la poignée de 10 pt,
+/// d'où des poignées qui ne réagissaient pas.
 private struct TrimBar: View {
     let duration: Double
     @Binding var start: Double
     @Binding var end: Double
     @Binding var playhead: Double
+    var thumbnails: [CGImage] = []
+    var slotCount: Int = 12
+
+    private let handleW: CGFloat = 16
+    private let minGap = 0.3
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
-            let x: (Double) -> CGFloat = { t in duration > 0 ? CGFloat(t / duration) * w : 0 }
+            let h = geo.size.height
+            let pos: (Double) -> CGFloat = { t in duration > 0 ? CGFloat(t / duration) * w : 0 }
+            let timeAt: (CGFloat) -> Double = { x in duration > 0 ? Double(min(max(0, x), w) / w) * duration : 0 }
+            let sx = pos(start)
+            let ex = max(sx, pos(end))
+
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.25))
-                // zone retenue
-                Rectangle().fill(Color.accentColor.opacity(0.3))
-                    .frame(width: max(0, x(end) - x(start)))
-                    .offset(x: x(start))
-                // playhead
-                Rectangle().fill(.white).frame(width: 2).offset(x: x(playhead))
-                handle(color: .accentColor, at: x(start)) { nx in
-                    start = min(max(0, nx / w * duration), end - 0.3)
-                    playhead = start
+                // Pellicule (vignettes du film) en fond, comme QuickTime/Photos. Cases de largeur fixe
+                // remplies au fur et à mesure de l'analyse — pas de saut de mise en page.
+                HStack(spacing: 0) {
+                    ForEach(0..<max(1, slotCount), id: \.self) { i in
+                        Group {
+                            if i < thumbnails.count {
+                                Image(decorative: thumbnails[i], scale: 1).resizable().scaledToFill()
+                            } else {
+                                Rectangle().fill(Color.secondary.opacity(0.18))
+                            }
+                        }
+                        .frame(width: w / CGFloat(max(1, slotCount)), height: h)
+                        .clipped()
+                    }
                 }
-                handle(color: .accentColor, at: x(end)) { nx in
-                    end = max(min(duration, nx / w * duration), start + 0.3)
-                    playhead = end
-                }
+                // Zones hors sélection = ce qui sera coupé → assombries (convention Apple).
+                Rectangle().fill(.black.opacity(0.45)).frame(width: sx)
+                Rectangle().fill(.black.opacity(0.45)).frame(width: max(0, w - ex)).offset(x: ex)
+                // Cadre jaune autour de la portion conservée.
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.yellow, lineWidth: 3)
+                    .frame(width: max(0, ex - sx))
+                    .offset(x: sx)
+                // Tête de lecture.
+                Capsule().fill(.white)
+                    .frame(width: 2, height: max(0, h - 8))
+                    .offset(x: min(max(0, pos(playhead)), w) - 1)
+                    .shadow(color: .black.opacity(0.4), radius: 1)
+                    .allowsHitTesting(false)
+                // Poignées jaunes.
+                trimHandle(height: h)
+                    .offset(x: max(0, min(sx, w - handleW)))
+                    .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("trim")).onChanged { v in
+                        start = min(max(0, timeAt(v.location.x)), end - minGap)
+                        playhead = start
+                    })
+                trimHandle(height: h)
+                    .offset(x: max(0, min(ex - handleW, w - handleW)))
+                    .highPriorityGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("trim")).onChanged { v in
+                        end = max(min(duration, timeAt(v.location.x)), start + minGap)
+                        playhead = end
+                    })
             }
+            .coordinateSpace(name: "trim")
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { v in
-                playhead = min(max(0, Double(v.location.x / w) * duration), duration)
+            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("trim")).onChanged { v in
+                playhead = timeAt(v.location.x)
             })
         }
     }
 
-    private func handle(color: Color, at px: CGFloat, onMove: @escaping (CGFloat) -> Void) -> some View {
-        RoundedRectangle(cornerRadius: 3).fill(color)
-            .frame(width: 10)
-            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(.white, lineWidth: 1))
-            .offset(x: px - 5)
-            .highPriorityGesture(DragGesture(coordinateSpace: .local).onChanged { v in onMove(v.location.x) })
+    private func trimHandle(height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(Color.yellow)
+            .frame(width: handleW, height: height)
+            .overlay(
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.black.opacity(0.35))
+                    .frame(width: 2.5, height: min(16, height * 0.5))
+            )
+            .contentShape(Rectangle())
     }
 }
 
