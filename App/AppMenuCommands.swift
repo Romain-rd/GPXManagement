@@ -99,6 +99,11 @@ struct AppMenuCommands: Commands {
             }
             .disabled(!(window?.hasSelection ?? false))
 
+            Button("Générer le profil altimétrique") {
+                window?.requestGenerateElevation()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
             Divider()
 
             Button("Exporter en page web…") {

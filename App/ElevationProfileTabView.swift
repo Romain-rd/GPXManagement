@@ -171,7 +171,7 @@ struct ElevationProfileTabView: View {
                 profileContent
             }
         }
-        .task(id: "\(activityId)-\(pauseThresholdMinutes)-\(pauseRadiusMeters)") { await load() }
+        .task(id: "\(activityId)-\(pauseThresholdMinutes)-\(pauseRadiusMeters)-\(AppServices.shared.libraryRevision)") { await load() }
         .onChange(of: mode) { _, _ in
             buildChartData(from: trimmedProfile, mode: mode)
         }

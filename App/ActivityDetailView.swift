@@ -26,6 +26,7 @@ struct ActivityDetailView: View {
     @State private var exportError: String?
     @State private var isExportingPDF = false
     @State private var isReprocessing = false
+    @State private var elevationAlert: String?
     @State private var sensorSeries: SensorSeries?
     @AppStorage("detailSectionHeartRate") private var secHeartRateExpanded = true
     @State private var profileMode: ProfileMode = .distance
@@ -102,7 +103,7 @@ struct ActivityDetailView: View {
         self._model = State(initialValue: ActivityDetailViewModel(repository: repository))
     }
 
-    var body: some View {
+    private var rootContent: some View {
         Group {
             if fullscreenMap {
                 // Seul l'overlay plein écran est rendu (le contenu détail dessous n'est pas dans l'arbre → pas de re-render pendant le drag).
@@ -129,6 +130,10 @@ struct ActivityDetailView: View {
                 }
             }
         }
+    }
+
+    var body: some View {
+        rootContent
         // Titre vidé en plein écran pour ne pas chevaucher les contrôles (barre de titre transparente).
         .navigationTitle(fullscreenMap ? "" : activity.title)
         // Fenêtre autonome : barre de titre transparente en plein écran (pastilles flottantes conservées) ;
@@ -165,6 +170,9 @@ struct ActivityDetailView: View {
                 await AppServices.shared.reprocessActivity(id: activity.id)
                 await loadSensorSeries()
             }
+        }
+        .onChange(of: windowModel.elevationToken) { _, _ in
+            Task { await generateElevationFromMenu() }
         }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
@@ -286,6 +294,15 @@ struct ActivityDetailView: View {
         } message: {
             Text(exportError ?? "")
         }
+        .alert("Profil altimétrique", isPresented: hasElevationAlertBinding) {
+            Button("OK") { elevationAlert = nil }
+        } message: {
+            Text(elevationAlert ?? "")
+        }
+    }
+
+    private var hasElevationAlertBinding: Binding<Bool> {
+        Binding(get: { elevationAlert != nil }, set: { if !$0 { elevationAlert = nil } })
     }
 
     private var header: some View {
@@ -481,6 +498,17 @@ struct ActivityDetailView: View {
     private func loadSensorSeries() async {
         let data = try? await repository.fetchSensorData(id: activity.id)
         sensorSeries = SensorSeriesCodec.decode(data)
+    }
+
+    private func generateElevationFromMenu() async {
+        switch await AppServices.shared.generateElevationProfile(id: activity.id) {
+        case .enriched:
+            await loadSensorSeries()
+        case .noCoverage:
+            elevationAlert = "Aucune altitude trouvée pour cette trace (hors couverture des données disponibles)."
+        case .failed(let m):
+            elevationAlert = "Échec : \(m)"
+        }
     }
 
     /// Séance sans GPS mais avec FC : on affiche la courbe (sinon ces mesures resteraient invisibles).
