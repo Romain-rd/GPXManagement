@@ -53,9 +53,9 @@ final class CloudPreferences {
     var stravaLastSyncDate: Date? { stravaLastSyncRun > 0 ? Date(timeIntervalSince1970: stravaLastSyncRun) : nil }
 
     private init() {
-        let pattern = store.string(forKey: Self.patternKey)
-            ?? UserDefaults.standard.string(forKey: Self.patternKey)
-            ?? OrganizationPattern.default.template
+        // Modèle d'organisation désormais imposé (chronologique) et non modifiable : on force la valeur,
+        // ce qui migre proprement un ancien modèle personnalisé éventuellement stocké ou synchronisé.
+        let pattern = OrganizationPattern.default.template
         // Au premier lancement on ne perd pas un run local plus récent que ce qui est dans iCloud.
         let strava = max(store.double(forKey: Self.stravaSyncKey), UserDefaults.standard.double(forKey: Self.stravaSyncKey))
 

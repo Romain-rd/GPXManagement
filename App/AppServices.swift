@@ -69,11 +69,8 @@ final class AppServices {
     }
 
     static func currentOrganizationPattern() -> OrganizationPattern {
-        if let template = UserDefaults.standard.string(forKey: "organizationPattern"),
-           let pattern = try? OrganizationPattern(template: template) {
-            return pattern
-        }
-        return .default
+        // Modèle d'organisation imposé : chronologique (Année/Mois). Plus paramétrable.
+        .default
     }
 
     var coreDataRepository: CoreDataActivityRepository? {
