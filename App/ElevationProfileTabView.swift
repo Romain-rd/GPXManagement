@@ -786,6 +786,7 @@ struct SensorChartView: View {
         .chartYScale(domain: lo...hi)
         .chartYAxisLabel("bpm")
         .frame(height: 200)
+        .clipped()
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(.background.secondary))
     }
