@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importer des fichiers GPX / FIT — Aide GPXManagement</title>
+<meta name="description" content="Importer vos traces GPX, FIT ou TCX dans GPXManagement par glisser-déposer, confirmer le type d'activité et éviter les doublons.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40; --trail:#DD6B1F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a; --trail:#F0883E;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 24px; }
+  @media (max-width: 600px) { .wrap { padding-left:max(28px,env(safe-area-inset-left)); padding-right:max(28px,env(safe-area-inset-right)); } }
+  .topbar { padding:26px 0 0; }
+  .crumbs { font-size:14px; color:var(--sec); }
+  .crumbs a { font-weight:600; }
+
+  header.intro { padding:30px 0 8px; }
+  .badge { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#fff; background:var(--green); padding:6px 12px; border-radius:999px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:18px 0 0; }
+  .dek { font-size:18px; color:var(--sec); margin:14px 0 0; }
+
+  .callout { display:flex; gap:13px; background:color-mix(in srgb,var(--trail) 9%, var(--card)); border:1px solid color-mix(in srgb,var(--trail) 30%, var(--line));
+    border-radius:14px; padding:15px 18px; margin:26px 0 8px; font-size:14.5px; }
+  .callout svg { flex:none; color:var(--trail); margin-top:2px; }
+  .callout b { color:var(--ink); }
+
+  .phase { font-family:"Fraunces",serif; font-style:italic; font-weight:500; color:var(--trail); font-size:14px;
+    text-transform:uppercase; letter-spacing:.06em; margin:44px 0 6px; }
+
+  .steps { list-style:none; margin:8px 0 0; padding:0; }
+  .step { position:relative; padding:0 0 30px 56px; }
+  .step:not(:last-child)::before { content:""; position:absolute; left:18px; top:38px; bottom:-2px; width:2px; background:var(--line); }
+  .step-num { position:absolute; left:0; top:0; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-family:"Fraunces",serif; font-weight:600;
+    color:#fff; background:var(--green); box-shadow:0 6px 16px -8px color-mix(in srgb,var(--green) 80%, transparent); }
+  .step h3 { margin:6px 0 6px; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .step p { margin:0; color:var(--sec); font-size:15px; }
+  .step p + p { margin-top:8px; }
+  .path { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; color:var(--ink); }
+
+  figure.shot { margin:14px 0 0; }
+  figure.shot img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid var(--line); box-shadow:0 18px 40px -28px rgba(0,0,0,.5); }
+  figure.shot.menu img { max-width:420px; }
+  figure.shot .ph { display:none; }
+  figure.shot.todo img { display:none; }
+  figure.shot.todo .ph { display:flex; align-items:center; gap:9px; color:var(--sec); font-size:13px;
+    border:1.5px dashed var(--line); border-radius:12px; padding:18px; background:var(--paper-2); }
+  figure.shot .ph code { font-size:12px; }
+
+  .endcta { display:flex; flex-wrap:wrap; gap:14px; margin:36px 0 0; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px; padding:13px 22px; border-radius:13px; transition:transform .18s ease; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); }
+  .btn:hover { transform:translateY(-2px); }
+
+  footer { border-top:1px solid var(--line); padding:28px 24px 48px; margin-top:44px; color:var(--sec); font-size:13px; text-align:center; }
+  footer .madeby { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topbar"><p class="crumbs"><a href="/">GPXManagement</a> · <a href="/aide/">Aide</a> · Importer des fichiers GPX / FIT</p></nav>
+
+  <header class="intro">
+    <span class="badge">📥 Import</span>
+    <h1>Importer des fichiers GPX / FIT</h1>
+    <p class="dek">Glissez vos traces dans l'application : GPXManagement détecte le type d'activité, repère les doublons et vous laisse confirmer avant d'ajouter chaque sortie à votre bibliothèque.</p>
+  </header>
+
+  <p class="phase">Ajouter des fichiers</p>
+  <ol class="steps">
+    <li class="step">
+      <span class="step-num">1</span>
+      <h3>Glisser-déposer (ou le menu)</h3>
+      <p>Faites glisser un ou plusieurs fichiers <b>GPX</b>, <b>FIT</b> ou <b>TCX</b> sur la fenêtre de GPXManagement. Vous pouvez aussi passer par <span class="path">Fichier ▸ Importer des fichiers GPX/FIT…</span> (<span class="path">⌘O</span>) et les sélectionner.</p>
+      <figure class="shot menu"><img src="img/etape-1.png" alt="Menu Fichier : importer des fichiers GPX/FIT, HealthFit, Apple Santé, Strava" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/import-gpx-fit/img/etape-1.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">2</span>
+      <h3>Vérifiez la fenêtre d'import</h3>
+      <p>Pour chaque fichier, une fenêtre récapitule l'activité : <b>titre</b>, <b>type</b>, <b>catégorie</b>, ainsi que la date, la distance, le dénivelé et la durée.</p>
+      <p>Le <b>type</b> est détecté automatiquement à partir du fichier ; un bouton <b>« Détecté : … »</b> permet d'appliquer la suggestion. S'il n'a pas pu être déduit, le type proposé est <b>« Autre »</b> — corrigez-le si besoin. Le bouton <span class="path">📍</span> propose un titre <b>d'après le parcours</b> (lieu de départ → passage → arrivée).</p>
+      <figure class="shot"><img src="img/etape-2.png" alt="Fenêtre Importer une activité : titre, type, catégorie, statistiques" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/import-gpx-fit/img/etape-2.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">3</span>
+      <h3>Activité réelle ou parcours</h3>
+      <p>La <b>catégorie</b> distingue une <b>activité réelle</b> (une sortie datée que vous avez faite) d'un <b>parcours</b> (un tracé à suivre, sans horodatage). GPXManagement devine d'après le fichier — un tracé sans horaires (mention <b>« Tracé sans horodatage »</b>, date à <b>—</b>) est proposé comme <b>Parcours</b>.</p>
+      <figure class="shot"><img src="img/etape-3.png" alt="Un parcours importé (GR5) avec le badge Parcours, carte et profil" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/import-gpx-fit/img/etape-3.png</code></span></figure>
+    </li>
+  </ol>
+
+  <p class="phase">Doublons &amp; validation</p>
+  <ol class="steps" start="4">
+    <li class="step">
+      <span class="step-num">4</span>
+      <h3>Les doublons sont repérés</h3>
+      <p>Si une activité très similaire existe déjà (même contenu, ou même date et distance), un bandeau <b>« Doublon probable »</b> s'affiche. Vous pouvez quand même importer, ou <b>Ignorer</b> ce fichier.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">5</span>
+      <h3>Importez</h3>
+      <p>Cliquez <b>Importer</b> pour ajouter l'activité affichée, ou <b>Tout importer</b> pour traiter d'un coup tous les fichiers en attente (les types détectés sont conservés, les indéterminés classés en « Autre »). <b>Ignorer</b> passe le fichier courant, <b>Tout annuler</b> abandonne la file.</p>
+    </li>
+  </ol>
+
+  <div class="callout" style="margin-top:36px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+    <div>Les fichiers <b>FIT</b> conservent la <b>fréquence cardiaque</b> et fonctionnent même pour une séance <b>sans GPS</b> (activité sur place). Pour récupérer automatiquement vos séances Apple Watch, voyez <a href="/aide/apple-sante/">Importer depuis Apple Santé</a>.</div>
+  </div>
+
+  <div class="endcta">
+    <a class="btn btn-ghost" href="/aide/">← Toutes les aides</a>
+    <a class="btn btn-primary" href="/aide/apple-sante/">Importer depuis Apple Santé →</a>
+  </div>
+
+  <footer>
+    <p class="madeby">GPXManagement</p>
+    <p>© <span id="y">2026</span> Romain Demoustier</p>
+  </footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>

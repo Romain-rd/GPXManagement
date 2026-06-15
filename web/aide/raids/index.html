@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raids multi-jours — Aide GPXManagement</title>
+<meta name="description" content="Regrouper les étapes d'un séjour en un raid : statistiques cumulées, participants, carte de toutes les étapes, page web et film du raid.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62; --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40; --trail:#DD6B1F; }
+  @media (prefers-color-scheme: dark) { :root { --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f; --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a; --trail:#F0883E; } }
+  * { box-sizing:border-box; } html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 24px; }
+  @media (max-width: 600px) { .wrap { padding-left:max(28px,env(safe-area-inset-left)); padding-right:max(28px,env(safe-area-inset-right)); } }
+  .topbar { padding:26px 0 0; } .crumbs { font-size:14px; color:var(--sec); } .crumbs a { font-weight:600; }
+  header.intro { padding:30px 0 8px; }
+  .badge { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#fff; background:var(--green); padding:6px 12px; border-radius:999px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:18px 0 0; }
+  .dek { font-size:18px; color:var(--sec); margin:14px 0 0; }
+  .callout { display:flex; gap:13px; background:color-mix(in srgb,var(--trail) 9%, var(--card)); border:1px solid color-mix(in srgb,var(--trail) 30%, var(--line)); border-radius:14px; padding:15px 18px; margin:26px 0 8px; font-size:14.5px; }
+  .callout svg { flex:none; color:var(--trail); margin-top:2px; } .callout b { color:var(--ink); }
+  .opts { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:14px 0 0; }
+  .opts dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:14.5px; }
+  .opts dt { font-weight:700; color:var(--ink); white-space:nowrap; } .opts dd { margin:0; color:var(--sec); }
+  .phase { font-family:"Fraunces",serif; font-style:italic; font-weight:500; color:var(--trail); font-size:14px; text-transform:uppercase; letter-spacing:.06em; margin:44px 0 6px; }
+  .steps { list-style:none; margin:8px 0 0; padding:0; }
+  .step { position:relative; padding:0 0 30px 56px; }
+  .step:not(:last-child)::before { content:""; position:absolute; left:18px; top:38px; bottom:-2px; width:2px; background:var(--line); }
+  .step-num { position:absolute; left:0; top:0; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:"Fraunces",serif; font-weight:600; color:#fff; background:var(--green); box-shadow:0 6px 16px -8px color-mix(in srgb,var(--green) 80%, transparent); }
+  .step h3 { margin:6px 0 6px; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .step p { margin:0; color:var(--sec); font-size:15px; } .step p + p { margin-top:8px; }
+  .path { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px; background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; color:var(--ink); }
+  figure.shot { margin:14px 0 0; }
+  figure.shot img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid var(--line); box-shadow:0 18px 40px -28px rgba(0,0,0,.5); }
+  figure.shot.menu img { max-width:320px; }
+  figure.shot .ph { display:none; } figure.shot.todo img { display:none; }
+  figure.shot.todo .ph { display:flex; align-items:center; gap:9px; color:var(--sec); font-size:13px; border:1.5px dashed var(--line); border-radius:12px; padding:18px; background:var(--paper-2); }
+  figure.shot .ph code { font-size:12px; }
+  .endcta { display:flex; flex-wrap:wrap; gap:14px; margin:36px 0 0; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px; padding:13px 22px; border-radius:13px; transition:transform .18s ease; }
+  .btn-primary { background:var(--green); color:#fff; } .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); } .btn:hover { transform:translateY(-2px); }
+  footer { border-top:1px solid var(--line); padding:28px 24px 48px; margin-top:44px; color:var(--sec); font-size:13px; text-align:center; } footer .madeby { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topbar"><p class="crumbs"><a href="/">GPXManagement</a> · <a href="/aide/">Aide</a> · Raids multi-jours</p></nav>
+
+  <header class="intro">
+    <span class="badge">🏔️ Raids</span>
+    <h1>Raids multi-jours</h1>
+    <p class="dek">Regroupez les étapes d'un séjour — un trek, une traversée à ski, un raid moto — en une seule entité, avec ses statistiques cumulées, ses participants, la carte de toutes les étapes, et son propre film.</p>
+  </header>
+
+  <p class="phase">Créer un raid</p>
+  <ol class="steps">
+    <li class="step">
+      <span class="step-num">1</span>
+      <h3>Regrouper des sorties</h3>
+      <p>Dans la liste, sélectionnez les <b>étapes</b> du séjour, puis faites un <b>clic droit ▸ Raid ▸ « Nouveau raid… »</b> (ou menu <span class="path">Fichier ▸ Nouveau raid…</span>, <span class="path">⌘⇧N</span>). La fenêtre <b>« Nouveau raid »</b> propose un champ <b>« Nom du raid »</b> et résume « Regrouper N activité(s) sélectionnée(s) dans un raid. » — cliquez <b>Créer</b>.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">2</span>
+      <h3>Ajouter ou retirer des étapes</h3>
+      <p>Plus tard, un <b>clic droit</b> sur des sorties propose <b>Raid ▸ « Ajouter au raid »</b> (sous-menu listant vos raids) et <b>« Retirer du raid »</b>. Retirer une étape la sort du raid mais la <b>conserve dans votre bibliothèque</b>.</p>
+    </li>
+  </ol>
+
+  <p class="phase">La fiche du raid</p>
+  <ol class="steps" start="3">
+    <li class="step">
+      <span class="step-num">3</span>
+      <h3>Couverture, nom, dates</h3>
+      <p>Ajoutez une <b>photo de couverture</b>, un <b>nom</b> et un <b>lieu / région</b>. Les <b>dates</b> (et la durée en jours) sont calculées automatiquement à partir des étapes. Une zone <b>Notes</b> est disponible en bas.</p>
+      <figure class="shot"><img src="img/etape-3.png" alt="Fiche d'un raid : couverture, nom, dates, statistiques" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/raids/img/etape-3.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">4</span>
+      <h3>Statistiques cumulées</h3>
+      <p>Une grille additionne tout le séjour : <b>Étapes</b>, <b>Distance</b>, <b>Dénivelé +</b> et <b>Temps en mouvement</b>.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">5</span>
+      <h3>Participants</h3>
+      <p>Dans la section <b>Participants</b>, <b>Ajouter</b> ouvre <b>« Nouveau participant »</b> : une <b>photo</b> (« Choisir une photo… ») et un <b>Nom</b>. Les avatars apparaissent ensuite sur la fiche et dans le film.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">6</span>
+      <h3>Carte &amp; étapes</h3>
+      <p>La <b>carte du raid</b> superpose toutes les étapes (une couleur par trace), avec les mêmes contrôles que le détail (fond, coloration, pentes, plein écran). La section <b>Étapes</b> liste chaque sortie (jour, date, distance, D+) ; la <b>vignette de disposition</b> de chaque étape sert de modèle pour le film.</p>
+      <figure class="shot"><img src="img/etape-6.png" alt="Fiche raid : carte multi-traces et liste des étapes avec leur disposition" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/raids/img/etape-6.png</code></span></figure>
+    </li>
+  </ol>
+
+  <p class="phase">Partager le raid</p>
+  <ol class="steps" start="7">
+    <li class="step">
+      <span class="step-num">7</span>
+      <h3>GPX, page web, film</h3>
+      <p>En haut de la fiche, trois actions :</p>
+      <div class="opts">
+        <dl>
+          <dt>Exporter les GPX</dt><dd>enregistre un GPX par étape dans un dossier au nom du raid.</dd>
+          <dt>Exporter en page web</dt><dd><b>« Exporter le raid en page web »</b> : une page d'ensemble (couverture, participants, carte multi-traces) reliant une page par étape — en <b>Dossier</b> ou publiée sur <b>GPXManagement.net</b>.</dd>
+          <dt>Film du raid</dt><dd>un <b>film</b> qui enchaîne toutes les étapes (qualité, format, animation, fond de carte ; intro avec couverture + participants, résumé final). Voir le <a href="/aide/film/">film du parcours</a>.</dd>
+        </dl>
+      </div>
+    </li>
+  </ol>
+
+  <div class="callout" style="margin-top:36px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+    <div>Vos raids vivent dans la section <b>Raids</b> de la barre latérale (couverture + nombre d'étapes). Cliquez un raid pour ouvrir sa fiche ; un <b>clic droit</b> propose <b>Renommer…</b> et <b>Supprimer le raid</b> (les étapes restent dans la bibliothèque).</div>
+  </div>
+
+  <div class="endcta">
+    <a class="btn btn-ghost" href="/aide/">← Toutes les aides</a>
+    <a class="btn btn-primary" href="/aide/film/">Le film du parcours →</a>
+  </div>
+
+  <footer><p class="madeby">GPXManagement</p><p>© <span id="y">2026</span> Romain Demoustier</p></footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>
