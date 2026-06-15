@@ -279,6 +279,20 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Marque une activité comme dérivée d'une autre (édition : découpe, fusion, nettoyage, lissage).
+    public func setEditedFromActivityId(newId: UUID, parentId: UUID) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", newId as CVarArg)
+            fetch.fetchLimit = 1
+            guard let activity = try context.fetch(fetch).first else { return }
+            activity.setValue(parentId, forKey: "editedFromActivityId")
+            activity.setValue(Date(), forKey: "updatedAt")
+            try context.save()
+        }
+    }
+
     /// Remplace le tracé (points enrichis) et recale les statistiques dérivées, en place.
     public func updateTrackData(id: UUID, trackData: Data, stats: ActivityStats) async throws {
         let context = persistence.container.newBackgroundContext()

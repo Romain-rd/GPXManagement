@@ -260,6 +260,41 @@ extension AppServices {
         try? await storage.overwrite(relativePath: entry.relativePath, with: data)
     }
 
+    /// Découpe une trace en deux activités dérivées « (1/2) » et « (2/2) » au point `index` (inclus dans les deux).
+    @discardableResult
+    func splitActivity(parent: ActivitySummary, at index: Int) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return false }
+            let points = try TrackPointCodec.decode(data)
+            let halves = TrackOperations.split(points: points, at: index)
+            guard halves.left.count >= 2, halves.right.count >= 2 else {
+                importError = "Point de découpe trop proche d'une extrémité."
+                return false
+            }
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (1/2)", points: halves.left, repo: repo)
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (2/2)", points: halves.right, repo: repo)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la découpe : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Crée une activité dérivée à partir de points édités : écrit un GPX temporaire, le ré-importe (stats
+    /// recalculées) et renseigne `editedFromActivityId`.
+    private func createDerivedActivity(parent: ActivitySummary, title: String, points: [TrackPoint], repo: CoreDataActivityRepository) async throws -> UUID {
+        let gpx = try GPXWriter.write(name: title, activityType: parent.activityType, points: points)
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).gpx")
+        try gpx.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let proposal = try await importer.prepareImport(from: tmp, hintedActivityType: parent.activityType, hintedTitle: title)
+        let newId = try await importer.confirmImport(proposal, activityType: parent.activityType, title: title, isCourse: parent.isCourse)
+        try await repo.setEditedFromActivityId(newId: newId, parentId: parent.id)
+        return newId
+    }
+
     private static func gpxName(in xml: String) -> String? {
         guard let open = xml.range(of: "<name>"),
               let close = xml.range(of: "</name>", range: open.upperBound..<xml.endIndex) else { return nil }

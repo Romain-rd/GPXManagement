@@ -99,9 +99,11 @@ final class WindowModel {
     var videoToken: Int = 0
     var shareToken: Int = 0
     var elevationToken: Int = 0
+    var splitToken: Int = 0
 
     func requestRepair() { guard hasSelection else { return }; repairToken += 1 }
     func requestGenerateElevation() { guard hasSelection else { return }; elevationToken += 1 }
+    func requestSplit() { guard hasSelection else { return }; splitToken += 1 }
     func requestWebExport() { guard hasSelection else { return }; webExportToken += 1 }
     func requestVideo() { guard hasSelection else { return }; videoToken += 1 }
     func requestShare() { guard hasSelection else { return }; shareToken += 1 }

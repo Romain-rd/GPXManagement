@@ -57,6 +57,7 @@ struct ActivityDetailView: View {
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
+    @State private var showSplitSheet = false
     @State private var videoPublish = false
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
@@ -173,6 +174,9 @@ struct ActivityDetailView: View {
         }
         .onChange(of: windowModel.elevationToken) { _, _ in
             Task { await generateElevationFromMenu() }
+        }
+        .onChange(of: windowModel.splitToken) { _, _ in
+            if model.hasTrack { showSplitSheet = true }
         }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
@@ -298,6 +302,9 @@ struct ActivityDetailView: View {
             Button("OK") { elevationAlert = nil }
         } message: {
             Text(elevationAlert ?? "")
+        }
+        .sheet(isPresented: $showSplitSheet) {
+            SplitTrackSheet(activity: activity, repository: repository)
         }
     }
 
@@ -1870,3 +1877,120 @@ struct ActivityDetailView: View {
 
 /// Poignée de redimensionnement isolée : suit le curseur pendant le drag (état local, pas de re-render
 /// du parent), et ne communique la variation de hauteur qu'au lâcher.
+
+/// Découpe une trace en deux : carte + slider de position + marqueur, puis crée deux activités dérivées.
+struct SplitTrackSheet: View {
+    let activity: ActivitySummary
+    let repository: CoreDataActivityRepository
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var points: [TrackPoint] = []
+    @State private var cumulative: [Double] = []
+    @State private var isLoading = true
+    @State private var isWorking = false
+    @State private var fraction: Double = 0.5
+
+    private var totalDistance: Double { cumulative.last ?? 0 }
+
+    private var splitIndex: Int {
+        guard points.count > 2, totalDistance > 0 else { return max(1, points.count / 2) }
+        let target = fraction * totalDistance
+        let idx = cumulative.firstIndex(where: { $0 >= target }) ?? (points.count - 1)
+        return min(max(idx, 1), points.count - 2)
+    }
+
+    private var coordinates: [CLLocationCoordinate2D] {
+        points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Découper la trace").font(.headline)
+                Spacer()
+            }
+            .padding()
+            Divider()
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if points.count < 4 {
+                ContentUnavailableView("Trace trop courte", systemImage: "scissors",
+                                       description: Text("Pas assez de points pour découper cette trace."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Map(initialPosition: .automatic) {
+                    MapPolyline(coordinates: coordinates).stroke(.blue, lineWidth: 3)
+                    if coordinates.indices.contains(splitIndex) {
+                        Annotation("Découpe", coordinate: coordinates[splitIndex]) {
+                            Image(systemName: "scissors.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.red)
+                                .background(Circle().fill(.white))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                controls
+            }
+        }
+        .frame(width: 660, height: 580)
+        .task { await load() }
+    }
+
+    private var controls: some View {
+        VStack(spacing: 12) {
+            Slider(value: $fraction, in: 0...1)
+            HStack {
+                let km = (splitIndex < cumulative.count ? cumulative[splitIndex] : 0) / 1000
+                Text(String(format: "À %.2f km — point %d sur %d", km, splitIndex + 1, points.count))
+                    .font(.callout).foregroundStyle(.secondary)
+                Spacer()
+            }
+            HStack {
+                Button("Annuler") { dismiss() }
+                Spacer()
+                Button {
+                    Task {
+                        isWorking = true
+                        let ok = await AppServices.shared.splitActivity(parent: activity, at: splitIndex)
+                        isWorking = false
+                        if ok { dismiss() }
+                    }
+                } label: {
+                    if isWorking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Découper en deux", systemImage: "scissors")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isWorking)
+            }
+        }
+        .padding()
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let data = try? await repository.fetchTrackData(id: activity.id),
+              let pts = try? TrackPointCodec.decode(data) else { return }
+        var cum = [Double]()
+        cum.reserveCapacity(pts.count)
+        var total = 0.0
+        for (i, p) in pts.enumerated() {
+            if i > 0 { total += Self.haversine(pts[i - 1], p) }
+            cum.append(total)
+        }
+        points = pts
+        cumulative = cum
+    }
+
+    private static func haversine(_ a: TrackPoint, _ b: TrackPoint) -> Double {
+        let earthRadius = 6_371_000.0
+        let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180
+        let dLat = (b.latitude - a.latitude) * .pi / 180
+        let dLon = (b.longitude - a.longitude) * .pi / 180
+        let h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
+        return 2 * earthRadius * asin(min(1, sqrt(h)))
+    }
+}

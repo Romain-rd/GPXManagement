@@ -129,5 +129,12 @@ struct AppMenuCommands: Commands {
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(!(window?.hasSelection ?? false))
         }
+
+        CommandMenu("Édition") {
+            Button("Découper la trace…") {
+                window?.requestSplit()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+        }
     }
 }
