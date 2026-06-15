@@ -220,4 +220,30 @@ extension AppServices {
             lastMaintenanceSummary = "Échec de la resync : \(error.localizedDescription)"
         }
     }
+
+    enum ElevationGenerationOutcome: Sendable {
+        case enriched(resolved: Int, total: Int)
+        case noCoverage
+        case failed(String)
+    }
+
+    /// Génère un profil altimétrique pour une trace qui n'en a pas : récupère l'altitude (IGN + repli
+    /// mondial), recalcule le dénivelé et enregistre la trace enrichie en place.
+    func generateElevationProfile(id: UUID) async -> ElevationGenerationOutcome {
+        guard let repo = coreDataRepository else { return .failed("Stockage indisponible.") }
+        do {
+            guard let data = try await repo.fetchTrackData(id: id) else { return .failed("Trace introuvable.") }
+            let points = try TrackPointCodec.decode(data)
+            guard points.count >= 2 else { return .failed("Trace trop courte.") }
+            let result = await ElevationEnricher.shared.enrich(points: points)
+            guard result.resolved >= 2 else { return .noCoverage }
+            let stats = ActivityStatsCalculator.compute(points: result.points)
+            let encoded = try TrackPointCodec.encode(result.points)
+            try await repo.updateTrackData(id: id, trackData: encoded, stats: stats)
+            libraryRevision += 1
+            return .enriched(resolved: result.resolved, total: points.count)
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
 }

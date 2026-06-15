@@ -279,6 +279,34 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Remplace le tracé (points enrichis) et recale les statistiques dérivées, en place.
+    public func updateTrackData(id: UUID, trackData: Data, stats: ActivityStats) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let activity = try context.fetch(fetch).first else { return }
+            activity.setValue(trackData, forKey: "trackData")
+            activity.setValue(stats.distance, forKey: "distance")
+            activity.setValue(stats.duration, forKey: "duration")
+            activity.setValue(stats.movingDuration, forKey: "movingDuration")
+            activity.setValue(stats.elevationGain, forKey: "elevationGain")
+            activity.setValue(stats.elevationLoss, forKey: "elevationLoss")
+            activity.setValue(stats.avgSpeed, forKey: "avgSpeed")
+            activity.setValue(stats.maxSpeed, forKey: "maxSpeed")
+            activity.setValue(stats.maxSlope, forKey: "maxSlope")
+            activity.setValue(stats.avgHeartRate, forKey: "avgHeartRate")
+            activity.setValue(stats.maxHeartRate, forKey: "maxHeartRate")
+            activity.setValue(stats.boundingBox.minLatitude, forKey: "minLatitude")
+            activity.setValue(stats.boundingBox.maxLatitude, forKey: "maxLatitude")
+            activity.setValue(stats.boundingBox.minLongitude, forKey: "minLongitude")
+            activity.setValue(stats.boundingBox.maxLongitude, forKey: "maxLongitude")
+            activity.setValue(Date(), forKey: "updatedAt")
+            try context.save()
+        }
+    }
+
     public func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {

@@ -128,6 +128,8 @@ struct ElevationProfileTabView: View {
     @State private var dMinus: Double = 0
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var isGeneratingElevation = false
+    @State private var elevationMessage: String?
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -143,7 +145,26 @@ struct ElevationProfileTabView: View {
             } else if let loadError {
                 ContentUnavailableView("Profil indisponible", systemImage: "exclamationmark.triangle", description: Text(loadError))
             } else if metric == .altitude && !hasAltitude {
-                ContentUnavailableView("Pas d'altitude", systemImage: "chart.xyaxis.line", description: Text("La trace ne contient pas de données d'altitude."))
+                ContentUnavailableView {
+                    Label("Pas d'altitude", systemImage: "chart.xyaxis.line")
+                } description: {
+                    Text(elevationMessage ?? "La trace ne contient pas de données d'altitude.")
+                } actions: {
+                    Button {
+                        Task { await generateElevation() }
+                    } label: {
+                        if isGeneratingElevation {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Calcul de l'altitude…")
+                            }
+                        } else {
+                            Label("Générer le profil altimétrique", systemImage: "mountain.2")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isGeneratingElevation)
+                }
             } else if metric == .speed && !hasSpeed {
                 ContentUnavailableView("Pas de vitesse", systemImage: "speedometer", description: Text("La trace n'a pas d'horodatage exploitable pour calculer la vitesse."))
             } else {
@@ -156,6 +177,20 @@ struct ElevationProfileTabView: View {
         }
         .onChange(of: metric) { _, _ in
             buildChartData(from: trimmedProfile, mode: mode)
+        }
+    }
+
+    private func generateElevation() async {
+        isGeneratingElevation = true
+        elevationMessage = nil
+        defer { isGeneratingElevation = false }
+        switch await AppServices.shared.generateElevationProfile(id: activityId) {
+        case .enriched:
+            await load()
+        case .noCoverage:
+            elevationMessage = "Aucune altitude trouvée pour cette trace (hors couverture des données disponibles)."
+        case .failed(let m):
+            elevationMessage = "Échec : \(m)"
         }
     }
 
