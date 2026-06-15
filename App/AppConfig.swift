@@ -18,6 +18,9 @@ enum AppConfig {
     /// Page d'aide du site, ouverte depuis le menu Aide.
     static let helpURL = URL(string: "https://www.gpxmanagement.net/aide/")!
 
+    /// Flux de version (politique de mise à jour + relevé d'installation anonyme côté serveur).
+    static let versionFeedURL = URL(string: "https://www.gpxmanagement.net/version.json")!
+
     /// Date d'expiration de la version alpha : à partir de cette date, l'app refuse de s'ouvrir.
     static let alphaExpiry: Date = {
         var c = DateComponents()
