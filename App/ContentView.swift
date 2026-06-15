@@ -3,6 +3,7 @@ import GPXCore
 
 struct ContentView: View {
     @Bindable var services: AppServices
+    @Environment(\.scenePhase) private var scenePhase
     @State private var window: WindowModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     private let webProgress = WebExportProgress.shared
@@ -101,6 +102,12 @@ struct ContentView: View {
             await listVM.reload()
             await listVM.classifyCoursesIfNeeded()
             syncActiveSmartFilter()
+            await services.scanWatchedFolderIfConfigured()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await services.scanWatchedFolderIfConfigured() }
+            }
         }
         .onChange(of: navigation.sidebarSelection) { _, _ in
             navigation.listSelection = []

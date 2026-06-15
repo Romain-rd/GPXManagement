@@ -253,6 +253,11 @@ final class AppServices {
     }
 
     func confirmAllPendingImports(defaultActivityType: ActivityType) async {
+        // Les fichiers issus de HealthFit vivent dans le dossier surveillé : sans accès ouvert ici,
+        // la copie vers le container échoue (Code=513), car le scan a déjà refermé son accès.
+        let folder = WatchedFolderBookmark.resolve()
+        let access = folder?.startAccessingSecurityScopedResource() ?? false
+        defer { if access { folder?.stopAccessingSecurityScopedResource() } }
         let snapshot = pendingImports
         for proposal in snapshot {
             let type = proposal.suggestedActivityType ?? defaultActivityType
@@ -292,6 +297,9 @@ final class AppServices {
     }
 
     func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String, isCourse: Bool? = nil) async {
+        let folder = WatchedFolderBookmark.resolve()
+        let access = folder?.startAccessingSecurityScopedResource() ?? false
+        defer { if access { folder?.stopAccessingSecurityScopedResource() } }
         do {
             _ = try await importer.confirmImport(proposal, activityType: activityType, title: title, isCourse: isCourse)
             pendingImports.removeAll { $0.sourceURL == proposal.sourceURL }
@@ -313,13 +321,26 @@ final class AppServices {
 
 
 
-    func scanWatchedFolder(_ folderURL: URL) async {
+    /// Scan auto (lancement / réactivation) : ne propose que les fichiers déposés depuis le dernier scan,
+    /// en silence. Au tout premier scan on amorce juste la date — le retard existant n'est jamais proposé.
+    func scanWatchedFolderIfConfigured() async {
+        guard let folder = WatchedFolderBookmark.resolve() else { return }
+        guard let cutoff = WatchedFolderBookmark.lastScanDate else {
+            WatchedFolderBookmark.lastScanDate = Date()
+            return
+        }
+        let scanStart = Date()
+        await scanWatchedFolder(folder, silent: true, modifiedAfter: cutoff)
+        WatchedFolderBookmark.lastScanDate = scanStart
+    }
+
+    func scanWatchedFolder(_ folderURL: URL, silent: Bool = false, modifiedAfter cutoff: Date? = nil) async {
         isScanningWatchedFolder = true
         defer {
             isScanningWatchedFolder = false
             watchedFolderProgress = nil
         }
-        importError = nil
+        if !silent { importError = nil }
         lastWatchedFolderSummary = nil
 
         let didStartAccess = folderURL.startAccessingSecurityScopedResource()
@@ -328,15 +349,22 @@ final class AppServices {
         let fm = FileManager.default
         let candidates: [URL]
         do {
-            candidates = try fm.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
+            candidates = try fm.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey], options: [.skipsHiddenFiles])
         } catch {
-            importError = "Échec de la lecture du dossier : \(error.localizedDescription)"
+            if silent {
+                NSLog("GPXManagement: scan auto du dossier surveillé échoué: \(error)")
+            } else {
+                importError = "Échec de la lecture du dossier : \(error.localizedDescription)"
+            }
             return
         }
 
         let supported = candidates.filter { url in
             let ext = url.pathExtension.lowercased()
-            return ext == "gpx" || ext == "fit" || ext == "tcx"
+            guard ext == "gpx" || ext == "fit" || ext == "tcx" else { return false }
+            guard let cutoff else { return true }
+            let mod = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return mod > cutoff
         }
 
         if supported.isEmpty {
@@ -369,7 +397,7 @@ final class AppServices {
         if duplicates > 0 { parts.append("\(duplicates) déjà importé(s)") }
         if failures > 0 { parts.append("\(failures) échec(s)") }
         lastWatchedFolderSummary = parts.joined(separator: " · ")
-        if proposals.isEmpty && duplicates > 0 {
+        if !silent, proposals.isEmpty && duplicates > 0 {
             importError = "Tous les fichiers (\(duplicates)) sont déjà importés."
         }
     }

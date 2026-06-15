@@ -2,6 +2,14 @@ import Foundation
 
 enum WatchedFolderBookmark {
     private static let defaultsKey = "watchedImportFolder.bookmark"
+    private static let lastScanKey = "watchedImportFolder.lastScanDate"
+
+    /// Date du dernier scan auto réussi : l'import auto ne propose que les fichiers plus récents.
+    /// `nil` tant qu'aucun scan auto n'a eu lieu (le retard existant n'est jamais proposé en auto).
+    static var lastScanDate: Date? {
+        get { UserDefaults.standard.object(forKey: lastScanKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: lastScanKey) }
+    }
 
     static func save(url: URL) throws {
         let data = try url.bookmarkData(
@@ -34,5 +42,6 @@ enum WatchedFolderBookmark {
 
     static func clear() {
         UserDefaults.standard.removeObject(forKey: defaultsKey)
+        UserDefaults.standard.removeObject(forKey: lastScanKey)
     }
 }
