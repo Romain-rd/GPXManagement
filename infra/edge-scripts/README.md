@@ -27,8 +27,20 @@ toutes les requêtes — sinon tout le site renvoie le JSON de version.
    - `STORAGE_ZONE` = `gpxmanagement`
    - `STORAGE_ACCESS_KEY` = mot de passe de la Storage Zone (Storage → gpxmanagement → FTP & API Access → Password)
    - `STORAGE_HOST` = `storage.bunnycdn.com`
+   - `STATS_KEY` = une clé secrète de ton choix (pour accéder au tableau de bord privé)
 3. **Connected pull zones** : connecter **GPXManagement**.
 4. **Deploy**. Pas de « trigger par chemin » à régler (géré dans le code).
+
+## Tableau de bord privé
+
+Une fois `STATS_KEY` défini et le script déployé, ouvre :
+
+```
+https://www.gpxmanagement.net/parc?key=<STATS_KEY>
+```
+
+→ page HTML : répartition des builds + liste des machines (id anonyme, build, macOS, dernière activité).
+Sans la bonne clé → **403**. (Équivalent en local : `bash scripts/parc.sh`.)
 
 ## Lire l'historique
 
