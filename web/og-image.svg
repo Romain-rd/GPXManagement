@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4F0E6"/>
+      <stop offset="1" stop-color="#E9E3D5"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0F7A57"/>
+      <stop offset="1" stop-color="#DD6B1F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.32" r="0.6">
+      <stop offset="0" stop-color="#0F7A57" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#0F7A57" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+  <rect width="1200" height="1200" fill="url(#glow)"/>
+
+  <!-- Design Open Graph (bande centrale de 630 px : y 285 → 915) -->
+  <g transform="translate(0,285)">
+    <!-- Courbes de niveau (topographie) -->
+    <g transform="translate(870,300)" fill="none" stroke="#0F7A57" stroke-opacity="0.10" stroke-width="2.2">
+      <path d="M0 0m-40 0a40 35 0 1 0 80 0a40 35 0 1 0 -80 0"/>
+      <path d="M0 0m-95 -10a95 74 12 1 0 190 20a95 74 12 1 0 -190 -20"/>
+      <path d="M0 0m-160 -22a160 122 14 1 0 320 44a160 122 14 1 0 -320 -44"/>
+      <path d="M0 0m-235 -34a235 180 16 1 0 470 68a235 180 16 1 0 -470 -68"/>
+      <path d="M0 0m-320 -48a320 240 17 1 0 640 96a320 240 17 1 0 -640 -96"/>
+    </g>
+
+    <!-- Badge logo -->
+    <g transform="translate(96,40)">
+      <rect width="132" height="132" rx="34" fill="url(#badge)"/>
+      <g transform="translate(28,28) scale(3.16)" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 20c2-7 5-3 7-9 1.6-4.8 5-4 5-4"/>
+        <circle cx="17" cy="6" r="2.2" fill="#ffffff" stroke="none"/>
+        <circle cx="5" cy="20" r="2.2" fill="#ffffff" stroke="none"/>
+      </g>
+    </g>
+
+    <text x="252" y="102" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" fill="#15241D">GPXManagement</text>
+    <text x="254" y="142" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="3" fill="#5c6b62">APPLICATION macOS NATIVE</text>
+
+    <text x="96" y="306" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="76" font-weight="700" fill="#15241D">Vos traces GPS,</text>
+    <text x="96" y="392" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="76" font-weight="700" fill="#0F7A57">du tracé au récit.</text>
+
+    <text x="96" y="476" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="28" fill="#5c6b62">Gérez vos fichiers GPX et partagez vos aventures — vélo, moto, rando, ski.</text>
+
+    <text x="1104" y="566" text-anchor="end" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="24" font-weight="600" fill="#0F7A57">gpxmanagement.net</text>
+  </g>
+</svg>
