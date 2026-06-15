@@ -88,10 +88,8 @@ struct AppMenuCommands: Commands {
             .disabled(!(window?.hasSelection ?? false))
 
             Menu("Changer le type") {
-                ForEach(ActivityType.allCases, id: \.self) { type in
-                    Button(type.displayName) {
-                        window?.changeTypeOfSelection(type)
-                    }
+                activityTypeMenuItems { type in
+                    window?.changeTypeOfSelection(type)
                 }
             }
             .disabled(!(window?.hasSelection ?? false))

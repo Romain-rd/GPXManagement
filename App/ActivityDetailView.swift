@@ -291,12 +291,8 @@ struct ActivityDetailView: View {
     private var header: some View {
         HStack(spacing: 14) {
             Menu {
-                ForEach(ActivityType.allCases, id: \.self) { type in
-                    Button {
-                        Task { await listVM.updateType(id: activity.id, type: type) }
-                    } label: {
-                        Label(type.displayName, systemImage: type == activity.activityType ? "checkmark" : type.symbolName)
-                    }
+                activityTypeMenuItems(selected: activity.activityType) { type in
+                    Task { await listVM.updateType(id: activity.id, type: type) }
                 }
             } label: {
                 Image(systemName: activity.activityType.symbolName)

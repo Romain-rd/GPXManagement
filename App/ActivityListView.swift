@@ -234,12 +234,8 @@ struct ActivityListView: View {
         .listStyle(.inset)
         .contextMenu(forSelectionType: UUID.self) { ids in
             Menu("Changer le type") {
-                ForEach(ActivityType.allCases, id: \.self) { type in
-                    Button {
-                        Task { await listVM.updateType(ids: ids, type: type) }
-                    } label: {
-                        Label(type.displayName, systemImage: type.symbolName)
-                    }
+                activityTypeMenuItems { type in
+                    Task { await listVM.updateType(ids: ids, type: type) }
                 }
             }
             Menu("Raid") {
@@ -367,5 +363,32 @@ struct ActivityRow: View {
     private static func formatDistance(_ m: Double) -> String {
         if m >= 1000 { return String(format: "%.1f km", m / 1000) }
         return "\(Int(m)) m"
+    }
+}
+
+/// Contenu partagé du menu « Changer le type » : un sous-menu par catégorie (types triés alpha),
+/// les catégories à un seul type étant rendues directement. Utilisé par le menu contextuel,
+/// le menu d'application et l'en-tête de la fiche détail.
+@ViewBuilder
+func activityTypeMenuItems(selected: ActivityType? = nil, onSelect: @escaping (ActivityType) -> Void) -> some View {
+    ForEach(ActivityType.groupedByCategory, id: \.category) { group in
+        if group.types.count == 1, let type = group.types.first {
+            activityTypeMenuButton(type, selected: selected, onSelect: onSelect)
+        } else {
+            Menu(group.category.displayName) {
+                ForEach(group.types, id: \.self) { type in
+                    activityTypeMenuButton(type, selected: selected, onSelect: onSelect)
+                }
+            }
+        }
+    }
+}
+
+@ViewBuilder
+private func activityTypeMenuButton(_ type: ActivityType, selected: ActivityType?, onSelect: @escaping (ActivityType) -> Void) -> some View {
+    Button {
+        onSelect(type)
+    } label: {
+        Label(type.displayName, systemImage: type == selected ? "checkmark" : type.symbolName)
     }
 }
