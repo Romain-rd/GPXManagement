@@ -210,7 +210,7 @@ struct ContentView: View {
         if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
-            ActivityDetailView(activity: activity, listVM: listVM, repository: repository, fullscreenMap: $window.mapFullscreen)
+            ActivityDetailView(activity: activity, listVM: listVM, repository: repository, windowModel: window, fullscreenMap: $window.mapFullscreen)
         } else if navigation.selectedRaidId != nil {
             ContentUnavailableView(
                 "Sélectionnez une étape",

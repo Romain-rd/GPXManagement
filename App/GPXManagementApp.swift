@@ -91,7 +91,7 @@ struct ActivityDetailWindowView: View {
         Group {
             if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
                let repo = AppServices.shared.repository as? CoreDataActivityRepository {
-                ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, isStandaloneWindow: true, fullscreenMap: $detailFullscreen)
+                ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, windowModel: model, isStandaloneWindow: true, fullscreenMap: $detailFullscreen)
                     .navigationTitle(detailFullscreen ? "" : activity.title)
             } else if model.listVM.allActivities.isEmpty {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)

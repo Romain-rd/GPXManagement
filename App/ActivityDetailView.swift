@@ -14,6 +14,7 @@ struct ActivityDetailView: View {
     let activity: ActivitySummary
     @Bindable var listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
+    let windowModel: WindowModel
     /// Vrai dans la fenêtre détail dédiée (double-clic).
     var isStandaloneWindow: Bool = false
     /// État plein écran de la carte (partagé avec la fenêtre pour vider sa barre d'outils tout en gardant les pastilles).
@@ -91,10 +92,11 @@ struct ActivityDetailView: View {
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
-         isStandaloneWindow: Bool = false, fullscreenMap: Binding<Bool>) {
+         windowModel: WindowModel, isStandaloneWindow: Bool = false, fullscreenMap: Binding<Bool>) {
         self.activity = activity
         self.listVM = listVM
         self.repository = repository
+        self.windowModel = windowModel
         self.isStandaloneWindow = isStandaloneWindow
         self._fullscreenMap = fullscreenMap
         self._model = State(initialValue: ActivityDetailViewModel(repository: repository))
@@ -155,6 +157,24 @@ struct ActivityDetailView: View {
         .onChange(of: activity.title) { _, newTitle in
             if !titleFocused { titleDraft = newTitle }
         }
+        // Équivalents menu « Activité » des boutons de la barre d'outils (déclenchés par token).
+        .onChange(of: windowModel.repairToken) { _, _ in
+            Task {
+                isReprocessing = true
+                defer { isReprocessing = false }
+                await AppServices.shared.reprocessActivity(id: activity.id)
+                await loadSensorSeries()
+            }
+        }
+        .onChange(of: windowModel.webExportToken) { _, _ in
+            if model.hasTrack { showWebExportOptions = true }
+        }
+        .onChange(of: windowModel.videoToken) { _, _ in
+            if model.hasTrack { showVideoOptions = true }
+        }
+        .onChange(of: windowModel.shareToken) { _, _ in
+            if model.hasTrack { Task { await prepareShare() } }
+        }
         .toolbar {
             ToolbarItemGroup {
                 if !fullscreenMap {
@@ -193,6 +213,7 @@ struct ActivityDetailView: View {
                     Label("Exporter en GPX", systemImage: "arrow.down.doc")
                 }
                 .disabled(!model.hasTrack)
+                .help("Exporte la trace au format GPX (compatible avec les apps tierces)")
                 Button {
                     Task { await exportPDF() }
                 } label: {
@@ -203,6 +224,7 @@ struct ActivityDetailView: View {
                     }
                 }
                 .disabled(isExportingPDF || !model.hasTrack)
+                .help("Génère un rapport PDF imprimable : carte, profil, statistiques et notes")
                 Button {
                     showWebExportOptions = true
                 } label: {
@@ -232,6 +254,7 @@ struct ActivityDetailView: View {
                     Label("Partager", systemImage: "square.and.arrow.up")
                 }
                 .disabled(!model.hasTrack)
+                .help("Partage l'activité via le menu de partage macOS (Mail, Messages, AirDrop…)")
                 } else if isStandaloneWindow {
                     // Plein écran (fenêtre autonome) : sortie dans la toolbar (reçoit le clic, au-dessus de la carte).
                     Button { fullscreenMap = false } label: {

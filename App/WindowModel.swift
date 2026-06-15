@@ -92,6 +92,18 @@ final class WindowModel {
         mapExportToken += 1
     }
 
+    // Actions dont la logique vit dans la fiche détail (sheets/partage) : on déclenche via un token
+    // que la fiche de l'activité sélectionnée observe — même mécanisme que l'export carte.
+    var repairToken: Int = 0
+    var webExportToken: Int = 0
+    var videoToken: Int = 0
+    var shareToken: Int = 0
+
+    func requestRepair() { guard hasSelection else { return }; repairToken += 1 }
+    func requestWebExport() { guard hasSelection else { return }; webExportToken += 1 }
+    func requestVideo() { guard hasSelection else { return }; videoToken += 1 }
+    func requestShare() { guard hasSelection else { return }; shareToken += 1 }
+
     func requestNewRaid() {
         guard hasSelection else { return }
         navigation.newRaidToken += 1

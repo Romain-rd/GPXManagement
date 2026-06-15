@@ -96,6 +96,28 @@ struct AppMenuCommands: Commands {
             }
             .disabled(!(window?.hasSelection ?? false))
 
+            Button("Réparer (ré-analyser le fichier source)") {
+                window?.requestRepair()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
+            Divider()
+
+            Button("Exporter en page web…") {
+                window?.requestWebExport()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
+            Button("Créer une vidéo…") {
+                window?.requestVideo()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
+            Button("Partager…") {
+                window?.requestShare()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
             Divider()
 
             Button("Supprimer") {
