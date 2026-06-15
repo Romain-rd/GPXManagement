@@ -23,9 +23,14 @@ struct GPXManagementApp: App {
             } else {
                 ContentView(services: services)
                     .environment(\.managedObjectContext, services.persistence.container.viewContext)
-                    .updateBanner(updateGate)
                     .alphaRibbon()
                     .task { await updateGate.check() }
+                    .sheet(isPresented: Binding(get: { updateGate.showUpdateSheet }, set: { updateGate.showUpdateSheet = $0 })) {
+                        UpdateAvailableView(notes: updateGate.notes, latestBuild: updateGate.latestBuild ?? 0) {
+                            updateGate.showUpdateSheet = false
+                            updaterController.updater.checkForUpdates()
+                        }
+                    }
             }
         }
         .commands {
@@ -135,9 +140,12 @@ final class UpdateGate {
     let installID: String
     private(set) var latestBuild: Int?
     private(set) var downloadURL: URL = AppConfig.alphaURL
+    private(set) var notes = ""
     /// `true` si le build installé est sous le plancher imposé (confirmé en ligne ou connu d'un appel précédent).
     var mustUpdate: Bool
-    var bannerDismissed = false
+    /// Pilote l'affichage de la fenêtre de nouveautés au démarrage (une fois par lancement).
+    var showUpdateSheet = false
+    private var didOfferThisLaunch = false
 
     var updateAvailable: Bool { (latestBuild ?? 0) > Self.currentBuild }
 
@@ -172,8 +180,14 @@ final class UpdateGate {
               let feed = try? JSONDecoder().decode(VersionFeed.self, from: data) else { return }
         latestBuild = feed.latestBuild
         if let raw = feed.downloadURL, let u = URL(string: raw) { downloadURL = u }
+        notes = feed.notes ?? ""
         UserDefaults.standard.set(feed.minimumBuild, forKey: Self.lastMinKey)
         mustUpdate = Self.currentBuild < feed.minimumBuild
+        // Au démarrage : si une nouvelle version est dispo (et qu'on n'est pas bloqué), proposer les nouveautés une fois.
+        if !mustUpdate, Self.currentBuild < feed.latestBuild, !didOfferThisLaunch {
+            didOfferThisLaunch = true
+            showUpdateSheet = true
+        }
     }
 }
 
@@ -181,28 +195,44 @@ private struct VersionFeed: Decodable {
     let latestBuild: Int
     let minimumBuild: Int
     let downloadURL: String?
+    let notes: String?
 }
 
-extension View {
-    /// Bandeau discret « nouvelle version disponible » (non bloquant), réutilisable sur le contenu principal.
-    func updateBanner(_ gate: UpdateGate) -> some View {
-        overlay(alignment: .bottom) {
-            if gate.updateAvailable && !gate.mustUpdate && !gate.bannerDismissed {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint)
-                    Text("Une nouvelle version est disponible.").font(.callout)
-                    Button("Mettre à jour") { NSWorkspace.shared.open(gate.downloadURL) }
-                        .buttonStyle(.borderedProminent).controlSize(.small)
-                    Button { gate.bannerDismissed = true } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
+/// Fenêtre de nouveautés affichée au démarrage quand une nouvelle version est disponible : montre les
+/// notes de version pour motiver la mise à jour, et délègue l'installation à Sparkle.
+struct UpdateAvailableView: View {
+    let notes: String
+    let latestBuild: Int
+    let onUpdate: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles").font(.system(size: 30)).foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Nouvelle version disponible").font(.title2.bold())
+                    Text("Build \(latestBuild)").font(.caption).foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(.regularMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.quaternary))
-                .shadow(radius: 10, y: 3)
-                .padding(.bottom, 18)
+            }
+            if !notes.isEmpty {
+                ScrollView {
+                    Text(notes).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.4)))
+            }
+            HStack {
+                Spacer()
+                Button("Plus tard") { dismiss() }
+                Button("Mettre à jour") { onUpdate() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
             }
         }
+        .padding(24)
+        .frame(width: 460)
     }
 }
 
