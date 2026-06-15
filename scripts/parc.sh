@@ -10,7 +10,9 @@ ZONE_ID="$(val BUNNY_STORAGE_ZONE_ID)"
 [ -n "$API_KEY" ] && [ -n "$ZONE_ID" ] || { echo "✗ BUNNY_API_KEY ou BUNNY_STORAGE_ZONE_ID manquant dans Secrets.xcconfig." >&2; exit 1; }
 
 ZJSON="$(curl -fsS -H "AccessKey: $API_KEY" "https://api.bunny.net/storagezone/$ZONE_ID")"
-read -r ZNAME ZPASS ZHOST < <(python3 -c 'import json,sys; z=json.loads(sys.argv[1]); print(z["Name"], z["Password"], z.get("StorageHostname") or "storage.bunnycdn.com")' "$ZJSON")
+ZNAME="$(printf '%s' "$ZJSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Name"])')"
+ZPASS="$(printf '%s' "$ZJSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Password"])')"
+ZHOST="$(printf '%s' "$ZJSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("StorageHostname") or "storage.bunnycdn.com")')"
 
 DATA="$(curl -fsS -H "AccessKey: $ZPASS" "https://$ZHOST/$ZNAME/telemetry/installs.json" 2>/dev/null || echo '{}')"
 
