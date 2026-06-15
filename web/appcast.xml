@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>GPXManagement</title>
+        <item>
+            <title>1.0</title>
+            <pubDate>Mon, 15 Jun 2026 19:40:59 +0200</pubDate>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg" length="6254043" type="application/octet-stream" sparkle:edSignature="1yrXBVY2rKlSlylZGcyvfuyY5Ll4NlldxVoEKm2P1m1G716niYp3hkpwJLHXrfzt74I7SetY/TyLLxhd8lTNBA=="/>
+        </item>
+    </channel>
+</rss>
