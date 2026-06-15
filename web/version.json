@@ -3,5 +3,5 @@
   "latestVersion": "1.0",
   "minimumBuild": 1,
   "downloadURL": "https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg",
-  "notes": "Build 10 — mises à jour automatiques (Sparkle), Préférences (organisation chronologique, Maintenance), filtre Publication."
+  "notes": "Nouveautés de cette version :\n\n• Mises à jour automatiques (Sparkle) — installez en un clic.\n• Notes de version affichées au démarrage.\n• Préférences : organisation chronologique, onglet Maintenance défilant.\n• Filtre intelligent « Publication ».\n• Aide en ligne complète."
 }
