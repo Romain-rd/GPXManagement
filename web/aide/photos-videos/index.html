@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gérer vos photos &amp; vidéos — Aide GPXManagement</title>
+<meta name="description" content="Placer vos photos sur le parcours, ajuster leur position, les afficher sur la carte, puis recadrer et extraire vos vidéos dans GPXManagement.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40; --trail:#DD6B1F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a; --trail:#F0883E;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 24px; }
+  .topbar { padding:26px 0 0; }
+  .crumbs { font-size:14px; color:var(--sec); }
+  .crumbs a { font-weight:600; }
+
+  header.intro { padding:30px 0 8px; }
+  .badge { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#fff; background:var(--green); padding:6px 12px; border-radius:999px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:18px 0 0; }
+  .dek { font-size:18px; color:var(--sec); margin:14px 0 0; }
+
+  .callout { display:flex; gap:13px; background:color-mix(in srgb,var(--trail) 9%, var(--card)); border:1px solid color-mix(in srgb,var(--trail) 30%, var(--line));
+    border-radius:14px; padding:15px 18px; margin:26px 0 8px; font-size:14.5px; }
+  .callout svg { flex:none; color:var(--trail); margin-top:2px; }
+  .callout b { color:var(--ink); }
+
+  .legend { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin:26px 0 0; }
+  .legend h2 { font-family:"Fraunces",serif; font-weight:600; font-size:18px; margin:0 0 12px; }
+  .legend ul { list-style:none; margin:0; padding:0; display:grid; gap:11px; }
+  .legend li { display:flex; align-items:flex-start; gap:12px; font-size:14.5px; }
+  .legend .pill { flex:none; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    color:#fff; border:1px solid color-mix(in srgb,#000 18%, transparent); }
+  .legend .pill svg { width:16px; height:16px; }
+  .legend b { color:var(--ink); }
+  .legend .sec { color:var(--sec); }
+
+  .phase { font-family:"Fraunces",serif; font-style:italic; font-weight:500; color:var(--trail); font-size:14px;
+    text-transform:uppercase; letter-spacing:.06em; margin:44px 0 6px; }
+
+  .steps { list-style:none; margin:8px 0 0; padding:0; }
+  .step { position:relative; padding:0 0 30px 56px; }
+  .step:not(:last-child)::before { content:""; position:absolute; left:18px; top:38px; bottom:-2px; width:2px; background:var(--line); }
+  .step-num { position:absolute; left:0; top:0; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-family:"Fraunces",serif; font-weight:600;
+    color:#fff; background:var(--green); box-shadow:0 6px 16px -8px color-mix(in srgb,var(--green) 80%, transparent); }
+  .step h3 { margin:6px 0 6px; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .step p { margin:0; color:var(--sec); font-size:15px; }
+  .step p + p { margin-top:8px; }
+  .path { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; color:var(--ink); }
+
+  figure.shot { margin:14px 0 0; }
+  figure.shot img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid var(--line); box-shadow:0 18px 40px -28px rgba(0,0,0,.5); }
+  figure.shot .ph { display:none; }
+  figure.shot.todo img { display:none; }
+  figure.shot.todo .ph { display:flex; align-items:center; gap:9px; color:var(--sec); font-size:13px;
+    border:1.5px dashed var(--line); border-radius:12px; padding:18px; background:var(--paper-2); }
+  figure.shot .ph code { font-size:12px; }
+
+  .endcta { display:flex; flex-wrap:wrap; gap:14px; margin:36px 0 0; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px; padding:13px 22px; border-radius:13px; transition:transform .18s ease; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); }
+  .btn:hover { transform:translateY(-2px); }
+
+  footer { border-top:1px solid var(--line); padding:28px 0 48px; margin-top:44px; color:var(--sec); font-size:13px; text-align:center; }
+  footer .madeby { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topbar"><p class="crumbs"><a href="/">GPXManagement</a> · <a href="/aide/">Aide</a> · Photos &amp; vidéos</p></nav>
+
+  <header class="intro">
+    <span class="badge">📷 Photos &amp; vidéos</span>
+    <h1>Gérer vos photos &amp; vidéos</h1>
+    <p class="dek">GPXManagement retrouve les photos et vidéos prises pendant une sortie et les place le long du parcours. Vous pouvez ensuite ajuster leur position, choisir lesquelles afficher, et recadrer ou raccourcir vos vidéos.</p>
+
+    <div class="callout">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div><b>Vos photos restent dans Photos (app Apple).</b> GPXManagement n'en fait pas de copie : il lit votre photothèque, les place sur la carte et garde vos réglages (position ajustée, affichage, favoris) synchronisés entre vos Macs via iCloud.</div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <h2>La légende des badges</h2>
+    <ul>
+      <li><span class="pill" style="background:#3478F6"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3 3 10.7l7.2 2.9 2.9 7.2L21 3z"/></svg></span><span><b>Position sur le parcours</b> <span class="sec">(en haut à gauche) — ouvre le réglage de l'endroit de la photo le long de la trace. Fond bleu = position réglée à la main.</span></span></li>
+      <li><span class="pill" style="background:#E8800C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span><span><b>Heure et GPS en désaccord</b> <span class="sec">— l'heure de prise et les coordonnées GPS divergent ; le badge position passe au triangle orange. Cliquez pour positionner la photo manuellement.</span></span></li>
+      <li><span class="pill" style="background:#3478F6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></span><span><b>Modifier</b> <span class="sec">— recadrer une photo, ou recadrer / extraire une vidéo. Fond bleu = déjà modifiée.</span></span></li>
+      <li><span class="pill" style="background:#3478F6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span><b>Afficher sur la carte</b> <span class="sec">(en haut à droite) — épingle pleine = visible sur la carte et le profil ; épingle barrée = masquée.</span></span></li>
+      <li><span class="pill" style="background:#E0245E"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21S3.5 14.4 3.5 8.8A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 8.5 2.8C20.5 14.4 12 21 12 21z"/></svg></span><span><b>Favori</b> <span class="sec">— marque la photo comme favorite dans l'app Photos d'Apple (synchronisé avec vos appareils).</span></span></li>
+    </ul>
+  </div>
+
+  <p class="phase">Sur la carte</p>
+  <ol class="steps">
+    <li class="step">
+      <span class="step-num">1</span>
+      <h3>Les photos apparaissent toutes seules</h3>
+      <p>Ouvrez une sortie : la section <b>Photos &amp; vidéos</b> liste les médias pris pendant l'activité. Ils sont placés sur la carte et le profil d'après leur <b>heure de prise</b> croisée avec la trace — ou d'après les coordonnées GPS quand la photo en contient.</p>
+      <figure class="shot"><img src="img/etape-1.png" alt="Section Photos & vidéos d'une sortie avec les vignettes" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/photos-videos/img/etape-1.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">2</span>
+      <h3>Afficher ou masquer toutes les photos</h3>
+      <p>L'interrupteur <span class="path">Sur la carte</span>, en haut de la section, affiche ou masque d'un coup tous les repères photo sur la carte et le profil.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">3</span>
+      <h3>Choisir photo par photo</h3>
+      <p>Le badge <b>épingle</b> en haut à droite d'une vignette bascule cette photo seule : épingle pleine = affichée, épingle barrée = masquée. Pratique pour ne garder sur la carte que les meilleurs clichés.</p>
+    </li>
+  </ol>
+
+  <p class="phase">Ajuster une photo</p>
+  <ol class="steps" start="4">
+    <li class="step">
+      <span class="step-num">4</span>
+      <h3>Repositionner sur le parcours</h3>
+      <p>Le badge <b>position</b> (en haut à gauche) ouvre la fenêtre <b>« Position sur le parcours »</b> : faites glisser la vignette sur la <b>carte</b> ou sur le <b>profil</b> pour la placer exactement où la photo a été prise. La distance, l'heure et l'altitude du point choisi s'affichent en dessous.</p>
+      <p>Trois raccourcis sont proposés : <span class="path">Aligner sur l'heure</span> (replace d'après l'heure de prise), <span class="path">Aligner sur le GPS</span> (d'après les coordonnées de la photo) et <span class="path">Réinitialiser (auto)</span> (revient au placement automatique). Dès que vous déplacez la vignette à la main, la mention <b>« Position manuelle »</b> apparaît et le badge devient <b>bleu</b> ; cliquez <b>Valider</b> pour mémoriser.</p>
+      <figure class="shot"><img src="img/etape-4.png" alt="Fenêtre « Position sur le parcours » : carte, profil et boutons d'alignement" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/photos-videos/img/etape-4.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">5</span>
+      <h3>Quand l'heure et le GPS divergent</h3>
+      <p>Si l'horloge de l'appareil photo et les coordonnées GPS ne concordent pas, le badge passe au <b>triangle orange ⚠︎</b>. C'est un simple signal : cliquez dessus pour fixer vous-même la bonne position sur la trace.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">6</span>
+      <h3>Marquer une favorite</h3>
+      <p>Le <b>cœur</b> marque la photo comme favorite directement dans l'app <b>Photos</b> d'Apple — le réglage est donc partagé avec tous vos appareils.</p>
+    </li>
+  </ol>
+
+  <p class="phase">Recadrer &amp; extraire une vidéo</p>
+  <ol class="steps" start="7">
+    <li class="step">
+      <span class="step-num">7</span>
+      <h3>Ouvrir l'éditeur</h3>
+      <p>Le badge <b>crayon ✏︎</b> ouvre l'éditeur. Sur une photo il permet de recadrer ; sur une vidéo il ouvre <b>« Recadrer / extraire la vidéo »</b>.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">8</span>
+      <h3>Choisir le cadrage</h3>
+      <p>En haut, choisissez un format : <span class="path">16:9</span>, <span class="path">1:1</span>, <span class="path">9:16</span>, <span class="path">Original</span> ou <span class="path">Libre</span>. Déplacez et redimensionnez le cadre sur l'image pour ne garder que la zone voulue (idéal pour passer un rush paysage en portrait pour les réseaux).</p>
+      <figure class="shot"><img src="img/etape-8.png" alt="Éditeur de recadrage vidéo avec choix de format" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/photos-videos/img/etape-8.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">9</span>
+      <h3>Extraire un passage</h3>
+      <p>Sous l'image, la <b>pellicule jaune</b> montre le film image par image. Faites glisser les <b>poignées jaunes</b> aux extrémités pour ne conserver qu'un extrait : la zone hors poignées (assombrie) sera coupée, et la durée retenue s'affiche en dessous.</p>
+      <p>Le bouton lecture rejoue l'extrait sélectionné en boucle pour vérifier.</p>
+      <figure class="shot"><img src="img/etape-9.png" alt="Barre d'extrait jaune avec poignées et pellicule du film" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/photos-videos/img/etape-9.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">10</span>
+      <h3>Enregistrer</h3>
+      <p><b>Enregistrer</b> crée une nouvelle version recadrée / raccourcie de la vidéo. La vignette signale ensuite qu'elle a été modifiée (badge crayon bleu) ; vous pouvez la rouvrir pour la retoucher.</p>
+    </li>
+  </ol>
+
+  <div class="callout" style="margin-top:36px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    <div><b>Et après ?</b> Les photos et vidéos placées le long du parcours alimentent le <b>Film du parcours</b> et les <b>exports</b> (page web, PDF) — elles y apparaissent au bon endroit, dans l'ordre du trajet.</div>
+  </div>
+
+  <div class="endcta">
+    <a class="btn btn-ghost" href="/aide/">← Toutes les aides</a>
+    <a class="btn btn-primary" href="/">Accueil</a>
+  </div>
+
+  <footer>
+    <p class="madeby">GPXManagement</p>
+    <p>© <span id="y">2026</span> Romain Demoustier</p>
+  </footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aide — GPXManagement</title>
-<meta name="description" content="Guides d'utilisation de GPXManagement : import des données, cartes, partage.">
+<meta name="description" content="Guides d'utilisation de GPXManagement : import des données, cartes et analyse, photos, vidéos, raids et partage.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -32,6 +32,11 @@
   h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); letter-spacing:-.02em; margin:14px 0 0; }
   .dek { font-size:18px; color:var(--sec); margin:14px 0 30px; }
 
+  .sec-head { display:flex; align-items:baseline; gap:14px; margin:38px 0 16px; }
+  .sec-num { font-family:"Fraunces",serif; font-weight:600; font-style:italic; color:var(--trail); font-size:18px; }
+  .sec-title { font-family:"Fraunces",serif; font-weight:600; font-size:clamp(21px,3vw,28px); letter-spacing:-.01em; margin:0; }
+  .sec-rule { flex:1; height:1px; background:var(--line); align-self:center; }
+
   .guides { display:grid; gap:14px; }
   .guide { display:flex; align-items:center; gap:16px; background:var(--card); border:1px solid var(--line);
     border-radius:16px; padding:18px 20px; transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
@@ -55,34 +60,91 @@
   <header>
     <p class="eyebrow">Aide</p>
     <h1>Guides &amp; assistance</h1>
-    <p class="dek">Des pas-à-pas pour tirer le meilleur de GPXManagement.</p>
+    <p class="dek">Des pas-à-pas pour tirer le meilleur de GPXManagement, organisés comme l'application : rassembler, visualiser, raconter.</p>
   </header>
 
-  <div class="guides">
-    <a class="guide" href="/aide/strava/">
-      <span class="ic">📦</span>
-      <span class="t"><h3>Importer vos données Strava</h3><p>Exporter l'archive complète depuis Strava, puis l'importer dans l'app.</p></span>
-      <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-    </a>
-
-    <a class="guide" href="/aide/strava-sync/">
-      <span class="ic">🔗</span>
-      <span class="t"><h3>Connecter &amp; synchroniser Strava</h3><p>Relier votre compte Strava pour récupérer automatiquement vos nouvelles sorties.</p></span>
-      <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-    </a>
-
-    <div class="guide soon">
-      <span class="ic">❤️</span>
-      <span class="t"><h3>Importer depuis Apple Santé</h3><p>Récupérer les activités enregistrées par l'iPhone et l'Apple Watch.</p></span>
-      <span class="tag">Bientôt</span>
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2 class="sec-title">Rassembler vos traces</h2><span class="sec-rule"></span></div>
+    <div class="guides">
+      <a class="guide" href="/aide/strava/">
+        <span class="ic">📦</span>
+        <span class="t"><h3>Importer vos données Strava</h3><p>Exporter l'archive complète depuis Strava, puis l'importer dans l'app.</p></span>
+        <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a class="guide" href="/aide/strava-sync/">
+        <span class="ic">🔗</span>
+        <span class="t"><h3>Connecter &amp; synchroniser Strava</h3><p>Relier votre compte Strava pour récupérer automatiquement vos nouvelles sorties.</p></span>
+        <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <div class="guide soon">
+        <span class="ic">❤️</span>
+        <span class="t"><h3>Importer depuis Apple Santé</h3><p>Récupérer les activités de l'iPhone et de l'Apple Watch, et surveiller un dossier HealthFit.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <div class="guide soon">
+        <span class="ic">📥</span>
+        <span class="t"><h3>Importer des fichiers GPX / FIT</h3><p>Glisser-déposer vos traces, confirmer le type d'activité, éviter les doublons.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
     </div>
+  </section>
 
-    <div class="guide soon">
-      <span class="ic">📥</span>
-      <span class="t"><h3>Importer des fichiers GPX / FIT</h3><p>Glisser-déposer vos traces et corriger le type d'activité.</p></span>
-      <span class="tag">Bientôt</span>
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2 class="sec-title">Visualiser &amp; analyser</h2><span class="sec-rule"></span></div>
+    <div class="guides">
+      <div class="guide soon">
+        <span class="ic">🗺️</span>
+        <span class="t"><h3>Cartes IGN</h3><p>Basculer entre SCAN 25, Plan v2, carte des pentes et fonds monde.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <div class="guide soon">
+        <span class="ic">📈</span>
+        <span class="t"><h3>Profil altimétrique &amp; fréquence cardiaque</h3><p>Lire le profil, la pente colorée et la FC, avec survol synchronisé carte ↔ profil.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <div class="guide soon">
+        <span class="ic">✂️</span>
+        <span class="t"><h3>Segments</h3><p>Découper une trace en portions nommées et lire leurs statistiques.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <div class="guide soon">
+        <span class="ic">📊</span>
+        <span class="t"><h3>Statistiques &amp; vue d'ensemble</h3><p>Distances, dénivelés et temps par période, comparaison d'années, toutes les traces sur une carte.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <div class="guide soon">
+        <span class="ic">🧠</span>
+        <span class="t"><h3>Filtres intelligents</h3><p>Créer des dossiers dynamiques qui se remplissent selon vos règles.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
     </div>
-  </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2 class="sec-title">Raconter &amp; partager</h2><span class="sec-rule"></span></div>
+    <div class="guides">
+      <a class="guide" href="/aide/photos-videos/">
+        <span class="ic">📷</span>
+        <span class="t"><h3>Gérer vos photos &amp; vidéos</h3><p>Placer les photos sur le parcours, ajuster leur position, recadrer et extraire vos vidéos.</p></span>
+        <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a class="guide" href="/aide/film/">
+        <span class="ic">🎬</span>
+        <span class="t"><h3>Film du parcours</h3><p>Créer une vidéo animée de la trace avec vos photos et vidéos placées au bon endroit.</p></span>
+        <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <div class="guide soon">
+        <span class="ic">🏔️</span>
+        <span class="t"><h3>Raids multi-jours</h3><p>Regrouper les étapes d'un séjour, avec participants et statistiques cumulées.</p></span>
+        <span class="tag">Bientôt</span>
+      </div>
+      <a class="guide" href="/aide/export-partage/">
+        <span class="ic">📤</span>
+        <span class="t"><h3>Exporter &amp; partager</h3><p>GPX, PDF, image, page web interactive et partage macOS.</p></span>
+        <svg class="arw" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </section>
 
   <footer>
     <p class="madeby">GPXManagement</p>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Créer le film du parcours — Aide GPXManagement</title>
+<meta name="description" content="Créer une vidéo animée de votre sortie : trace qui se dessine sur la carte IGN, photos et vidéos placées le long du parcours, profil, fréquence cardiaque, cartons de début et de fin.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#F2EEE4; --paper-2:#E9E3D5; --ink:#15241D; --sec:#5c6b62;
+    --card:#FBF8F1; --line:#ddd5c4; --green:#0F7A57; --green-deep:#0A5A40; --trail:#DD6B1F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#0D1A16; --paper-2:#0a1411; --ink:#ECE6D6; --sec:#9aa89f;
+      --card:#152420; --line:#26352f; --green:#3FB389; --green-deep:#2c8d6a; --trail:#F0883E;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,sans-serif; font-size:16px; line-height:1.65;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a { color:var(--green); text-decoration:none; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 24px; }
+  .topbar { padding:26px 0 0; }
+  .crumbs { font-size:14px; color:var(--sec); }
+  .crumbs a { font-weight:600; }
+
+  header.intro { padding:30px 0 8px; }
+  .badge { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#fff; background:var(--green); padding:6px 12px; border-radius:999px; }
+  h1 { font-family:"Fraunces",serif; font-weight:900; font-size:clamp(32px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:18px 0 0; }
+  .dek { font-size:18px; color:var(--sec); margin:14px 0 0; }
+
+  .callout { display:flex; gap:13px; background:color-mix(in srgb,var(--trail) 9%, var(--card)); border:1px solid color-mix(in srgb,var(--trail) 30%, var(--line));
+    border-radius:14px; padding:15px 18px; margin:26px 0 8px; font-size:14.5px; }
+  .callout svg { flex:none; color:var(--trail); margin-top:2px; }
+  .callout b { color:var(--ink); }
+
+  .opts { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin:26px 0 0; }
+  .opts h2 { font-family:"Fraunces",serif; font-weight:600; font-size:18px; margin:0 0 12px; }
+  .opts dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:14.5px; }
+  .opts dt { font-weight:700; color:var(--ink); }
+  .opts dd { margin:0; color:var(--sec); }
+  .opts code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; background:var(--paper-2); border:1px solid var(--line); border-radius:5px; padding:0 5px; color:var(--ink); }
+
+  .phase { font-family:"Fraunces",serif; font-style:italic; font-weight:500; color:var(--trail); font-size:14px;
+    text-transform:uppercase; letter-spacing:.06em; margin:44px 0 6px; }
+
+  .steps { list-style:none; margin:8px 0 0; padding:0; }
+  .step { position:relative; padding:0 0 30px 56px; }
+  .step:not(:last-child)::before { content:""; position:absolute; left:18px; top:38px; bottom:-2px; width:2px; background:var(--line); }
+  .step-num { position:absolute; left:0; top:0; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-family:"Fraunces",serif; font-weight:600;
+    color:#fff; background:var(--green); box-shadow:0 6px 16px -8px color-mix(in srgb,var(--green) 80%, transparent); }
+  .step h3 { margin:6px 0 6px; font-size:18px; font-weight:700; letter-spacing:-.01em; }
+  .step p { margin:0; color:var(--sec); font-size:15px; }
+  .step p + p { margin-top:8px; }
+  .path { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; color:var(--ink); }
+
+  figure.shot { margin:14px 0 0; }
+  figure.shot img { width:100%; height:auto; display:block; border-radius:12px; border:1px solid var(--line); box-shadow:0 18px 40px -28px rgba(0,0,0,.5); }
+  figure.shot .ph { display:none; }
+  figure.shot.todo img { display:none; }
+  figure.shot.todo .ph { display:flex; align-items:center; gap:9px; color:var(--sec); font-size:13px;
+    border:1.5px dashed var(--line); border-radius:12px; padding:18px; background:var(--paper-2); }
+  figure.shot .ph code { font-size:12px; }
+
+  .endcta { display:flex; flex-wrap:wrap; gap:14px; margin:36px 0 0; }
+  .btn { display:inline-flex; align-items:center; gap:9px; font-weight:700; font-size:16px; padding:13px 22px; border-radius:13px; transition:transform .18s ease; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-ghost { color:var(--ink); border:1px solid var(--line); background:var(--card); }
+  .btn:hover { transform:translateY(-2px); }
+
+  footer { border-top:1px solid var(--line); padding:28px 0 48px; margin-top:44px; color:var(--sec); font-size:13px; text-align:center; }
+  footer .madeby { color:var(--green); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topbar"><p class="crumbs"><a href="/">GPXManagement</a> · <a href="/aide/">Aide</a> · Film du parcours</p></nav>
+
+  <header class="intro">
+    <span class="badge">🎬 Film du parcours</span>
+    <h1>Créer le film de votre sortie</h1>
+    <p class="dek">Une vidéo animée où votre trace se dessine sur la carte IGN, avec vos photos et vidéos qui surgissent au bon endroit du parcours, le profil, la fréquence cardiaque, et des cartons de début et de fin.</p>
+
+    <div class="callout">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      <div><b>Placez d'abord vos photos.</b> Le film ne reprend que les photos et vidéos <b>affichées sur la carte</b> (épingle active), placées le long du parcours. Pensez à les <a href="/aide/photos-videos/">positionner et à choisir lesquelles afficher</a> avant de lancer la création.</div>
+    </div>
+  </header>
+
+  <p class="phase">Lancer la création</p>
+  <ol class="steps">
+    <li class="step">
+      <span class="step-num">1</span>
+      <h3>Ouvrez « Créer une vidéo »</h3>
+      <p>Depuis la fiche d'une sortie, cliquez l'icône <b>film</b> 🎬 dans la barre d'outils, ou utilisez le menu <span class="path">Activité ▸ Créer une vidéo…</span>. La fenêtre <b>« Créer la vidéo du parcours »</b> s'ouvre.</p>
+      <figure class="shot"><img src="img/etape-1.png" alt="Fenêtre Créer la vidéo du parcours" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/film/img/etape-1.png</code></span></figure>
+    </li>
+  </ol>
+
+  <p class="phase">Choisir le rendu</p>
+  <ol class="steps" start="2">
+    <li class="step">
+      <span class="step-num">2</span>
+      <h3>Modèle, qualité, format, animation</h3>
+      <p>En haut, partez d'un <b>modèle</b> : prédéfinis <b>« 16:9 côte à côte »</b>, <b>« 16:9 plein écran »</b>, <b>« Carré réseaux »</b>, <b>« Story portrait »</b>, ou l'un des vôtres. Puis réglez les trois listes :</p>
+      <div class="opts">
+        <dl>
+          <dt>Qualité</dt><dd>HD (720p) ou Full HD (1080p).</dd>
+          <dt>Format</dt><dd>Paysage 16:9, Carré 1:1 ou Portrait 9:16 (Portrait idéal pour les réseaux).</dd>
+          <dt>Animation</dt><dd>Transition des photos/vidéos : Aucune, Fondu, Zoom ou Glissement.</dd>
+        </dl>
+      </div>
+    </li>
+    <li class="step">
+      <span class="step-num">3</span>
+      <h3>Ce que le film montre</h3>
+      <p>Cochez les éléments à inclure : <b>Profil altimétrique</b>, <b>Fréquence cardiaque</b> (si la sortie en contient et qu'un profil est affiché), <b>Carton de début</b> (titre + date) et <b>Carton de fin</b> (résumé de la sortie). Choisissez aussi le <b>Fond de carte</b> (SCAN 25, Plan v2, carte des pentes…).</p>
+    </li>
+  </ol>
+
+  <p class="phase">Composer l'image</p>
+  <ol class="steps" start="4">
+    <li class="step">
+      <span class="step-num">4</span>
+      <h3>Disposez les zones</h3>
+      <p>Dans l'aperçu de mise en page, <b>glissez</b> chaque zone (carte, photo/vidéo, profil) pour la déplacer, et tirez la <b>poignée de coin</b> pour la redimensionner. Le carton titre + date s'affiche au début, le résumé à la fin.</p>
+      <figure class="shot"><img src="img/etape-4.png" alt="Éditeur de mise en page du film : zones déplaçables et redimensionnables" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/film/img/etape-4.png</code></span></figure>
+    </li>
+    <li class="step">
+      <span class="step-num">5</span>
+      <h3>Enregistrez votre modèle (facultatif)</h3>
+      <p>Une mise en page qui vous plaît ? <span class="path">Enregistrer sous…</span> la conserve comme modèle réutilisable (visible dans <b>Mes modèles</b>). Vous pouvez ensuite la <b>Mettre à jour</b>, la <b>Renommer</b> ou la <b>Supprimer</b>. La mention <b>« • modifié »</b> indique que la mise en page diffère du modèle choisi ; <span class="path">Réinitialiser</span> revient à la disposition par défaut du format.</p>
+    </li>
+  </ol>
+
+  <p class="phase">Exporter</p>
+  <ol class="steps" start="6">
+    <li class="step">
+      <span class="step-num">6</span>
+      <h3>Choisissez la destination</h3>
+      <p><b>Fichier</b> enregistre un <code>.mp4</code> sur votre Mac (une fenêtre d'enregistrement vous demande le nom et l'emplacement). <b>GPXManagement.net</b> publie directement le film en ligne — <b>gratuit pendant la bêta</b>, sans rien à configurer.</p>
+    </li>
+    <li class="step">
+      <span class="step-num">7</span>
+      <h3>Lancez le rendu</h3>
+      <p>Cliquez <b>« Créer la vidéo »</b> (ou <b>« Créer et publier »</b>). Une barre de progression s'affiche pendant le rendu ; selon la durée du parcours, la qualité et le nombre de médias, cela peut prendre un moment. Le film terminé contient le point animé sur la carte, vos photos et vidéos au bon endroit, le profil et la FC, encadrés par les cartons de début et de fin.</p>
+      <p>Si vous avez publié sur GPXManagement.net, un encadré <b>« Film publié »</b> apparaît dans les <b>Informations</b> de la sortie, avec le lien et les boutons <span class="path">Recréer</span> (régénérer le film), <span class="path">Ouvrir</span> et copier le lien.</p>
+      <figure class="shot"><img src="img/etape-7.png" alt="Encadré « Film publié » dans les Informations de la sortie : lien, Recréer, Ouvrir, copier" onerror="this.closest('.shot').classList.add('todo')"><span class="ph">📷 Capture à ajouter : <code>aide/film/img/etape-7.png</code></span></figure>
+    </li>
+  </ol>
+
+  <div class="callout" style="margin-top:36px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    <div><b>Et pour un raid ?</b> Un raid multi-jours dispose aussi de son film, qui enchaîne toutes les étapes du séjour sur la même carte.</div>
+  </div>
+
+  <div class="endcta">
+    <a class="btn btn-ghost" href="/aide/">← Toutes les aides</a>
+    <a class="btn btn-primary" href="/aide/photos-videos/">Gérer les photos &amp; vidéos →</a>
+  </div>
+
+  <footer>
+    <p class="madeby">GPXManagement</p>
+    <p>© <span id="y">2026</span> Romain Demoustier</p>
+  </footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>
