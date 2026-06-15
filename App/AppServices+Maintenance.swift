@@ -240,10 +240,34 @@ extension AppServices {
             let stats = ActivityStatsCalculator.compute(points: result.points)
             let encoded = try TrackPointCodec.encode(result.points)
             try await repo.updateTrackData(id: id, trackData: encoded, stats: stats)
+            // Réécrit l'altitude dans le fichier GPX source pour qu'elle survive à un futur « Réparer ».
+            if let entry = try? await repo.fetchSourceRecomputeEntry(id: id), entry.format == .gpx {
+                await rewriteSourceGPX(entry: entry, points: result.points)
+            }
             libraryRevision += 1
             return .enriched(resolved: result.resolved, total: points.count)
         } catch {
             return .failed(error.localizedDescription)
         }
+    }
+
+    private func rewriteSourceGPX(entry: SourceRecomputeEntry, points: [TrackPoint]) async {
+        guard let url = try? await storage.url(forRelativePath: entry.relativePath),
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let name = Self.gpxName(in: existing) ?? url.deletingPathExtension().lastPathComponent
+        guard let data = try? GPXWriter.write(name: name, activityType: entry.activityType, points: points) else { return }
+        try? await storage.overwrite(relativePath: entry.relativePath, with: data)
+    }
+
+    private static func gpxName(in xml: String) -> String? {
+        guard let open = xml.range(of: "<name>"),
+              let close = xml.range(of: "</name>", range: open.upperBound..<xml.endIndex) else { return nil }
+        let raw = String(xml[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        return raw
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
     }
 }

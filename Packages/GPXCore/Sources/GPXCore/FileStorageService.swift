@@ -84,6 +84,12 @@ public actor FileStorageService {
         try await container.relativeURL(for: relativePath)
     }
 
+    /// Écrase le contenu d'un fichier source existant (ex. réécriture du GPX après enrichissement d'altitude).
+    public func overwrite(relativePath: String, with data: Data) async throws {
+        let url = try await container.relativeURL(for: relativePath)
+        try data.write(to: url, options: .atomic)
+    }
+
     public func delete(relativePath: String) async throws {
         let url = try await container.relativeURL(for: relativePath)
         guard fileManager.fileExists(atPath: url.path) else { throw FileStorageError.fileNotFound }
