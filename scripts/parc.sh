@@ -16,11 +16,11 @@ ZHOST="$(printf '%s' "$ZJSON" | python3 -c 'import json,sys; print(json.load(sys
 
 DATA="$(curl -fsS -H "AccessKey: $ZPASS" "https://$ZHOST/$ZNAME/telemetry/installs.json" 2>/dev/null || echo '{}')"
 
-echo "$DATA" | python3 - <<'PY'
-import json, sys
+DATA="$DATA" python3 <<'PY'
+import json, os
 from collections import Counter
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(os.environ.get("DATA", "{}"))
 except Exception:
     d = {}
 if not d:
