@@ -4,6 +4,14 @@
         <title>GPXManagement</title>
         <item>
             <title>1.0</title>
+            <pubDate>Mon, 15 Jun 2026 19:59:22 +0200</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg" length="6261095" type="application/octet-stream" sparkle:edSignature="XMmsbIiqk/p9+g9omRVrWrPSPhPZ8BMEFaXQCR8bHDMY7tYAWlYJMYUW9EDYyjlyjD1M6jlDi84nSdNEPl9DBw=="/>
+        </item>
+        <item>
+            <title>1.0</title>
             <pubDate>Mon, 15 Jun 2026 19:40:59 +0200</pubDate>
             <sparkle:version>10</sparkle:version>
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
