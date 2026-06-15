@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SmartFilterField: String, Codable, CaseIterable, Sendable {
-    case activityType, date, distance, elevationGain, maxSlope, duration, avgSpeed, avgHeartRate, source, tag, raid, text
+    case activityType, date, distance, elevationGain, maxSlope, duration, avgSpeed, avgHeartRate, source, tag, raid, published, text
 }
 
 public enum SmartFilterOperator: String, Codable, Sendable {
@@ -74,6 +74,8 @@ extension SmartFilterRule {
             return stringValue.isEmpty || haystack.contains(stringValue.lowercased())
         case .raid:
             return op == .isFalse ? (s.raidId == nil) : (s.raidId != nil)
+        case .published:
+            return op == .isFalse ? !s.isPublished : s.isPublished
         case .date:
             let year = Double(Calendar.current.component(.year, from: s.startDate))
             switch op {

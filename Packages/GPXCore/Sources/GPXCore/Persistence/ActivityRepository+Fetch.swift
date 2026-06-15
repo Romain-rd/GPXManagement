@@ -485,7 +485,9 @@ enum ActivitySummaryMapper {
             tags: tags,
             notes: object.value(forKey: "notes") as? String,
             raidId: object.value(forKey: "raidId") as? UUID,
-            isCourse: object.value(forKey: "isCourse") as? Bool ?? false
+            isCourse: object.value(forKey: "isCourse") as? Bool ?? false,
+            isPublished: (object.value(forKey: "webPublishedURL") as? String)?.isEmpty == false
+                      || (object.value(forKey: "filmPublishedURL") as? String)?.isEmpty == false
         )
     }
 }

@@ -89,7 +89,7 @@ struct SmartFilterEditor: View {
             .labelsHidden().frame(width: 150)
 
             Picker("", selection: rule.op) {
-                ForEach(Self.operators(for: rule.wrappedValue.field), id: \.self) { Text(Self.label(for: $0)).tag($0) }
+                ForEach(Self.operators(for: rule.wrappedValue.field), id: \.self) { Text(Self.label(for: $0, field: rule.wrappedValue.field)).tag($0) }
             }
             .labelsHidden().frame(width: 140)
 
@@ -106,7 +106,7 @@ struct SmartFilterEditor: View {
     @ViewBuilder
     private func valueEditor(_ rule: Binding<SmartFilterRule>) -> some View {
         switch rule.wrappedValue.field {
-        case .raid:
+        case .raid, .published:
             EmptyView()
         case .activityType:
             Picker("", selection: rule.stringValue) {
@@ -145,7 +145,7 @@ struct SmartFilterEditor: View {
         case .activityType, .source: return [.isEqual, .isNot]
         case .tag:                    return [.contains, .isEqual]
         case .text:                   return [.contains]
-        case .raid:                   return [.isTrue, .isFalse]
+        case .raid, .published:       return [.isTrue, .isFalse]
         case .date:                   return [.after, .before, .isEqual, .between]
         default:                      return [.greater, .less, .between]
         }
@@ -173,7 +173,17 @@ struct SmartFilterEditor: View {
         case .source:        return "Source"
         case .tag:           return "Tag"
         case .raid:          return "Raid"
+        case .published:     return "Publication"
         case .text:          return "Titre / Notes"
+        }
+    }
+
+    /// Libellé d'opérateur tenant compte du champ (les booléens raid/publication ont des formulations propres).
+    static func label(for op: SmartFilterOperator, field: SmartFilterField) -> String {
+        switch (field, op) {
+        case (.published, .isTrue):  return "est publié"
+        case (.published, .isFalse): return "non publié"
+        default:                     return label(for: op)
         }
     }
 
