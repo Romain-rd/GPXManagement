@@ -1,7 +1,7 @@
 {
-  "latestBuild": 9,
+  "latestBuild": 10,
   "latestVersion": "1.0",
   "minimumBuild": 1,
   "downloadURL": "https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg",
-  "notes": "Build 9 — aide en ligne complète, organisation chronologique, filtre Publication."
+  "notes": "Build 10 — mises à jour automatiques (Sparkle), Préférences (organisation chronologique, Maintenance), filtre Publication."
 }
