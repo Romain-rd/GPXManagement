@@ -75,6 +75,16 @@
 			<string>Any</string>
 		</dict>
 	</dict>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://www.gpxmanagement.net/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>O8rDrUjiW3bbKZLSMW3pEsAvj47zusCdVN5tt2EQ5Sg=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>StravaClientID</key>
 	<string>$(STRAVA_CLIENT_ID)</string>
 	<key>StravaClientSecret</key>

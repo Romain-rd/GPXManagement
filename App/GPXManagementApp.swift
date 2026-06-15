@@ -1,10 +1,13 @@
 import SwiftUI
 import GPXCore
+import Sparkle
 
 @main
 struct GPXManagementApp: App {
     @State private var services = AppServices.shared
     @State private var updateGate = UpdateGate.shared
+    // Sparkle : démarre les vérifications automatiques (appcast SUFeedURL) dès le lancement.
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
@@ -27,6 +30,11 @@ struct GPXManagementApp: App {
         }
         .commands {
             AppMenuCommands(services: services)
+            CommandGroup(after: .appInfo) {
+                Button("Rechercher les mises à jour…") {
+                    updaterController.updater.checkForUpdates()
+                }
+            }
         }
 
         WindowGroup(for: UUID.self) { $activityId in

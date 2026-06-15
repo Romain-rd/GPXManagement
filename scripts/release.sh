@@ -68,6 +68,18 @@ echo "▸ Stapling du ticket"
 xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
 
+echo "▸ Génération de l'appcast Sparkle (signé EdDSA)"
+GENERATE_APPCAST="$(find "$HOME/Library/Developer/Xcode/DerivedData"/GPXManagement-*/SourcePackages/artifacts/sparkle/Sparkle/bin -name generate_appcast 2>/dev/null | head -1)"
+if [ -n "$GENERATE_APPCAST" ]; then
+	APPCAST_SRC="$BUILD_DIR/appcast-src"
+	rm -rf "$APPCAST_SRC"; mkdir -p "$APPCAST_SRC"
+	cp "$DMG" "$APPCAST_SRC/"
+	"$GENERATE_APPCAST" --download-url-prefix "https://www.gpxmanagement.net/download/" -o web/appcast.xml "$APPCAST_SRC"
+	echo "✓ appcast : web/appcast.xml (publié par deploy-web.sh)"
+else
+	echo "⚠︎ generate_appcast introuvable — ouvrir le projet dans Xcode pour résoudre le package Sparkle, puis relancer. Appcast NON régénéré." >&2
+fi
+
 echo "✓ Release prête : $DMG"
 echo "▸ Verdict Gatekeeper sur l'app"
 spctl --assess --type execute -vv "$APP" || true
