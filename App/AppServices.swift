@@ -324,6 +324,9 @@ final class AppServices {
     /// Scan auto (lancement / réactivation) : ne propose que les fichiers déposés depuis le dernier scan,
     /// en silence. Au tout premier scan on amorce juste la date — le retard existant n'est jamais proposé.
     func scanWatchedFolderIfConfigured() async {
+        // Au lancement, `.task` et le passage en `.active` déclenchent tous deux ce scan : sans cette garde
+        // ils liraient le même cutoff et proposeraient deux fois le même fichier.
+        guard !isScanningWatchedFolder else { return }
         guard let folder = WatchedFolderBookmark.resolve() else { return }
         guard let cutoff = WatchedFolderBookmark.lastScanDate else {
             WatchedFolderBookmark.lastScanDate = Date()
@@ -390,10 +393,14 @@ final class AppServices {
             }
         }
 
-        pendingImports.append(contentsOf: proposals)
+        // Ne pas re-proposer un fichier déjà en attente (même contenu) : un même scan rejoué
+        // ne doit pas empiler deux fois la même proposition.
+        let pendingSHAs = Set(pendingImports.map(\.fileSHA256))
+        let fresh = proposals.filter { !pendingSHAs.contains($0.fileSHA256) }
+        pendingImports.append(contentsOf: fresh)
 
         var parts: [String] = []
-        parts.append("\(proposals.count) nouveau(x)")
+        parts.append("\(fresh.count) nouveau(x)")
         if duplicates > 0 { parts.append("\(duplicates) déjà importé(s)") }
         if failures > 0 { parts.append("\(failures) échec(s)") }
         lastWatchedFolderSummary = parts.joined(separator: " · ")

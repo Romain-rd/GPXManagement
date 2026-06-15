@@ -18,7 +18,7 @@ extension ImportProposal {
 struct ImportSheetView: View {
     @Bindable var services: AppServices
     @State private var editedTitle: String = ""
-    @State private var editedType: ActivityType = .cyclingRoad
+    @State private var editedType: ActivityType = .other
     @State private var editedIsCourse: Bool = false
     @State private var isNaming = false
 
@@ -205,7 +205,9 @@ struct ImportSheetView: View {
 
     private func prefill() {
         if let p = currentProposal {
-            editedType = p.suggestedActivityType ?? .cyclingRoad
+            // Type non détecté → « Autre » (neutre), jamais « Vélo route » : évite qu'une séance
+            // sans sport reconnu (gainage, etc.) pollue les stats vélo.
+            editedType = p.suggestedActivityType ?? .other
             editedTitle = p.defaultTitle(for: editedType)
             editedIsCourse = p.suggestedIsCourse
         }
