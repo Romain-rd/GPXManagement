@@ -60,6 +60,13 @@ async function recordPing(params) {
 
 BunnySDK.net.http.servePullZone().onOriginRequest(async (ctx) => {
   const url = new URL(ctx.request.url);
+
+  // Le dossier telemetry/ ne doit pas être lisible publiquement (données d'installation).
+  // Le script, lui, y accède via l'API Storage (storage.bunnycdn.com), donc 403 ici ne le gêne pas.
+  if (url.pathname.startsWith("/telemetry/")) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
   // Tout sauf /version.json : renvoyer ctx.request = passthrough normal vers l'origine (site servi normalement).
   if (!url.pathname.endsWith("/version.json")) return ctx.request;
 
