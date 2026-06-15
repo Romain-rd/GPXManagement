@@ -1,23 +1,20 @@
-// Edge Script Bunny — endpoint de version + relevé d'installations (historique du parc).
+// Edge Script Bunny (MIDDLEWARE) — endpoint de version + relevé d'installations (historique du parc).
 //
-// Rôle : intercepte les requêtes vers /version.json. Pour chaque appel de l'app
-//   (…/version.json?build=9&id=<uuid-anonyme>&os=…&v=…), il :
-//     1. enregistre/maj le ping dans Bunny Storage (telemetry/installs.json) ;
-//     2. renvoie la politique de version (le version.json statique publié par deploy-web.sh).
+// IMPORTANT : un middleware s'exécute sur TOUTES les requêtes du Pull Zone. On ne doit donc agir que
+// pour /version.json et **laisser passer tout le reste** vers l'origine (sinon tout le site renvoie
+// le JSON de version). Avec `.onOriginRequest`, renvoyer une Response court-circuite vers cette réponse ;
+// ne rien renvoyer (undefined) = passthrough normal vers l'origine.
 //
-// Confidentialité : seul un identifiant d'installation ANONYME + build + version macOS sont stockés,
-//   sur ta propre infra Bunny. Aucun tiers.
+// Pour /version.json :
+//   1. enregistre/maj le ping anonyme dans Bunny Storage (telemetry/installs.json) ;
+//   2. renvoie la politique de version (le version.json statique publié par deploy-web.sh).
 //
-// Déploiement (console Bunny → Edge Scripting) :
-//   - Créer un script, coller ce fichier.
-//   - Le rattacher au Pull Zone du site, déclencheur sur le chemin "/version.json".
-//   - Secrets (Edge Scripting → Environment) :
-//       STORAGE_ZONE        = <nom de ta Storage Zone> (ex: gpxmanagement)
-//       STORAGE_ACCESS_KEY  = <mot de passe / AccessKey de la Storage Zone>
-//       STORAGE_HOST        = storage.bunnycdn.com   (ou le host régional, ex: ny.storage.bunnycdn.com)
+// Confidentialité : identifiant d'installation ANONYME + build + version macOS uniquement, sur ton infra.
 //
-// Note d'échelle : installs.json est lu→modifié→réécrit à chaque ping. Suffisant pour une alpha
-//   (faible volume). Pour un parc important, préférer des logs append-only ou une vraie base.
+// Déploiement : Edge Scripting (Middleware) → Code editor (coller ce fichier) → Environment (secrets
+//   ci-dessous) → Connected pull zones (GPXManagement) → Deploy. Aucun « trigger par chemin » à régler :
+//   le filtrage est fait dans le code.
+//   Secrets : STORAGE_ZONE, STORAGE_ACCESS_KEY, STORAGE_HOST (= storage.bunnycdn.com).
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
 
@@ -61,9 +58,12 @@ async function recordPing(params) {
   await storagePut(INSTALLS_PATH, JSON.stringify(installs));
 }
 
-BunnySDK.net.http.serve(async (req) => {
-  const url = new URL(req.url);
-  // Le relevé ne doit jamais empêcher de répondre la politique.
+BunnySDK.net.http.servePullZone().onOriginRequest(async (ctx) => {
+  const url = new URL(ctx.request.url);
+  // Tout sauf /version.json : on laisse filer vers l'origine (site servi normalement).
+  if (!url.pathname.endsWith("/version.json")) return;
+
+  // /version.json : on relève le ping (sans jamais bloquer) puis on renvoie la politique.
   try { await recordPing(url.searchParams); } catch (_) { /* ignore */ }
   const policy = await storageGet(POLICY_PATH);
   return new Response(policy ?? '{"latestBuild":0,"minimumBuild":0}', {

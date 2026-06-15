@@ -17,14 +17,18 @@ GET https://www.gpxmanagement.net/version.json?build=<N>&id=<uuid-anonyme>&os=<m
 
 ## Déploiement (console Bunny)
 
-1. **Edge Scripting → New script**, coller `version-endpoint.js`.
-2. Le **rattacher au Pull Zone** du site, déclencheur sur le chemin **`/version.json`**.
-3. **Secrets** (Edge Scripting → Environment) :
-   - `STORAGE_ZONE` = nom de la Storage Zone (celle où `deploy-web.sh` publie le site)
-   - `STORAGE_ACCESS_KEY` = AccessKey / mot de passe de cette Storage Zone
-   - `STORAGE_HOST` = `storage.bunnycdn.com` (ou le host régional)
-4. Déployer. Désormais chaque appel `version.json` est enregistré, et la réponse reste le
-   `version.json` que tu continues d'éditer puis de publier via `deploy-web.sh`.
+C'est un **middleware** : il s'exécute sur **toutes** les requêtes du Pull Zone, donc le filtrage
+par chemin est fait **dans le code** (`onOriginRequest` ne renvoie une réponse que pour `/version.json`,
+sinon la requête passe normalement vers l'origine). ⚠️ Ne jamais utiliser un `serve()` qui répond à
+toutes les requêtes — sinon tout le site renvoie le JSON de version.
+
+1. **Edge Scripting → script (type Middleware)** → **Code editor** : coller `version-endpoint.js`.
+2. **Environment** (secrets) :
+   - `STORAGE_ZONE` = `gpxmanagement`
+   - `STORAGE_ACCESS_KEY` = mot de passe de la Storage Zone (Storage → gpxmanagement → FTP & API Access → Password)
+   - `STORAGE_HOST` = `storage.bunnycdn.com`
+3. **Connected pull zones** : connecter **GPXManagement**.
+4. **Deploy**. Pas de « trigger par chemin » à régler (géré dans le code).
 
 ## Lire l'historique
 
