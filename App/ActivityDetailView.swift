@@ -2963,18 +2963,29 @@ struct StageDetailView: View {
         return (dists[w0] / 1000)...(dists[w1] / 1000)
     }
 
-    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double; let inStage: Bool }
+    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double; let region: String }
+    /// Points du profil loupe, en 3 séries contiguës (avant / étape / après) partageant leurs points frontières
+    /// → aires et lignes bien séparées (gris pour le contexte, bleu pour l'étape).
     private var windowPlot: [PlotPoint] {
         guard w1 > w0, let s = stage else { return [] }
+        let a = max(w0, min(s.startIndex, w1)), b = max(a, min(s.endIndex, w1))
         let step = max(1, (w1 - w0) / 600)
         var r: [PlotPoint] = []
-        var lastAlt = fullPoints[w0].altitude ?? 0
-        var i = w0
-        while i <= w1 {
-            lastAlt = fullPoints[i].altitude ?? lastAlt
-            r.append(PlotPoint(id: i, km: dists[i] / 1000, alt: lastAlt, inStage: i >= s.startIndex && i <= s.endIndex))
-            i += step
+        var uid = 0
+        func emit(_ lo: Int, _ hi: Int, _ region: String) {
+            guard hi >= lo else { return }
+            var lastAlt = fullPoints[lo].altitude ?? 0
+            var i = lo
+            while true {
+                lastAlt = fullPoints[i].altitude ?? lastAlt
+                r.append(PlotPoint(id: uid, km: dists[i] / 1000, alt: lastAlt, region: region)); uid += 1
+                if i == hi { break }
+                i = min(i + step, hi)
+            }
         }
+        if a > w0 { emit(w0, a, "avant") }   // inclut le point a (frontière commune avec l'étape)
+        emit(a, b, "etape")
+        if b < w1 { emit(b, w1, "apres") }   // inclut le point b
         return r
     }
 
@@ -3013,13 +3024,12 @@ struct StageDetailView: View {
     private var loupeProfile: some View {
         Chart {
             ForEach(windowPlot) { p in
-                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.gray.opacity(0.18))
-            }
-            ForEach(windowPlot.filter { $0.inStage }) { p in
-                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.25))
+                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt), series: .value("r", p.region))
+                    .foregroundStyle(p.region == "etape" ? Color.blue.opacity(0.22) : Color.gray.opacity(0.18))
             }
             ForEach(windowPlot) { p in
-                LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(p.inStage ? Color.blue : Color.gray)
+                LineMark(x: .value("km", p.km), y: .value("alt", p.alt), series: .value("r", p.region))
+                    .foregroundStyle(p.region == "etape" ? Color.blue : Color.gray)
             }
             if let s = stage {
                 if !isFirst { RuleMark(x: .value("km", dists[s.startIndex] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 3)) }
