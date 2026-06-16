@@ -3184,9 +3184,12 @@ struct StageDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        TextField("Nom de l'étape", text: $nameDraft)
-                            .font(.title2.bold()).textFieldStyle(.plain)
-                            .onSubmit { persist() }
+                        HStack(spacing: 8) {
+                            Text("Étape \(stageIndex + 1)").font(.title2.bold()).foregroundStyle(.secondary)
+                            TextField("Nom de l'étape", text: $nameDraft)
+                                .font(.title2.bold()).textFieldStyle(.plain)
+                                .onSubmit { persist() }
+                        }
                         if let pd = stage?.plannedDate {
                             Text(Self.ficheDateFormatter.string(from: pd)).font(.subheadline).foregroundStyle(.secondary)
                         }
