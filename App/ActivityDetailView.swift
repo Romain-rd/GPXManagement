@@ -2920,14 +2920,17 @@ struct StageDetailView: View {
     let stageId: UUID
     let repository: CoreDataActivityRepository
 
+    private enum Handle { case start, end }
+
     @State private var fullPoints: [TrackPoint] = []
     @State private var dists: [Double] = []
     @State private var allStages: [Stage] = []
     @State private var stageIndex: Int = -1
+    @State private var w0 = 0
+    @State private var w1 = 0
+    @State private var grabbed: Handle?
     @State private var nameDraft = ""
     @State private var notesDraft = ""
-    @State private var startKm: Double = 0
-    @State private var endKm: Double = 0
     @State private var isLoading = true
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
@@ -2938,36 +2941,36 @@ struct StageDetailView: View {
 
     private var stage: Stage? { allStages.indices.contains(stageIndex) ? allStages[stageIndex] : nil }
     private var slicePoints: [TrackPoint] { stage?.slice(of: fullPoints) ?? [] }
-    private var sliceCoords: [CLLocationCoordinate2D] { slicePoints.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: slicePoints) }
     private var isFirst: Bool { stageIndex == 0 }
     private var isLast: Bool { stageIndex == allStages.count - 1 }
 
-    // Bornes (km) des curseurs — fixées par les voisins (ne bougent pas pendant l'édition de cette étape).
-    private var startRange: ClosedRange<Double> {
-        guard let s = stage, !dists.isEmpty else { return 0...1 }
-        let lowerIdx = isFirst ? 0 : allStages[stageIndex - 1].startIndex + 1
-        let lo = dists[min(lowerIdx, dists.count - 1)] / 1000
-        let hi = dists[min(s.endIndex, dists.count - 1)] / 1000
-        return lo...max(lo + 0.01, hi)
+    /// Fenêtre « loupe » : étape + quelques km de contexte avant/après (borné aux étapes voisines).
+    private var windowCoords: [CLLocationCoordinate2D] {
+        guard w1 > w0, fullPoints.indices.contains(w0), fullPoints.indices.contains(w1) else { return [] }
+        return fullPoints[w0...w1].map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
     }
-    private var endRange: ClosedRange<Double> {
-        guard let s = stage, !dists.isEmpty else { return 0...1 }
-        let upperIdx = isLast ? dists.count - 1 : allStages[stageIndex + 1].endIndex - 1
-        let lo = dists[min(s.startIndex, dists.count - 1)] / 1000
-        let hi = dists[min(upperIdx, dists.count - 1)] / 1000
-        return lo...max(lo + 0.01, hi)
+    /// Étape ramenée aux indices locaux de la fenêtre, pour colorer la portion « étape » sur la carte.
+    private var windowStages: [Stage] {
+        guard let s = stage, w1 > w0 else { return [] }
+        return [Stage(activityId: activity.id, order: 0, name: "", startIndex: s.startIndex - w0, endIndex: s.endIndex - w0)]
+    }
+    private var windowDomain: ClosedRange<Double> {
+        guard w1 > w0 else { return 0...1 }
+        return (dists[w0] / 1000)...(dists[w1] / 1000)
     }
 
-    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
-    private var plot: [PlotPoint] {
-        guard slicePoints.count > 1 else { return [] }
-        var d = 0.0; var r: [PlotPoint] = []
-        var lastAlt = slicePoints.first?.altitude ?? 0
-        for (i, p) in slicePoints.enumerated() {
-            if i > 0 { d += StagePlannerSheet.haversine(slicePoints[i - 1], p) }
-            lastAlt = p.altitude ?? lastAlt
-            r.append(PlotPoint(id: i, km: d / 1000, alt: lastAlt))
+    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double; let inStage: Bool }
+    private var windowPlot: [PlotPoint] {
+        guard w1 > w0, let s = stage else { return [] }
+        let step = max(1, (w1 - w0) / 600)
+        var r: [PlotPoint] = []
+        var lastAlt = fullPoints[w0].altitude ?? 0
+        var i = w0
+        while i <= w1 {
+            lastAlt = fullPoints[i].altitude ?? lastAlt
+            r.append(PlotPoint(id: i, km: dists[i] / 1000, alt: lastAlt, inStage: i >= s.startIndex && i <= s.endIndex))
+            i += step
         }
         return r
     }
@@ -2984,18 +2987,13 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persist() }
-                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: sliceCoords, layer: layerBinding)
+                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: windowCoords, stages: windowStages, layer: layerBinding)
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                         DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
-                        boundsEditor
-                        if !plot.isEmpty {
-                            Chart {
-                                ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
-                                ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
-                            }
-                            .frame(height: 150)
-                        }
+                        loupeProfile.frame(height: 170)
+                        Text("Glissez les poignées orange (début / fin) pour ajuster l'étape. La portion grise = avant/après.")
+                            .font(.caption).foregroundStyle(.secondary)
                         Text("Notes").font(.headline)
                         TextEditor(text: $notesDraft)
                             .frame(minHeight: 140)
@@ -3009,24 +3007,71 @@ struct StageDetailView: View {
         .task(id: stageId) { await load() }
     }
 
-    private var boundsEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Limites de l'étape").font(.headline)
-            HStack {
-                Text("Début").frame(width: 46, alignment: .leading).foregroundStyle(.secondary)
-                Slider(value: $startKm, in: startRange) { editing in if !editing { persist() } }
-                    .disabled(isFirst)
-                Text(String(format: "%.1f km", startKm)).frame(width: 64, alignment: .trailing).monospacedDigit()
+    private var loupeProfile: some View {
+        Chart {
+            ForEach(windowPlot) { p in
+                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.gray.opacity(0.18))
             }
-            HStack {
-                Text("Fin").frame(width: 46, alignment: .leading).foregroundStyle(.secondary)
-                Slider(value: $endKm, in: endRange) { editing in if !editing { persist() } }
-                    .disabled(isLast)
-                Text(String(format: "%.1f km", endKm)).frame(width: 64, alignment: .trailing).monospacedDigit()
+            ForEach(windowPlot.filter { $0.inStage }) { p in
+                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.25))
+            }
+            ForEach(windowPlot) { p in
+                LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(p.inStage ? Color.blue : Color.gray)
+            }
+            if let s = stage {
+                if !isFirst { RuleMark(x: .value("km", dists[s.startIndex] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 3)) }
+                if !isLast { RuleMark(x: .value("km", dists[s.endIndex] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 3)) }
             }
         }
-        .onChange(of: startKm) { _, _ in applyStart() }
-        .onChange(of: endKm) { _, _ in applyEnd() }
+        .chartXScale(domain: windowDomain)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
+                        .onEnded { _ in if grabbed != nil { grabbed = nil; persist() } })
+            }
+        }
+    }
+
+    private func onDrag(start: CGPoint, current: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
+        guard let s = stage, let plotFrame = proxy.plotFrame else { return }
+        let rect = geo[plotFrame]
+        func meters(atX x: CGFloat) -> Double? {
+            let xIn = min(max(x - rect.origin.x, 0), rect.width)
+            guard let km: Double = proxy.value(atX: xIn, as: Double.self) else { return nil }
+            return km * 1000
+        }
+        if grabbed == nil {
+            guard let startM = meters(atX: start.x), w1 > w0 else { return }
+            let span = max(1, dists[w1] - dists[w0])
+            let dStart = isFirst ? Double.greatestFiniteMagnitude : abs(dists[s.startIndex] - startM)
+            let dEnd = isLast ? Double.greatestFiniteMagnitude : abs(dists[s.endIndex] - startM)
+            guard min(dStart, dEnd) < span * 0.12 else { return }
+            grabbed = dStart <= dEnd ? .start : .end
+        }
+        guard let targetM = meters(atX: current.x) else { return }
+        let idx = nearestIndex(toMeters: targetM)
+        switch grabbed {
+        case .start where !isFirst:
+            let clamped = min(max(idx, allStages[stageIndex - 1].startIndex + 1), allStages[stageIndex].endIndex - 1)
+            allStages[stageIndex].startIndex = clamped
+            allStages[stageIndex - 1].endIndex = clamped
+        case .end where !isLast:
+            let clamped = min(max(idx, allStages[stageIndex].startIndex + 1), allStages[stageIndex + 1].endIndex - 1)
+            allStages[stageIndex].endIndex = clamped
+            allStages[stageIndex + 1].startIndex = clamped
+        default:
+            break
+        }
+    }
+
+    private func nearestIndex(toMeters meters: Double) -> Int {
+        guard !dists.isEmpty else { return 0 }
+        var lo = 0, hi = dists.count - 1
+        while lo < hi { let mid = (lo + hi) / 2; if dists[mid] < meters { lo = mid + 1 } else { hi = mid } }
+        if lo > 0, abs(dists[lo - 1] - meters) < abs(dists[lo] - meters) { return lo - 1 }
+        return lo
     }
 
     private var statsRow: some View {
@@ -3048,30 +3093,6 @@ struct StageDetailView: View {
 
     private static func clock(_ t: TimeInterval) -> String {
         let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
-    }
-
-    private func nearestIndex(toMeters meters: Double) -> Int {
-        guard !dists.isEmpty else { return 0 }
-        var lo = 0, hi = dists.count - 1
-        while lo < hi { let mid = (lo + hi) / 2; if dists[mid] < meters { lo = mid + 1 } else { hi = mid } }
-        if lo > 0, abs(dists[lo - 1] - meters) < abs(dists[lo] - meters) { return lo - 1 }
-        return lo
-    }
-
-    private func applyStart() {
-        guard !isLoading, let s = stage, !isFirst else { return }
-        let lowerIdx = allStages[stageIndex - 1].startIndex + 1
-        let idx = min(max(nearestIndex(toMeters: startKm * 1000), lowerIdx), s.endIndex - 1)
-        allStages[stageIndex].startIndex = idx
-        allStages[stageIndex - 1].endIndex = idx
-    }
-
-    private func applyEnd() {
-        guard !isLoading, let s = stage, !isLast else { return }
-        let upperIdx = allStages[stageIndex + 1].endIndex - 1
-        let idx = min(max(nearestIndex(toMeters: endKm * 1000), s.startIndex + 1), upperIdx)
-        allStages[stageIndex].endIndex = idx
-        allStages[stageIndex + 1].startIndex = idx
     }
 
     private func persist() {
@@ -3102,10 +3123,22 @@ struct StageDetailView: View {
         stageIndex = idx
         nameDraft = stages[idx].name
         notesDraft = stages[idx].notes ?? ""
+        // Fenêtre loupe : ~3 km de contexte de part et d'autre, borné aux étapes voisines.
         if !d.isEmpty {
-            startKm = d[min(stages[idx].startIndex, d.count - 1)] / 1000
-            endKm = d[min(stages[idx].endIndex, d.count - 1)] / 1000
+            let s = stages[idx]
+            let contextM = 3000.0
+            let prevStart = idx > 0 ? stages[idx - 1].startIndex : 0
+            let nextEnd = idx < stages.count - 1 ? stages[idx + 1].endIndex : d.count - 1
+            w0 = max(prevStart, indexAtMeters(d[s.startIndex] - contextM, in: d))
+            w1 = min(nextEnd, indexAtMeters(d[s.endIndex] + contextM, in: d))
         }
+    }
+
+    private func indexAtMeters(_ meters: Double, in d: [Double]) -> Int {
+        guard !d.isEmpty else { return 0 }
+        var lo = 0, hi = d.count - 1
+        while lo < hi { let mid = (lo + hi) / 2; if d[mid] < meters { lo = mid + 1 } else { hi = mid } }
+        return lo
     }
 }
 
