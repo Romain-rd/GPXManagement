@@ -430,7 +430,14 @@ enum OSMNaming {
             "node(around:600,\(around))[natural=peak][name];" +
             ");out tags;"
         struct Resp: Decodable { let elements: [El]; struct El: Decodable { let lat: Double?; let lon: Double?; let tags: [String: String]? } }
-        for host in ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"] {
+        // Plusieurs miroirs publics : leur disponibilité est inégale, on bascule au premier qui répond.
+        let hosts = [
+            "https://overpass-api.de/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter"
+        ]
+        for host in hosts {
             guard let url = URL(string: host) else { continue }
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
