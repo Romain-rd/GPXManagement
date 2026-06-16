@@ -15,6 +15,23 @@ final class TrackSegmentTests: XCTestCase {
         }
     }
 
+    func testByElevationGainSplitsOnPositiveGain() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        // 21 points qui montent de 10 m chacun → +200 m au total.
+        let points = (0...20).map { i in
+            TrackPoint(latitude: 45.0 + Double(i) * 0.0009, longitude: 6.0,
+                       altitude: 1000 + Double(i) * 10, timestamp: start.addingTimeInterval(Double(i) * 30))
+        }
+        let segments = TrackSegmentBuilder.byElevationGain(points: points, every: 100)
+        XCTAssertGreaterThanOrEqual(segments.count, 2)
+        XCTAssertEqual(segments.first?.startIndex, 0)
+        XCTAssertEqual(segments.last?.endIndex, points.count - 1)
+        for (a, b) in zip(segments, segments.dropFirst()) {
+            XCTAssertEqual(a.endIndex, b.startIndex, "segments contigus")
+        }
+        XCTAssertEqual(segments[0].stats(in: points).elevationGain, 100, accuracy: 25)
+    }
+
     func testByDistanceSplitsContiguously() {
         let points = makePoints(count: 30) // ~2,9 km au total
         let segments = TrackSegmentBuilder.byDistance(points: points, every: 1_000)

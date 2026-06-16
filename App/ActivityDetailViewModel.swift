@@ -155,6 +155,12 @@ final class ActivityDetailViewModel {
         await persistSegments(activityId: activityId)
     }
 
+    func splitSegmentsByElevationGain(every meters: Double, activityId: UUID) async {
+        segments = TrackSegmentBuilder.byElevationGain(points: segmentPoints, every: meters)
+        recomputeSegmentStats()
+        await persistSegments(activityId: activityId)
+    }
+
     func setSegmentName(id: UUID, name: String) {
         guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
         segments[index].name = name

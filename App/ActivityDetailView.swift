@@ -54,6 +54,10 @@ struct ActivityDetailView: View {
     @AppStorage("detailSectionProfile") private var secProfileExpanded = true
     @AppStorage("detailSectionSegments") private var secSegmentsExpanded = true
     @AppStorage("detailSectionNotes") private var secNotesExpanded = true
+    @State private var showCustomDistanceSegment = false
+    @State private var customSegmentKm = ""
+    @State private var showCustomGainSegment = false
+    @State private var customSegmentGain = ""
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -734,6 +738,13 @@ struct ActivityDetailView: View {
                             Button("Tous les 1 km") { splitSegments(every: 1_000) }
                             Button("Tous les 5 km") { splitSegments(every: 5_000) }
                             Button("Tous les 10 km") { splitSegments(every: 10_000) }
+                            Button("Distance personnalisée…") { customSegmentKm = ""; showCustomDistanceSegment = true }
+                        }
+                        Section("Par dénivelé +") {
+                            Button("Tous les 250 m D+") { splitSegmentsByGain(every: 250) }
+                            Button("Tous les 500 m D+") { splitSegmentsByGain(every: 500) }
+                            Button("Tous les 1000 m D+") { splitSegmentsByGain(every: 1_000) }
+                            Button("Dénivelé personnalisé…") { customSegmentGain = ""; showCustomGainSegment = true }
                         }
                         Section("Par temps") {
                             Button("Toutes les 30 min") { splitSegmentsByDuration(every: 1_800) }
@@ -763,6 +774,28 @@ struct ActivityDetailView: View {
             }
             .task(id: activity.id) { await model.loadSegments(activityId: activity.id) }
             .onChange(of: activity.id) { _, _ in setSelectedSegment(nil) }
+            .alert("Découper par distance", isPresented: $showCustomDistanceSegment) {
+                TextField("Kilomètres", text: $customSegmentKm)
+                Button("Découper") {
+                    if let km = Double(customSegmentKm.replacingOccurrences(of: ",", with: ".")), km > 0 {
+                        splitSegments(every: km * 1_000)
+                    }
+                }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("Longueur de chaque segment, en kilomètres.")
+            }
+            .alert("Découper par dénivelé positif", isPresented: $showCustomGainSegment) {
+                TextField("Mètres D+", text: $customSegmentGain)
+                Button("Découper") {
+                    if let m = Double(customSegmentGain.replacingOccurrences(of: ",", with: ".")), m > 0 {
+                        splitSegmentsByGain(every: m)
+                    }
+                }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("Dénivelé positif cumulé par segment, en mètres.")
+            }
         }
     }
 
@@ -864,6 +897,11 @@ struct ActivityDetailView: View {
     private func splitSegmentsByPhase() {
         setSelectedSegment(nil)
         Task { await model.splitSegmentsByPhase(pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters, activityId: activity.id) }
+    }
+
+    private func splitSegmentsByGain(every meters: Double) {
+        setSelectedSegment(nil)
+        Task { await model.splitSegmentsByElevationGain(every: meters, activityId: activity.id) }
     }
 
     private var mapSection: some View {

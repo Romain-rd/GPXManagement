@@ -75,6 +75,44 @@ public enum TrackSegmentBuilder {
         return segments
     }
 
+    /// Découpe la trace en segments accumulant chacun `meters` de dénivelé **positif** ; le dernier porte le reliquat.
+    /// Le D+ est cumulé avec la même méthode que les statistiques (lissage EMA α=0,2 + hystérésis 3 m), pour que
+    /// les coupures correspondent au dénivelé affiché.
+    public static func byElevationGain(points: [TrackPoint], every meters: Double) -> [TrackSegment] {
+        guard points.count > 1, meters > 0 else { return [] }
+        let filter = 3.0
+        // Altitude alignée sur les indices (report de la dernière connue si un point n'en a pas).
+        var altitudes = [Double](repeating: 0, count: points.count)
+        var last = points.first(where: { $0.altitude != nil })?.altitude ?? 0
+        for i in points.indices { last = points[i].altitude ?? last; altitudes[i] = last }
+        // Lissage EMA (même α que le calcul de dénivelé des stats).
+        var smoothed = altitudes
+        let alpha = 0.2
+        for i in 1..<smoothed.count { smoothed[i] = alpha * altitudes[i] + (1 - alpha) * smoothed[i - 1] }
+
+        var segments: [TrackSegment] = []
+        var startIndex = 0
+        var anchor = smoothed[0]
+        var segmentGain = 0.0
+        var totalStart = 0.0
+        var totalGain = 0.0
+        for i in 1..<points.count {
+            let delta = smoothed[i] - anchor
+            if delta >= filter { segmentGain += delta; totalGain += delta; anchor = smoothed[i] }
+            else if delta <= -filter { anchor = smoothed[i] }
+            if segmentGain >= meters {
+                segments.append(TrackSegment(name: gainName(from: totalStart, to: totalGain), startIndex: startIndex, endIndex: i))
+                startIndex = i
+                totalStart = totalGain
+                segmentGain = 0
+            }
+        }
+        if startIndex < points.count - 1 {
+            segments.append(TrackSegment(name: gainName(from: totalStart, to: totalGain), startIndex: startIndex, endIndex: points.count - 1))
+        }
+        return segments
+    }
+
     /// Découpe la trace en segments consécutifs de `seconds` de temps écoulé ; le dernier porte le reliquat.
     public static func byDuration(points: [TrackPoint], every seconds: TimeInterval) -> [TrackSegment] {
         guard points.count > 1, seconds > 0,
@@ -171,6 +209,11 @@ public enum TrackSegmentBuilder {
     /// Nom par défaut d'un segment (« Km 2 – 7,5 »), partagé entre découpe auto et création manuelle.
     public static func defaultName(fromMeters start: Double, toMeters end: Double) -> String {
         "Km \(kmLabel(start)) – \(kmLabel(end))"
+    }
+
+    /// Nom d'un segment découpé par dénivelé positif (« D+ 250 – 500 m »).
+    private static func gainName(from start: Double, to end: Double) -> String {
+        "D+ \(Int(start.rounded())) – \(Int(end.rounded())) m"
     }
 
     private static func durationName(from start: TimeInterval, to end: TimeInterval) -> String {
