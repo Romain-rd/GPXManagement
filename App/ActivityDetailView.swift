@@ -3670,6 +3670,8 @@ struct RouteEditorView: View {
     @State private var isLoading = true
     @State private var isRouting = false
     @State private var dirty = false
+    @State private var routeDone = 0
+    @State private var routeTotal = 0
     @AppStorage("connectorEngine") private var engineRaw = "mapkit"
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
@@ -3693,10 +3695,21 @@ struct RouteEditorView: View {
                 .frame(height: mapHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .top) {
-                    Text("Clic = ajouter · glisser = déplacer · clic sur un point puis « Supprimer »")
+                    Text("Clic = ajouter · glisser = déplacer · sélectionne un point dans la liste pour le supprimer")
                         .font(.caption).padding(6).background(.thinMaterial, in: Capsule()).padding(8)
                 }
+                .overlay(alignment: .bottom) {
+                    if isRouting {
+                        VStack(spacing: 4) {
+                            Text("Routage \(routeDone)/\(routeTotal)…").font(.caption)
+                            ProgressView(value: Double(routeDone), total: Double(max(routeTotal, 1)))
+                        }
+                        .frame(width: 240).padding(10)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
+                    }
+                }
                 controls
+                waypointList
             }
         }
         .task { await load() }
@@ -3706,7 +3719,6 @@ struct RouteEditorView: View {
     private var controls: some View {
         HStack(spacing: 10) {
             Text("\(waypoints.count) pt").font(.caption).foregroundStyle(.secondary)
-            if isRouting { ProgressView().controlSize(.small) }
             Picker("", selection: $engineRaw) {
                 Text("À pied").tag("mapkit")
                 Text("Sentiers").tag("trail")
@@ -3714,22 +3726,46 @@ struct RouteEditorView: View {
                 Text("Ligne").tag("line")
             }
             .labelsHidden().pickerStyle(.menu).fixedSize()
-            .onChange(of: engineRaw) { _, _ in reroute() }
-            Button("Recalculer") { reroute() }.controlSize(.small)
-            Button("Supprimer le point", role: .destructive) { deleteSelected() }
-                .controlSize(.small).disabled(selectedWaypointId == nil || waypoints.count <= 2)
+            Button { reroute() } label: { Label("Recalculer l'itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
+                .controlSize(.small).disabled(isRouting || waypoints.count < 2)
             Spacer()
             Button { saveNow() } label: { Label("Enregistrer", systemImage: "checkmark") }
                 .controlSize(.small).disabled(waypoints.count < 2 || isRouting)
         }
     }
 
+    private var waypointList: some View {
+        ScrollView {
+            VStack(spacing: 1) {
+                ForEach(Array(waypoints.enumerated()), id: \.element.id) { i, wp in
+                    HStack(spacing: 8) {
+                        Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(selectedWaypointId == wp.id ? Color.orange : Color.blue))
+                        Text(wp.name ?? String(format: "%.4f, %.4f", wp.latitude, wp.longitude))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Spacer()
+                        Button { delete(wp.id) } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless).disabled(waypoints.count <= 2)
+                    }
+                    .padding(.vertical, 2).padding(.horizontal, 6)
+                    .background(selectedWaypointId == wp.id ? Color.accentColor.opacity(0.12) : .clear)
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedWaypointId = (selectedWaypointId == wp.id ? nil : wp.id) }
+                }
+            }
+        }
+        .frame(maxHeight: 130)
+    }
+
+    // Les éditions montrent un aperçu en lignes droites (instantané) ; le routage est explicite (« Recalculer »).
+    private func invalidate() { routedCoords = []; dirty = true }
+
     private func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
         guard let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
         waypoints[i].latitude = c.latitude
         waypoints[i].longitude = c.longitude
-        dirty = true
-        reroute()
+        invalidate()
     }
 
     private func addWaypoint(at c: CLLocationCoordinate2D) {
@@ -3738,9 +3774,9 @@ struct RouteEditorView: View {
             waypoints.append(wp)
         } else {
             // Meilleure position : extension à une extrémité OU insertion sur le segment au détour minimal.
-            var bestPos = waypoints.count // extension à la fin
+            var bestPos = waypoints.count
             var bestCost = planar(waypoints[waypoints.count - 1], c)
-            let startCost = planar(waypoints[0], c) // extension au début
+            let startCost = planar(waypoints[0], c)
             if startCost < bestCost { bestCost = startCost; bestPos = 0 }
             for i in 0..<(waypoints.count - 1) {
                 let cost = planar(waypoints[i], c) + planar(waypoints[i + 1], c) - planarWW(waypoints[i], waypoints[i + 1])
@@ -3749,16 +3785,14 @@ struct RouteEditorView: View {
             waypoints.insert(wp, at: bestPos)
         }
         selectedWaypointId = wp.id
-        dirty = true
-        reroute()
+        invalidate()
     }
 
-    private func deleteSelected() {
-        guard let id = selectedWaypointId, let i = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
+    private func delete(_ id: UUID) {
+        guard let i = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
         waypoints.remove(at: i)
-        selectedWaypointId = nil
-        dirty = true
-        reroute()
+        if selectedWaypointId == id { selectedWaypointId = nil }
+        invalidate()
     }
 
     private func planar(_ w: RouteWaypoint, _ c: CLLocationCoordinate2D) -> Double {
@@ -3771,9 +3805,11 @@ struct RouteEditorView: View {
     }
 
     private func reroute() {
-        guard waypoints.count >= 2 else { routedCoords = waypoints.map(coord); return }
+        guard waypoints.count >= 2, !isRouting else { return }
         let snapshot = waypoints
         let engine = ConnectorRouter.Engine(rawValue: engineRaw) ?? .mapkit
+        routeTotal = snapshot.count - 1
+        routeDone = 0
         isRouting = true
         Task {
             var coords: [CLLocationCoordinate2D] = []
@@ -3783,18 +3819,26 @@ struct RouteEditorView: View {
                 if seg.count < 2 { seg = [coord(snapshot[i]), coord(snapshot[i + 1])] }
                 if !coords.isEmpty { seg.removeFirst() }
                 coords.append(contentsOf: seg)
+                routeDone = i + 1
             }
             routedCoords = coords
+            dirty = true
             isRouting = false
         }
     }
 
     private func saveNow() {
-        guard waypoints.count >= 2 else { return }
+        guard waypoints.count >= 2, !isRouting else { return }
         let snapshot = waypoints
+        let coords = routedCoords
         dirty = false
+        isRouting = true
+        routeTotal = snapshot.count - 1
+        routeDone = coords.count >= 2 ? routeTotal : 0   // si déjà routé, pas de re-routage
         Task {
-            if await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: snapshot) { onSaved() }
+            let ok = await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: snapshot, routedCoords: coords)
+            isRouting = false
+            if ok { onSaved() }
         }
     }
     private func saveIfNeeded() {
@@ -3804,7 +3848,10 @@ struct RouteEditorView: View {
 
     private func load() async {
         waypoints = await AppServices.shared.initialWaypoints(activityId: activity.id)
+        // Affiche le tracé existant (déjà routé) sans re-router au chargement.
+        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
+            routedCoords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        }
         isLoading = false
-        reroute()
     }
 }

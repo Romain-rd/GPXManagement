@@ -478,20 +478,22 @@ extension AppServices {
     /// Route un itinéraire à partir de ses points de passage (segments routés + altitude IGN), réécrit le tracé
     /// et les stats, et enregistre les points de passage. Réservé aux parcours.
     @discardableResult
-    func applyRouteWaypoints(activityId: UUID, waypoints: [RouteWaypoint]) async -> Bool {
+    func applyRouteWaypoints(activityId: UUID, waypoints: [RouteWaypoint], routedCoords: [CLLocationCoordinate2D] = []) async -> Bool {
         guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
         guard waypoints.count >= 2 else { importError = "Au moins 2 points de passage requis."; return false }
         do {
-            let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
-            var coords: [CLLocationCoordinate2D] = []
-            for i in 0..<(waypoints.count - 1) {
-                if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
-                let a = CLLocationCoordinate2D(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
-                let b = CLLocationCoordinate2D(latitude: waypoints[i + 1].latitude, longitude: waypoints[i + 1].longitude)
-                var seg = await ConnectorRouter.route(from: a, to: b, engine: engine)
-                if seg.count < 2 { seg = [a, b] }
-                if !coords.isEmpty { seg.removeFirst() } // évite le doublon du point frontière
-                coords.append(contentsOf: seg)
+            var coords = routedCoords
+            if coords.count < 2 {
+                let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
+                for i in 0..<(waypoints.count - 1) {
+                    if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
+                    let a = CLLocationCoordinate2D(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
+                    let b = CLLocationCoordinate2D(latitude: waypoints[i + 1].latitude, longitude: waypoints[i + 1].longitude)
+                    var seg = await ConnectorRouter.route(from: a, to: b, engine: engine)
+                    if seg.count < 2 { seg = [a, b] }
+                    if !coords.isEmpty { seg.removeFirst() }
+                    coords.append(contentsOf: seg)
+                }
             }
             guard coords.count >= 2 else { importError = "Itinéraire vide."; return false }
             let raw = coords.map { TrackPoint(latitude: $0.latitude, longitude: $0.longitude) }

@@ -562,6 +562,8 @@ public struct TrackMapView: NSViewRepresentable {
                 marker.isDraggable = true
                 marker.canShowCallout = false
                 marker.animatesWhenAdded = false
+                marker.displayPriority = .required   // ne pas masquer/agréger les pins voisins
+                marker.collisionMode = .circle
                 return marker
             }
             return nil
