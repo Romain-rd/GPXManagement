@@ -130,7 +130,9 @@ struct AppMenuCommands: Commands {
             .disabled(!(window?.hasSelection ?? false))
         }
 
-        CommandMenu("Édition") {
+        // Actions d'édition de trace : rattachées au menu « Édition » standard de macOS.
+        CommandGroup(after: .pasteboard) {
+            Divider()
             Button("Découper la trace…") {
                 window?.requestSplit()
             }
