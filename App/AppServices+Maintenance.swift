@@ -318,6 +318,23 @@ extension AppServices {
         }
     }
 
+    /// Duplique une trace en une copie indépendante « (copie) » (sans lien de dérivation).
+    @discardableResult
+    func duplicateActivity(parent: ActivitySummary) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return false }
+            let points = try TrackPointCodec.decode(data)
+            guard points.count >= 2 else { importError = "Trace trop courte."; return false }
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (copie)", points: points, repo: repo, linkToParent: false)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la duplication : \(error.localizedDescription)"
+            return false
+        }
+    }
+
     /// Inverse le sens d'une trace en une activité dérivée « (sens inversé) ».
     @discardableResult
     func reverseActivity(parent: ActivitySummary) async -> Bool {
@@ -353,14 +370,14 @@ extension AppServices {
 
     /// Crée une activité dérivée à partir de points édités : écrit un GPX temporaire, le ré-importe (stats
     /// recalculées) et renseigne `editedFromActivityId`.
-    private func createDerivedActivity(parent: ActivitySummary, title: String, points: [TrackPoint], repo: CoreDataActivityRepository) async throws -> UUID {
+    private func createDerivedActivity(parent: ActivitySummary, title: String, points: [TrackPoint], repo: CoreDataActivityRepository, linkToParent: Bool = true) async throws -> UUID {
         let gpx = try GPXWriter.write(name: title, activityType: parent.activityType, points: points)
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).gpx")
         try gpx.write(to: tmp)
         defer { try? FileManager.default.removeItem(at: tmp) }
         let proposal = try await importer.prepareImport(from: tmp, hintedActivityType: parent.activityType, hintedTitle: title)
         let newId = try await importer.confirmImport(proposal, activityType: parent.activityType, title: title, isCourse: parent.isCourse)
-        try await repo.setEditedFromActivityId(newId: newId, parentId: parent.id)
+        if linkToParent { try await repo.setEditedFromActivityId(newId: newId, parentId: parent.id) }
         return newId
     }
 

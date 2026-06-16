@@ -133,6 +133,11 @@ struct AppMenuCommands: Commands {
         // Actions d'édition de trace : rattachées au menu « Édition » standard de macOS.
         CommandGroup(after: .pasteboard) {
             Divider()
+            Button("Dupliquer la trace") {
+                window?.requestDuplicate()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
             Button("Découper la trace…") {
                 window?.requestSplit()
             }

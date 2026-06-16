@@ -189,6 +189,9 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.reverseToken) { _, _ in
             if model.hasTrack { Task { await AppServices.shared.reverseActivity(parent: activity) } }
         }
+        .onChange(of: windowModel.duplicateToken) { _, _ in
+            Task { await AppServices.shared.duplicateActivity(parent: activity) }
+        }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
         }
