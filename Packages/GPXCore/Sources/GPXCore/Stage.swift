@@ -19,13 +19,15 @@ public struct Stage: Identifiable, Sendable, Hashable {
     /// Raccord de **départ** (route du point hors-trace de départ vers `startIndex` du tracé) — calculé indépendamment
     /// (plus court pour rejoindre la trace) ; n'est pas l'inverse du raccord d'arrivée de l'étape précédente.
     public var startConnectorData: Data?
+    /// Date planifiée de l'étape (jour de marche), pour un parcours daté.
+    public var plannedDate: Date?
     public var createdAt: Date
     public var updatedAt: Date
 
     public init(id: UUID = UUID(), activityId: UUID, order: Int, name: String, notes: String? = nil,
                 startIndex: Int, endIndex: Int, coverImageData: Data? = nil,
                 endOffTrackLatitude: Double? = nil, endOffTrackLongitude: Double? = nil, endConnectorData: Data? = nil,
-                startConnectorData: Data? = nil,
+                startConnectorData: Data? = nil, plannedDate: Date? = nil,
                 createdAt: Date = Date(), updatedAt: Date = Date()) {
         self.id = id
         self.activityId = activityId
@@ -39,6 +41,7 @@ public struct Stage: Identifiable, Sendable, Hashable {
         self.endOffTrackLongitude = endOffTrackLongitude
         self.endConnectorData = endConnectorData
         self.startConnectorData = startConnectorData
+        self.plannedDate = plannedDate
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

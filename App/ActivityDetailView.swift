@@ -2638,6 +2638,39 @@ struct ParcoursDetailView: View {
     }
     private var totalKmWithConnectors: Double { stages.reduce(0) { $0 + stageKm($1) } }
     private var totalGainWithConnectors: Int { stages.reduce(0) { $0 + stageGain($1) } }
+
+    private static let stageDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "EEE d MMM"; return f
+    }()
+    private var baseDate: Date? { stages.first?.plannedDate }
+
+    /// Date la 1ʳᵉ étape à `d` puis une étape par jour.
+    private func setBaseDate(_ d: Date) {
+        let start = Calendar.current.startOfDay(for: d)
+        for k in stages.indices { stages[k].plannedDate = Calendar.current.date(byAdding: .day, value: k, to: start) }
+        persist()
+    }
+    private func clearDates() {
+        for k in stages.indices { stages[k].plannedDate = nil }
+        persist()
+    }
+
+    /// Supprime une étape en absorbant sa portion dans une étape voisine (la partition reste continue).
+    private func deleteStage(at k: Int) {
+        guard stages.count > 1, stages.indices.contains(k) else { return }
+        if navigation.selectedStageId == stages[k].id { navigation.selectedStageId = nil }
+        if k > 0 {
+            stages[k - 1].endIndex = stages[k].endIndex
+            stages[k - 1].endOffTrackLatitude = stages[k].endOffTrackLatitude
+            stages[k - 1].endOffTrackLongitude = stages[k].endOffTrackLongitude
+            stages[k - 1].endConnectorData = stages[k].endConnectorData
+        } else {
+            stages[k + 1].startIndex = stages[k].startIndex
+            stages[k + 1].startConnectorData = stages[k].startConnectorData
+        }
+        stages.remove(at: k)
+        if baseDate != nil, let d = stages.first?.plannedDate { setBaseDate(d) } else { persist() }
+    }
     private var visibleDomain: ClosedRange<Double> {
         guard let span = zoomSpanKm, span < totalKm else { return 0...max(totalKm, 0.001) }
         let half = span / 2
@@ -2665,6 +2698,7 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
+                        dateBar
                         overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                         resizeHandle($mapHeight, min: 140, max: 700)
                         zoomBar
@@ -2818,6 +2852,10 @@ struct ParcoursDetailView: View {
                             .textFieldStyle(.plain).fontWeight(.medium)
                             .onSubmit { persist() }
                         HStack(spacing: 6) {
+                            if let pd = stage.plannedDate {
+                                Text(Self.stageDateFormatter.string(from: pd)).foregroundStyle(.blue)
+                                Text("·")
+                            }
                             Text(String(format: "%.1f km · +%d m", stageKm(stage), stageGain(stage)))
                             if let extra = offTrackExtra(stage) {
                                 Text(extra).foregroundStyle(.orange)
@@ -2835,6 +2873,10 @@ struct ParcoursDetailView: View {
                 }
                 .padding(.vertical, 7)
                 .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
+                .contextMenu {
+                    Button("Supprimer l'étape", role: .destructive) { deleteStage(at: k) }
+                        .disabled(stages.count <= 1)
+                }
                 Divider()
             }
         }
@@ -2848,6 +2890,21 @@ struct ParcoursDetailView: View {
         let gain = Int((dep.elevationGain + arr.elevationGain).rounded())
         guard km > 0.05 || gain > 0 else { return nil }
         return String(format: "↗ hors-trace +%.1f km · +%d m", km, gain)
+    }
+
+    @ViewBuilder private var dateBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar").foregroundStyle(.secondary)
+            if let d = baseDate {
+                DatePicker("Départ le", selection: Binding(get: { d }, set: { setBaseDate($0) }), displayedComponents: .date)
+                    .fixedSize()
+                Button("Retirer les dates", role: .destructive) { clearDates() }.controlSize(.small)
+            } else {
+                Button("Dater le parcours…") { setBaseDate(Date()) }.controlSize(.small)
+                Text("une étape par jour à partir de la date de départ").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
     }
 
     private var actions: some View {
@@ -3113,6 +3170,9 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persist() }
+                        if let pd = stage?.plannedDate {
+                            Text(Self.ficheDateFormatter.string(from: pd)).font(.subheadline).foregroundStyle(.secondary)
+                        }
                         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                                         coords: windowCoords, stages: windowStages,
                                         connectors: [coords(departureConnector), coords(arrivalConnector), coords(nextDepartureConnector)].filter { $0.count >= 2 },
@@ -3244,6 +3304,10 @@ struct StageDetailView: View {
     private static func clock(_ t: TimeInterval) -> String {
         let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
     }
+
+    private static let ficheDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .full; return f
+    }()
 
     @ViewBuilder private var departureBanner: some View {
         if !departureConnector.isEmpty {

@@ -851,6 +851,7 @@ enum StageMapper {
             endOffTrackLongitude: object.value(forKey: "endOffTrackLon") as? Double,
             endConnectorData: object.value(forKey: "endConnectorData") as? Data,
             startConnectorData: object.value(forKey: "startConnectorData") as? Data,
+            plannedDate: object.value(forKey: "plannedDate") as? Date,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
             updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
         )
@@ -869,6 +870,7 @@ enum StageMapper {
         object.setValue(stage.endOffTrackLongitude, forKey: "endOffTrackLon")
         object.setValue(stage.endConnectorData, forKey: "endConnectorData")
         object.setValue(stage.startConnectorData, forKey: "startConnectorData")
+        object.setValue(stage.plannedDate, forKey: "plannedDate")
         object.setValue(stage.createdAt, forKey: "createdAt")
         object.setValue(stage.updatedAt, forKey: "updatedAt")
     }
