@@ -2997,6 +2997,15 @@ struct StageDetailView: View {
     private var departureKm: Double { ActivityStatsCalculator.compute(points: departureConnector).distance / 1000 }
     private var departureGain: Int { Int(ActivityStatsCalculator.compute(points: departureConnector).elevationGain.rounded()) }
 
+    /// Raccord de départ du **lendemain** (étape suivante) depuis le point hors-trace de cette étape — pour décider.
+    private var nextDepartureConnector: [TrackPoint] {
+        guard offTrackMarker != nil, stageIndex + 1 < allStages.count else { return [] }
+        let pts = allStages[stageIndex + 1].startConnectorPoints
+        return pts.isEmpty ? arrivalConnector.reversed() : pts
+    }
+    private var nextDepartureKm: Double { ActivityStatsCalculator.compute(points: nextDepartureConnector).distance / 1000 }
+    private var nextDepartureGain: Int { Int(ActivityStatsCalculator.compute(points: nextDepartureConnector).elevationGain.rounded()) }
+
     /// Fenêtre « loupe » : étape + quelques km de contexte avant/après (borné aux étapes voisines).
     private var windowCoords: [CLLocationCoordinate2D] {
         guard w1 > w0, fullPoints.indices.contains(w0), fullPoints.indices.contains(w1) else { return [] }
@@ -3084,7 +3093,7 @@ struct StageDetailView: View {
                             .onSubmit { persist() }
                         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                                         coords: windowCoords, stages: windowStages,
-                                        connectors: [coords(departureConnector), coords(arrivalConnector)].filter { $0.count >= 2 },
+                                        connectors: [coords(departureConnector), coords(arrivalConnector), coords(nextDepartureConnector)].filter { $0.count >= 2 },
                                         highlight: dragCoord ?? offTrackMarker,
                                         onMapClick: placingOnMap ? { setArrival(to: $0); placingOnMap = false } : nil,
                                         layer: layerBinding)
@@ -3259,10 +3268,20 @@ struct StageDetailView: View {
                     Button("Retirer", role: .destructive) { clearArrival() }.controlSize(.small)
                 }
             }
-            Text(offTrackMarker == nil
-                 ? "Placez l'arrivée hors du tracé (ex. refuge) : le raccord est calculé et compté dans l'étape."
-                 : String(format: "Raccord d'arrivée : +%.1f km · +%d m D+ (compté ici et au départ de l'étape suivante).", arrivalKm, arrivalGain))
+            if offTrackMarker == nil {
+                Text("Placez l'arrivée hors du tracé (ex. refuge) : le raccord est calculé et compté dans l'étape.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: "Arrivée du jour : +%.1f km · +%d m D+", arrivalKm, arrivalGain))
+                    if stageIndex + 1 < allStages.count {
+                        Text(String(format: "Départ du lendemain : +%.1f km · +%d m D+", nextDepartureKm, nextDepartureGain))
+                        Text(String(format: "Coût total du détour : +%.1f km · +%d m D+", arrivalKm + nextDepartureKm, arrivalGain + nextDepartureGain))
+                            .fontWeight(.semibold)
+                    }
+                }
                 .font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 TextField("Rechercher un lieu (refuge, village…)", text: $searchText)
                     .textFieldStyle(.roundedBorder).onSubmit { runSearch() }
@@ -3446,7 +3465,8 @@ struct StageColoredMap: View {
 
     private static let connectorIds = [
         UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-        UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+        UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
     ]
     private var connectorOverlays: [TrackOverlayInput] {
         connectors.enumerated().compactMap { i, c in
