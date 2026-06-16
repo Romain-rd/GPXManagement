@@ -123,6 +123,7 @@ struct ContentView: View {
         }
         .onChange(of: navigation.sidebarSelection) { _, _ in
             navigation.listSelection = []
+            navigation.selectedStageId = nil // sinon la fiche d'étape de l'ancien parcours resterait affichée
             syncActiveSmartFilter()
         }
         .sheet(item: editingSmartFilterBinding) { filter in
