@@ -293,6 +293,29 @@ extension CoreDataActivityRepository {
         }
     }
 
+    public func fetchRouteWaypointsData(id: UUID) async throws -> Data? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "routeWaypointsData") as? Data
+        }
+    }
+
+    public func updateRouteWaypointsData(id: UUID, data: Data?) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let activity = try context.fetch(fetch).first else { return }
+            activity.setValue(data, forKey: "routeWaypointsData")
+            activity.setValue(Date(), forKey: "updatedAt")
+            try context.save()
+        }
+    }
+
     /// Remplace le tracé (points enrichis) et recale les statistiques dérivées, en place.
     public func updateTrackData(id: UUID, trackData: Data, stats: ActivityStats) async throws {
         let context = persistence.container.newBackgroundContext()

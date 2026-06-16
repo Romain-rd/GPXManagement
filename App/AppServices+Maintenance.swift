@@ -462,6 +462,57 @@ enum ConnectorRouter {
 }
 
 extension AppServices {
+    /// Route un itinéraire à partir de ses points de passage (segments routés + altitude IGN), réécrit le tracé
+    /// et les stats, et enregistre les points de passage. Réservé aux parcours.
+    @discardableResult
+    func applyRouteWaypoints(activityId: UUID, waypoints: [RouteWaypoint]) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        guard waypoints.count >= 2 else { importError = "Au moins 2 points de passage requis."; return false }
+        do {
+            let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
+            var coords: [CLLocationCoordinate2D] = []
+            for i in 0..<(waypoints.count - 1) {
+                let a = CLLocationCoordinate2D(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
+                let b = CLLocationCoordinate2D(latitude: waypoints[i + 1].latitude, longitude: waypoints[i + 1].longitude)
+                var seg = await ConnectorRouter.route(from: a, to: b, engine: engine)
+                if seg.count < 2 { seg = [a, b] }
+                if !coords.isEmpty { seg.removeFirst() } // évite le doublon du point frontière
+                coords.append(contentsOf: seg)
+            }
+            guard coords.count >= 2 else { importError = "Itinéraire vide."; return false }
+            let raw = coords.map { TrackPoint(latitude: $0.latitude, longitude: $0.longitude) }
+            let enriched = await ElevationEnricher.shared.enrich(points: raw).points
+            let stats = ActivityStatsCalculator.compute(points: enriched)
+            let trackData = try TrackPointCodec.encode(enriched)
+            try await repo.updateTrackData(id: activityId, trackData: trackData, stats: stats)
+            try await repo.updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(waypoints))
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec du routage : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Points de passage initiaux : ceux stockés, sinon dérivés du tracé (simplifié en ancrages maniables).
+    func initialWaypoints(activityId: UUID) async -> [RouteWaypoint] {
+        guard let repo = coreDataRepository else { return [] }
+        if let data = try? await repo.fetchRouteWaypointsData(id: activityId) {
+            let stored = RouteWaypointCodec.decode(data)
+            if !stored.isEmpty { return stored }
+        }
+        guard let td = try? await repo.fetchTrackData(id: activityId),
+              let pts = try? TrackPointCodec.decode(td), pts.count >= 2 else { return [] }
+        var anchors = TrackOperations.simplify(points: pts, tolerance: 50)
+        if anchors.count > 40 {
+            let step = max(1, anchors.count / 40)
+            var reduced = stride(from: 0, to: anchors.count, by: step).map { anchors[$0] }
+            if reduced.last != pts.last { reduced.append(pts[pts.count - 1]) }
+            anchors = reduced
+        }
+        return anchors.map { RouteWaypoint(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+
     /// Raccord (route + altitude IGN) du point `from` (sur le tracé) vers `to` (hors-trace), renvoyé en `[TrackPoint]`.
     func buildConnector(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [TrackPoint] {
         let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
