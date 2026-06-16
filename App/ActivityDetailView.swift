@@ -2620,6 +2620,24 @@ struct ParcoursDetailView: View {
     private var junctions: [Int] { stages.count > 1 ? stages.dropLast().map { $0.endIndex } : [] }
     private var totalDistance: Double { dists.last ?? 0 }
     private var totalKm: Double { totalDistance / 1000 }
+
+    // Distance / D+ d'une étape, raccords hors-trace inclus (départ + tracé + arrivée).
+    private func stageKm(_ s: Stage) -> Double {
+        guard !dists.isEmpty else { return 0 }
+        let onTrack = dists[min(s.endIndex, dists.count - 1)] - dists[min(s.startIndex, dists.count - 1)]
+        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints).distance
+        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints).distance
+        return (onTrack + dep + arr) / 1000
+    }
+    private func stageGain(_ s: Stage) -> Int {
+        guard !cumGain.isEmpty else { return 0 }
+        let onTrack = cumGain[min(s.endIndex, cumGain.count - 1)] - cumGain[min(s.startIndex, cumGain.count - 1)]
+        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints).elevationGain
+        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints).elevationGain
+        return Int((onTrack + dep + arr).rounded())
+    }
+    private var totalKmWithConnectors: Double { stages.reduce(0) { $0 + stageKm($1) } }
+    private var totalGainWithConnectors: Int { stages.reduce(0) { $0 + stageGain($1) } }
     private var visibleDomain: ClosedRange<Double> {
         guard let span = zoomSpanKm, span < totalKm else { return 0...max(totalKm, 0.001) }
         let half = span / 2
@@ -2679,8 +2697,8 @@ struct ParcoursDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(activity.title).font(.title2.bold())
-            Text(String(format: "%.0f km · +%d m · %d étape(s)", totalDistance / 1000,
-                        Int((cumGain.last ?? 0).rounded()), stages.count))
+            Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
+                        totalGainWithConnectors, stages.count))
                 .foregroundStyle(.secondary)
         }
     }
@@ -2797,9 +2815,13 @@ struct ParcoursDetailView: View {
                     HStack(spacing: 10) {
                         Text("\(k + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 18)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(stage.name.isEmpty ? "Étape \(k + 1)" : stage.name).fontWeight(.medium)
-                            Text(String(format: "%.1f km · +%d m", (dists[stage.endIndex] - dists[stage.startIndex]) / 1000,
-                                        Int((cumGain[stage.endIndex] - cumGain[stage.startIndex]).rounded())))
+                            HStack(spacing: 5) {
+                                Text(stage.name.isEmpty ? "Étape \(k + 1)" : stage.name).fontWeight(.medium)
+                                if stage.endConnectorData != nil || stage.startConnectorData != nil {
+                                    Image(systemName: "arrow.up.forward").font(.caption2).foregroundStyle(.orange)
+                                }
+                            }
+                            Text(String(format: "%.1f km · +%d m", stageKm(stage), stageGain(stage)))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -2940,6 +2962,7 @@ struct StageDetailView: View {
     @State private var isRouting = false
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
+    @AppStorage("connectorEngine") private var engineRaw = "mapkit"
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
@@ -2980,7 +3003,39 @@ struct StageDetailView: View {
     }
     private var windowDomain: ClosedRange<Double> {
         guard w1 > w0 else { return 0...1 }
-        return (dists[w0] / 1000)...(dists[w1] / 1000)
+        var lo = dists[w0] / 1000, hi = dists[w1] / 1000
+        for p in connectorPlot { lo = Swift.min(lo, p.km); hi = Swift.max(hi, p.km) }
+        return lo...max(lo + 0.01, hi)
+    }
+
+    /// Profils des raccords hors-trace, placés sur l'axe km du tracé : le départ se termine au point de
+    /// rejointe (startIndex) et déborde à gauche ; l'arrivée part de endIndex et déborde à droite.
+    private func cumulativeDistances(_ pts: [TrackPoint]) -> [Double] {
+        var c = [Double](repeating: 0, count: pts.count)
+        for i in 1..<Swift.max(pts.count, 1) { c[i] = c[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
+        return c
+    }
+    private var connectorPlot: [PlotPoint] {
+        guard let s = stage, !dists.isEmpty else { return [] }
+        var r: [PlotPoint] = []
+        var uid = 1_000_000
+        let dep = departureConnector
+        if dep.count >= 2 {
+            let cum = cumulativeDistances(dep); let total = cum.last ?? 0
+            let baseKm = dists[s.startIndex] / 1000
+            for (i, p) in dep.enumerated() {
+                r.append(PlotPoint(id: uid, km: baseKm - (total - cum[i]) / 1000, alt: p.altitude ?? 0, region: "depart")); uid += 1
+            }
+        }
+        let arr = arrivalConnector
+        if arr.count >= 2 {
+            let cum = cumulativeDistances(arr)
+            let baseKm = dists[s.endIndex] / 1000
+            for (i, p) in arr.enumerated() {
+                r.append(PlotPoint(id: uid, km: baseKm + cum[i] / 1000, alt: p.altitude ?? 0, region: "arrivee")); uid += 1
+            }
+        }
+        return r
     }
 
     private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double; let region: String }
@@ -3055,6 +3110,14 @@ struct StageDetailView: View {
             ForEach(windowPlot) { p in
                 LineMark(x: .value("km", p.km), y: .value("alt", p.alt), series: .value("r", p.region))
                     .foregroundStyle(p.region == "etape" ? Color.blue : Color.gray)
+            }
+            ForEach(connectorPlot) { p in
+                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt), series: .value("r", p.region))
+                    .foregroundStyle(.orange.opacity(0.22))
+            }
+            ForEach(connectorPlot) { p in
+                LineMark(x: .value("km", p.km), y: .value("alt", p.alt), series: .value("r", p.region))
+                    .foregroundStyle(.orange)
             }
             if let s = stage {
                 if !isFirst { RuleMark(x: .value("km", dists[s.startIndex] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 3)) }
@@ -3166,6 +3229,16 @@ struct StageDetailView: View {
                 TextField("Rechercher un lieu (refuge, village…)", text: $searchText)
                     .textFieldStyle(.roundedBorder).onSubmit { runSearch() }
                 Button("Rechercher") { runSearch() }
+            }
+            HStack(spacing: 8) {
+                Text("Itinéraire").font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: $engineRaw) {
+                    Text("MapKit (piéton)").tag("mapkit")
+                    Text("Sentiers (BRouter)").tag("trail")
+                    Text("Ligne directe").tag("line")
+                }
+                .labelsHidden().pickerStyle(.menu).fixedSize()
+                Spacer()
             }
             ForEach(searchResults, id: \.self) { item in
                 Button { setArrival(to: item.placemark.coordinate) } label: {
