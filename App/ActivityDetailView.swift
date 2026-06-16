@@ -2976,7 +2976,12 @@ struct StageDetailView: View {
 
     // Raccords hors-trace : arrivée (cette étape) et départ (= arrivée de l'étape précédente, inversée).
     private var arrivalConnector: [TrackPoint] { stage?.endConnectorPoints ?? [] }
-    private var departureConnector: [TrackPoint] { stage?.startConnectorPoints ?? [] }
+    private var departureConnector: [TrackPoint] {
+        if let pts = stage?.startConnectorPoints, !pts.isEmpty { return pts }
+        // Repli : étape précédente arrivée hors-trace sans raccord de départ dédié → inverse de son arrivée.
+        guard stageIndex > 0, allStages.indices.contains(stageIndex - 1) else { return [] }
+        return allStages[stageIndex - 1].endConnectorPoints.reversed()
+    }
     private var combinedStagePoints: [TrackPoint] { departureConnector + slicePoints + arrivalConnector }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: combinedStagePoints) }
 
