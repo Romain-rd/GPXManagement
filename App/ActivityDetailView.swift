@@ -3211,14 +3211,36 @@ struct StageDetailView: View {
 
     @ViewBuilder private var departureBanner: some View {
         if !departureConnector.isEmpty {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.up.forward").foregroundStyle(.orange)
-                Text(String(format: "Départ hors-trace : +%.1f km · +%d m D+ (raccord depuis l'arrivée de l'étape précédente)", departureKm, departureGain))
-                    .font(.callout)
-                Spacer()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label("Départ hors-trace", systemImage: "arrow.up.forward").font(.headline)
+                    Spacer()
+                    if isRouting { ProgressView().controlSize(.small) }
+                    Button("Recalculer") { recomputeDeparture() }.controlSize(.small)
+                }
+                Text(String(format: "Raccord de départ : +%.1f km · +%d m D+ — plus court chemin pour rejoindre la trace depuis l'arrivée de l'étape précédente.", departureKm, departureGain))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.12)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.10)))
+        }
+    }
+
+    private func recomputeDeparture() {
+        guard stageIndex > 0,
+              let lat = allStages[stageIndex - 1].endOffTrackLatitude,
+              let lon = allStages[stageIndex - 1].endOffTrackLongitude else { return }
+        let p = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        let leave = allStages[stageIndex - 1].endIndex
+        isRouting = true
+        Task {
+            let rejoin = nearestTrackIndex(to: p, in: leave...max(leave, allStages[stageIndex].endIndex - 1))
+            let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
+            let departure = await AppServices.shared.buildConnector(from: p, to: rejoinCoord)
+            allStages[stageIndex].startIndex = rejoin
+            allStages[stageIndex].startConnectorData = try? TrackPointCodec.encode(departure)
+            isRouting = false
+            persist()
         }
     }
 
