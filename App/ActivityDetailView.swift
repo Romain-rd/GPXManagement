@@ -2609,6 +2609,8 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursProfileHeight") private var profileHeight: Double = 150
     @State private var resizeAccum: CGFloat = 0
     @State private var showAddDialog = false
+    @State private var renamingStageId: UUID?
+    @State private var renameText = ""
     @AppStorage("parcoursAddKm") private var addKmRaw = "10"
     @AppStorage("parcoursAddGainMax") private var addGainRaw = ""
 
@@ -2726,6 +2728,18 @@ struct ParcoursDetailView: View {
         } message: {
             Text("Coupe la dernière étape à la distance indiquée, ou plus tôt si le D+ max est atteint.")
         }
+        .alert("Renommer l'étape", isPresented: Binding(get: { renamingStageId != nil }, set: { if !$0 { renamingStageId = nil } })) {
+            TextField("Nom", text: $renameText)
+            Button("Renommer") { applyRename() }
+            Button("Annuler", role: .cancel) { renamingStageId = nil }
+        }
+    }
+
+    private func applyRename() {
+        guard let id = renamingStageId, let k = stages.firstIndex(where: { $0.id == id }) else { return }
+        stages[k].name = renameText.trimmingCharacters(in: .whitespaces)
+        renamingStageId = nil
+        persist()
     }
 
     private var header: some View {
@@ -2846,11 +2860,7 @@ struct ParcoursDetailView: View {
                 HStack(spacing: 10) {
                     Text("\(k + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 18)
                     VStack(alignment: .leading, spacing: 1) {
-                        TextField("Étape \(k + 1)", text: Binding(
-                            get: { stages.indices.contains(k) ? stages[k].name : "" },
-                            set: { if stages.indices.contains(k) { stages[k].name = $0 } }))
-                            .textFieldStyle(.plain).fontWeight(.medium)
-                            .onSubmit { persist() }
+                        Text(stage.name.isEmpty ? "Étape \(k + 1)" : stage.name).fontWeight(.medium)
                         HStack(spacing: 6) {
                             if let pd = stage.plannedDate {
                                 Text(Self.stageDateFormatter.string(from: pd)).foregroundStyle(.blue)
@@ -2868,12 +2878,17 @@ struct ParcoursDetailView: View {
                         Button { merge(at: k) } label: { Image(systemName: "arrow.triangle.merge") }
                             .buttonStyle(.borderless).help("Fusionner avec l'étape précédente")
                     }
-                    Button { navigation.selectedStageId = stage.id } label: { Image(systemName: "chevron.right") }
-                        .buttonStyle(.borderless).help("Ouvrir la fiche de l'étape")
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                 }
                 .padding(.vertical, 7)
+                .contentShape(Rectangle())
+                .onTapGesture { navigation.selectedStageId = stage.id }
                 .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
                 .contextMenu {
+                    Button("Renommer l'étape…") {
+                        renameText = stage.name
+                        renamingStageId = stage.id
+                    }
                     Button("Supprimer l'étape", role: .destructive) { deleteStage(at: k) }
                         .disabled(stages.count <= 1)
                 }
