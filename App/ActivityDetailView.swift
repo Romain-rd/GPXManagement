@@ -3678,7 +3678,7 @@ struct RouteEditorView: View {
     @AppStorage("connectorEngine") private var engineRaw = "mapkit"
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
-    private var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0) } }
+    private var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name) } }
     private var hasPending: Bool { segments.contains(where: { $0 == nil }) }
     private var busy: Bool { isRouting || isSaving }
 
@@ -3764,6 +3764,9 @@ struct RouteEditorView: View {
             VStack(spacing: 1) {
                 ForEach(Array(waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
+                        Button { cycleRole(wp.id) } label: { roleIcon(wp.role) }
+                            .buttonStyle(.borderless)
+                            .help("Rôle : point de tracé · point d'intérêt · arrêt d'étape (cliquer pour changer)")
                         Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(selectedWaypointId == wp.id ? Color.orange : Color.blue))
@@ -3783,6 +3786,24 @@ struct RouteEditorView: View {
         .frame(maxHeight: 130)
     }
 
+    @ViewBuilder
+    private func roleIcon(_ role: RouteWaypoint.Role) -> some View {
+        switch role {
+        case .shaping: Image(systemName: "smallcircle.filled.circle").foregroundStyle(.secondary)
+        case .poi: Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
+        case .stageStop: Image(systemName: "flag.circle.fill").foregroundStyle(.green)
+        }
+    }
+
+    // Fait défiler le rôle d'un point : tracé muet → point d'intérêt → arrêt d'étape.
+    private func cycleRole(_ id: UUID) {
+        guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        let order: [RouteWaypoint.Role] = [.shaping, .poi, .stageStop]
+        let next = order[((order.firstIndex(of: waypoints[j].role) ?? 0) + 1) % order.count]
+        waypoints[j].role = next
+        dirty = true
+    }
+
     private func nameBinding(_ id: UUID) -> Binding<String> {
         Binding(
             get: { waypoints.first(where: { $0.id == id })?.name ?? "" },
@@ -3795,9 +3816,10 @@ struct RouteEditorView: View {
         )
     }
 
-    // Nomme les points sans nom via OpenStreetMap : cols/sommets proches (Overpass, 1 requête) puis ville (Nominatim).
+    // Nomme les POI/arrêts sans nom via OpenStreetMap : cols/sommets proches (Overpass, 1 requête) puis ville (Nominatim).
+    // Les points de routage muets (`.shaping`) ne sont pas nommés.
     private func nameWaypoints() async {
-        let targets = waypoints.filter { ($0.name ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        let targets = waypoints.filter { $0.role != .shaping && ($0.name ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
         guard !targets.isEmpty else { return }
         let coords = targets.map { coord($0) }
         let passes = await OSMNaming.passes(near: coords)

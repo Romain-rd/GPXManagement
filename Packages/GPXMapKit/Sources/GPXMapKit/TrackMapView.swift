@@ -111,18 +111,22 @@ public struct WaypointMarker: Sendable, Identifiable {
     public let id: UUID
     public let coordinate: CLLocationCoordinate2D
     public let index: Int
-    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int) {
-        self.id = id; self.coordinate = coordinate; self.index = index
+    public let role: RouteWaypoint.Role
+    public let name: String?
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil) {
+        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name
     }
 }
 
 final class WaypointAnnotation: MKPointAnnotation {
     let waypointId: UUID
     let index: Int
-    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int) {
-        self.waypointId = id; self.index = index
+    let role: RouteWaypoint.Role
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?) {
+        self.waypointId = id; self.index = index; self.role = role
         super.init()
         self.coordinate = coordinate
+        self.title = name
     }
 }
 
@@ -350,11 +354,11 @@ public struct TrackMapView: NSViewRepresentable {
 
         func applyWaypoints(_ markers: [WaypointMarker], to mapView: MKMapView) {
             // Pas de reconstruction pendant un drag (sinon le pin saute) : on diffe sur (id, index, coord).
-            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.coordinate.latitude),\($0.coordinate.longitude)" }.joined(separator: ";")
+            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.role.rawValue)|\($0.coordinate.latitude),\($0.coordinate.longitude)" }.joined(separator: ";")
             if sig == waypointSignature { return }
             waypointSignature = sig
             mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index) }
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name) }
             mapView.addAnnotations(waypointAnnotations)
         }
         private var waypointSignature = ""
@@ -519,6 +523,19 @@ public struct TrackMapView: NSViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
 
+        // Petit point discret pour les ancrages de routage muets (`.shaping`).
+        private static let shapingImage: NSImage = {
+            let size = NSSize(width: 12, height: 12)
+            let image = NSImage(size: size)
+            image.lockFocus()
+            NSColor.white.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: 12, height: 12)).fill()
+            NSColor.systemBlue.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 2.5, y: 2.5, width: 7, height: 7)).fill()
+            image.unlockFocus()
+            return image
+        }()
+
         private static let highlightImage: NSImage = {
             let size = NSSize(width: 16, height: 16)
             let image = NSImage(size: size)
@@ -553,14 +570,33 @@ public struct TrackMapView: NSViewRepresentable {
                 return view
             }
             if let wp = annotation as? WaypointAnnotation {
-                let identifier = "waypoint"
+                // Point de routage muet : petit point discret, pas de bulle.
+                if wp.role == .shaping {
+                    let identifier = "waypoint.shaping"
+                    let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+                        ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                    view.annotation = annotation
+                    view.image = Self.shapingImage
+                    view.centerOffset = .zero
+                    view.isDraggable = true
+                    view.canShowCallout = false
+                    view.displayPriority = .defaultLow
+                    return view
+                }
+                // POI / arrêt d'étape : épingle nommée distincte par rôle.
+                let identifier = "waypoint.marker"
                 let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 marker.annotation = annotation
-                marker.markerTintColor = .systemBlue
-                marker.glyphText = "\(wp.index + 1)"
+                if wp.role == .stageStop {
+                    marker.markerTintColor = .systemGreen
+                    marker.glyphImage = NSImage(systemSymbolName: "flag.fill", accessibilityDescription: nil)
+                } else {
+                    marker.markerTintColor = .systemOrange
+                    marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
+                }
                 marker.isDraggable = true
-                marker.canShowCallout = false
+                marker.canShowCallout = (wp.title?.isEmpty == false)
                 marker.animatesWhenAdded = false
                 marker.displayPriority = .required   // ne pas masquer/agréger les pins voisins
                 marker.collisionMode = .circle
