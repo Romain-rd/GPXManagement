@@ -3750,20 +3750,58 @@ struct RouteEditorView: View {
                         Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(selectedWaypointId == wp.id ? Color.orange : Color.blue))
-                        Text(wp.name ?? String(format: "%.4f, %.4f", wp.latitude, wp.longitude))
-                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        Spacer()
+                            .contentShape(Circle())
+                            .onTapGesture { selectedWaypointId = (selectedWaypointId == wp.id ? nil : wp.id) }
+                        TextField(String(format: "%.4f, %.4f", wp.latitude, wp.longitude), text: nameBinding(wp.id))
+                            .textFieldStyle(.plain).font(.caption)
+                        Spacer(minLength: 4)
                         Button { delete(wp.id) } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless).disabled(waypoints.count <= 2)
                     }
                     .padding(.vertical, 2).padding(.horizontal, 6)
                     .background(selectedWaypointId == wp.id ? Color.accentColor.opacity(0.12) : .clear)
-                    .contentShape(Rectangle())
-                    .onTapGesture { selectedWaypointId = (selectedWaypointId == wp.id ? nil : wp.id) }
                 }
             }
         }
         .frame(maxHeight: 130)
+    }
+
+    private func nameBinding(_ id: UUID) -> Binding<String> {
+        Binding(
+            get: { waypoints.first(where: { $0.id == id })?.name ?? "" },
+            set: { v in
+                guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
+                let t = v.trimmingCharacters(in: .whitespaces)
+                waypoints[j].name = t.isEmpty ? nil : v
+                dirty = true   // le nom est sauvegardé sans re-router.
+            }
+        )
+    }
+
+    // Nomme les points sans nom par géocodage inverse (POI/col, quartier, ville…).
+    private func nameWaypoints() async {
+        let targets = waypoints.filter { ($0.name ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        guard !targets.isEmpty else { return }
+        let geocoder = CLGeocoder()
+        for wp in targets {
+            let loc = CLLocation(latitude: wp.latitude, longitude: wp.longitude)
+            let label = (try? await geocoder.reverseGeocodeLocation(loc)).flatMap { Self.placeLabel($0.first) }
+            if let label, let j = waypoints.firstIndex(where: { $0.id == wp.id }),
+               (waypoints[j].name ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
+                waypoints[j].name = label
+                dirty = true
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000) // CLGeocoder est limité en débit.
+        }
+    }
+
+    private static func placeLabel(_ p: CLPlacemark?) -> String? {
+        guard let p else { return nil }
+        if let aoi = p.areasOfInterest?.first, !aoi.isEmpty { return aoi }
+        if let sub = p.subLocality, !sub.isEmpty { return sub }
+        if let loc = p.locality, !loc.isEmpty { return loc }
+        if let name = p.name, !name.isEmpty { return name }
+        return p.administrativeArea
     }
 
     // Les éditions montrent un aperçu en lignes droites (instantané) ; le routage est explicite (« Recalculer »).
@@ -3832,16 +3870,18 @@ struct RouteEditorView: View {
             routedCoords = coords
             dirty = true
             isRouting = false
+            await nameWaypoints()
         }
     }
 
     private func saveNow() {
         guard waypoints.count >= 2, !isRouting, !isSaving else { return }
-        let snapshot = waypoints
-        let coords = routedCoords
         dirty = false
         isSaving = true
         Task {
+            await nameWaypoints()
+            let snapshot = waypoints
+            let coords = routedCoords
             let ok = await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: snapshot, routedCoords: coords)
             isSaving = false
             if ok { onSaved() }
