@@ -54,10 +54,12 @@ public struct ActivityCreationPayload: Sendable {
     public let fileSHA256: String
     public let stravaId: String?
     public let isCourse: Bool
+    /// `true` si le parcours est modifiable (re-routage) — heuristique d'import sur la densité de points.
+    public let isEditableRoute: Bool
     /// Points de passage initiaux (POI/arrêts issus des `<wpt>` d'un parcours), encodés JSON — nil si aucun.
     public let routeWaypointsData: Data?
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, sensorData: Data = Data(), fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false, routeWaypointsData: Data? = nil) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, sensorData: Data = Data(), fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false, isEditableRoute: Bool = false, routeWaypointsData: Data? = nil) {
         self.id = id
         self.title = title
         self.activityType = activityType
@@ -73,6 +75,7 @@ public struct ActivityCreationPayload: Sendable {
         self.fileSHA256 = fileSHA256
         self.stravaId = stravaId
         self.isCourse = isCourse
+        self.isEditableRoute = isEditableRoute
         self.routeWaypointsData = routeWaypointsData
     }
 }
@@ -181,6 +184,9 @@ public actor ImportService {
 
     /// Un parcours (préparation) est un tracé dessiné : il a des points GPS mais aucun horodatage réel.
     /// Une activité enregistrée porte toujours des timestamps par point.
+    /// En-dessous de ce nombre de points, un parcours est considéré « dessiné » (modifiable) plutôt que GR fidèle.
+    public static let editableRoutePointThreshold = 100
+
     public static func detectIsCourse(parsed: ParsedTrack) -> Bool {
         !parsed.points.isEmpty && !parsed.points.contains { $0.timestamp != nil }
     }
@@ -268,6 +274,8 @@ public actor ImportService {
 
         // Pour un parcours, on conserve les <wpt> du fichier comme points de passage (POI / arrêts d'étape).
         let resolvedIsCourse = isCourse ?? proposal.suggestedIsCourse
+        // Heuristique : un parcours à peu de points est dessiné (modifiable) ; dense = GR fidèle (verrouillé).
+        let isEditableRoute = resolvedIsCourse && proposal.parsed.points.count < Self.editableRoutePointThreshold
         let routeWaypointsData: Data? = (resolvedIsCourse && !proposal.parsed.waypoints.isEmpty)
             ? RouteWaypointCodec.encode(Self.routeWaypoints(from: proposal.parsed))
             : nil
@@ -288,6 +296,7 @@ public actor ImportService {
             fileSHA256: proposal.fileSHA256,
             stravaId: proposal.stravaId,
             isCourse: resolvedIsCourse,
+            isEditableRoute: isEditableRoute,
             routeWaypointsData: routeWaypointsData
         )
 

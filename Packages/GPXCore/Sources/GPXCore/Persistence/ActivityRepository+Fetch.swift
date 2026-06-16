@@ -35,6 +35,20 @@ extension CoreDataActivityRepository {
         }
     }
 
+    public func setEditableRoute(id: UUID, _ value: Bool) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(value, forKey: "isEditableRoute")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
     /// Réconciliation unique de la catégorie depuis le tracé : parcours = des points GPS mais aucun
     /// horodatage (tracé dessiné). Une séance sans GPS (escalade, fitness… 0 point) reste une activité.
     /// Recalcule dans les deux sens. Renvoie le nombre de traces modifiées.
@@ -635,7 +649,8 @@ enum ActivitySummaryMapper {
             isCourse: object.value(forKey: "isCourse") as? Bool ?? false,
             isPublished: (object.value(forKey: "webPublishedURL") as? String)?.isEmpty == false
                       || (object.value(forKey: "filmPublishedURL") as? String)?.isEmpty == false,
-            isStagedRoute: object.value(forKey: "isStagedRoute") as? Bool ?? false
+            isStagedRoute: object.value(forKey: "isStagedRoute") as? Bool ?? false,
+            isEditableRoute: object.value(forKey: "isEditableRoute") as? Bool ?? false
         )
     }
 }

@@ -69,6 +69,7 @@ public final class CoreDataActivityRepository: ActivityRepository, @unchecked Se
             activity.setValue(payload.sensorData.isEmpty ? nil : payload.sensorData, forKey: "sensorData")
             activity.setValue(payload.routeWaypointsData, forKey: "routeWaypointsData")
             activity.setValue(payload.isCourse, forKey: "isCourse")
+            activity.setValue(payload.isEditableRoute, forKey: "isEditableRoute")
             let now = Date()
             activity.setValue(now, forKey: "createdAt")
             activity.setValue(now, forKey: "updatedAt")

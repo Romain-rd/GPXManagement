@@ -61,6 +61,7 @@ struct ActivityDetailView: View {
     @State private var customSegmentGain = ""
     @State private var showStagePlanner = false
     @State private var routeEditMode = false
+    @State private var showEditableRouteDialog = false
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -200,8 +201,16 @@ struct ActivityDetailView: View {
             Task { await AppServices.shared.duplicateActivity(parent: activity) }
         }
         .onChange(of: windowModel.editRouteToken) { _, _ in
-            if activity.isCourse, model.hasTrack { secMapExpanded = true; routeEditMode = true }
-            else { AppServices.shared.importError = "« Modifier l'itinéraire » est réservé aux parcours." }
+            if activity.isEditableRoute, model.hasTrack { secMapExpanded = true; routeEditMode = true }
+            else { AppServices.shared.importError = "« Modifier l'itinéraire » est réservé aux parcours modifiables (un GR importé reste fidèle — voir le menu pour le rendre modifiable)." }
+        }
+        .alert(editableRouteAlertTitle, isPresented: $showEditableRouteDialog) {
+            Button(editableRouteConfirmLabel) {
+                Task { await listVM.setEditableRoute(id: activity.id, !activity.isEditableRoute) }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text(editableRouteAlertMessage)
         }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
@@ -212,6 +221,18 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.shareToken) { _, _ in
             if model.hasTrack { Task { await prepareShare() } }
         }
+    }
+
+    private var editableRouteAlertTitle: String {
+        activity.isEditableRoute ? "Verrouiller le tracé ?" : "Rendre le tracé modifiable ?"
+    }
+    private var editableRouteConfirmLabel: String {
+        activity.isEditableRoute ? "Verrouiller" : "Rendre modifiable"
+    }
+    private var editableRouteAlertMessage: String {
+        activity.isEditableRoute
+            ? "Le re-routage entre points de passage sera désactivé : le tracé restera fidèle (recommandé pour un GR importé). Les stops et POI restent éditables."
+            : "Tu pourras re-router l'itinéraire entre les points de passage. ⚠️ Sur un tracé précis (GR importé), le re-routage peut le dégrader — à n'activer que pour un parcours dessiné."
     }
 
     var body: some View {
@@ -410,6 +431,15 @@ struct ActivityDetailView: View {
                     Task { await listVM.setIsCourse(id: activity.id, isCourse: true) }
                 } label: {
                     Label("Parcours (préparation)", systemImage: activity.isCourse ? "checkmark" : "circle")
+                }
+                if activity.isCourse {
+                    Divider()
+                    Button {
+                        showEditableRouteDialog = true
+                    } label: {
+                        Label(activity.isEditableRoute ? "Verrouiller le tracé (fidèle)…" : "Rendre le tracé modifiable…",
+                              systemImage: activity.isEditableRoute ? "lock" : "lock.open")
+                    }
                 }
             } label: {
                 Image(systemName: "arrow.left.arrow.right.circle")
@@ -933,7 +963,7 @@ struct ActivityDetailView: View {
                     .font(.headline)
                 Spacer()
                 if secMapExpanded {
-                    if activity.isCourse {
+                    if activity.isEditableRoute {
                         Button(routeEditMode ? "Terminer" : "Modifier l'itinéraire") { routeEditMode.toggle() }
                             .controlSize(.small)
                     }

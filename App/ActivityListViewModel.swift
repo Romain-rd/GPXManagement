@@ -323,6 +323,17 @@ final class ActivityListViewModel {
         for id in ids { await setIsCourse(id: id, isCourse: isCourse) }
     }
 
+    func setEditableRoute(id: UUID, _ value: Bool) async {
+        do {
+            try await repository.setEditableRoute(id: id, value)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingIsEditableRoute(value)
+            }
+        } catch {
+            self.error = "Échec du changement : \(error.localizedDescription)"
+        }
+    }
+
     /// Reclassement unique des traces existantes depuis leur tracé (joué une seule fois).
     func classifyCoursesIfNeeded() async {
         let key = "didReconcileCoursesV2"
