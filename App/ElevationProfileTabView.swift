@@ -67,6 +67,9 @@ struct ElevationProfileTabView: View {
     let activityId: UUID
     let activityType: ActivityType
     let repository: CoreDataActivityRepository
+    /// D+/D− stockés (stats officielles) — affichés tels quels pour coller exactement à la liste.
+    var storedGain: Double = 0
+    var storedLoss: Double = 0
     @Binding var mode: ProfileMode
     @Binding var metric: ProfileMetric
     @Binding var highlightedCoordinate: CLLocationCoordinate2D?
@@ -591,8 +594,9 @@ struct ElevationProfileTabView: View {
 
             altMin = summary.altMin
             altMax = summary.altMax
-            dPlus = summary.dPlus
-            dMinus = summary.dMinus
+            // D+/D− : valeurs stockées (identiques à la liste) ; repli sur le calcul local si non fournies.
+            dPlus = storedGain > 0 ? storedGain : summary.dPlus
+            dMinus = storedLoss > 0 ? storedLoss : summary.dMinus
         } catch {
             loadError = error.localizedDescription
         }
@@ -772,25 +776,21 @@ struct ElevationProfileTabView: View {
 
     private func computeAltStats(profile: [ElevationProfilePoint]) -> (altMin: Double, altMax: Double, dPlus: Double, dMinus: Double) {
         guard !profile.isEmpty else { return (0, 0, 0, 0) }
-        var minAlt = profile[0].altitude
-        var maxAlt = profile[0].altitude
+        let alts = profile.map(\.altitude)
+        // Même calcul de D+/D− que les stats stockées (ActivityStatsCalculator) : lissage EMA α=0,2 + hystérésis 3 m.
+        var smoothed = alts
+        let alpha = 0.2
+        for i in 1..<smoothed.count { smoothed[i] = alpha * alts[i] + (1 - alpha) * smoothed[i - 1] }
         var dPlus: Double = 0
         var dMinus: Double = 0
-        var anchor = profile[0].altitude
+        var anchor = smoothed[0]
         let threshold = 3.0
-        for p in profile.dropFirst() {
-            minAlt = min(minAlt, p.altitude)
-            maxAlt = max(maxAlt, p.altitude)
-            let delta = p.altitude - anchor
-            if delta >= threshold {
-                dPlus += delta
-                anchor = p.altitude
-            } else if delta <= -threshold {
-                dMinus += -delta
-                anchor = p.altitude
-            }
+        for value in smoothed.dropFirst() {
+            let delta = value - anchor
+            if delta >= threshold { dPlus += delta; anchor = value }
+            else if delta <= -threshold { dMinus += -delta; anchor = value }
         }
-        return (minAlt, maxAlt, dPlus, dMinus)
+        return (alts.min() ?? 0, alts.max() ?? 0, dPlus, dMinus)
     }
 }
 

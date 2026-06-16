@@ -696,6 +696,7 @@ struct ActivityDetailView: View {
             if secProfileExpanded {
             ElevationProfileTabView(
                 activityId: activity.id, activityType: activity.activityType, repository: repository,
+                storedGain: activity.elevationGain, storedLoss: activity.elevationLoss,
                 mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate,
                 highlightedDistanceRange: selectedSegmentRange,
                 onSelectRange: activity.activityType.tracksDistanceAndSpeed ? { start, end in
@@ -1055,7 +1056,7 @@ struct ActivityDetailView: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate, highlightedDistanceRange: selectedSegmentRange)
+            ElevationProfileTabView(activityId: activity.id, activityType: activity.activityType, repository: repository, storedGain: activity.elevationGain, storedLoss: activity.elevationLoss, mode: $profileMode, metric: $profileMetric, highlightedCoordinate: $highlightedCoordinate, highlightedDistanceRange: selectedSegmentRange)
                 .frame(maxHeight: .infinity)
         }
         .padding(.bottom, 6)
@@ -2623,21 +2624,16 @@ struct ParcoursDetailView: View {
     private var totalDistance: Double { dists.last ?? 0 }
     private var totalKm: Double { totalDistance / 1000 }
 
-    // Distance / D+ d'une étape, raccords hors-trace inclus (départ + tracé + arrivée).
-    private func stageKm(_ s: Stage) -> Double {
-        guard !dists.isEmpty else { return 0 }
-        let onTrack = dists[min(s.endIndex, dists.count - 1)] - dists[min(s.startIndex, dists.count - 1)]
-        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints).distance
-        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints).distance
-        return (onTrack + dep + arr) / 1000
+    // Points complets d'une étape (raccord départ + tracé + raccord arrivée) — base unique pour distance et D+,
+    // identique au calcul de la fiche, pour que liste et profil affichent la même chose.
+    private func stagePoints(_ s: Stage) -> [TrackPoint] {
+        guard !points.isEmpty else { return [] }
+        let lo = max(0, min(s.startIndex, points.count - 1))
+        let hi = max(lo, min(s.endIndex, points.count - 1))
+        return s.startConnectorPoints + Array(points[lo...hi]) + s.endConnectorPoints
     }
-    private func stageGain(_ s: Stage) -> Int {
-        guard !cumGain.isEmpty else { return 0 }
-        let onTrack = cumGain[min(s.endIndex, cumGain.count - 1)] - cumGain[min(s.startIndex, cumGain.count - 1)]
-        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints).elevationGain
-        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints).elevationGain
-        return Int((onTrack + dep + arr).rounded())
-    }
+    private func stageKm(_ s: Stage) -> Double { ActivityStatsCalculator.compute(points: stagePoints(s)).distance / 1000 }
+    private func stageGain(_ s: Stage) -> Int { Int(ActivityStatsCalculator.compute(points: stagePoints(s)).elevationGain.rounded()) }
     private var totalKmWithConnectors: Double { stages.reduce(0) { $0 + stageKm($1) } }
     private var totalGainWithConnectors: Int { stages.reduce(0) { $0 + stageGain($1) } }
 
