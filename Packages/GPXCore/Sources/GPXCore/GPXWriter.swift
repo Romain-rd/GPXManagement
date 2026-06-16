@@ -7,11 +7,15 @@ public enum GPXWriter {
         return f
     }()
 
-    public static func write(name: String, activityType: ActivityType?, points: [TrackPoint]) throws -> Data {
+    public static func write(name: String, activityType: ActivityType?, points: [TrackPoint], waypoints: [RouteWaypoint] = []) throws -> Data {
         var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         xml += "<gpx version=\"1.1\" creator=\"GPXManagement\""
         xml += " xmlns=\"http://www.topografix.com/GPX/1/1\""
         xml += " xmlns:gpxtpx=\"http://www.garmin.com/xmlschemas/TrackPointExtension/v1\">\n"
+        // Les `<wpt>` (POI, arrêts d'étape) précèdent `<trk>` (ordre du schéma GPX 1.1). Les points muets de routage sont omis.
+        for wp in waypoints where wp.role == .poi || wp.role == .stageStop {
+            xml += writeWpt(wp)
+        }
         xml += "  <trk>\n"
         xml += "    <name>\(escape(name))</name>\n"
         if let type = activityType {
@@ -29,6 +33,18 @@ public enum GPXWriter {
             throw GPXWriteError.encodingFailed
         }
         return data
+    }
+
+    private static func writeWpt(_ wp: RouteWaypoint) -> String {
+        var s = "  <wpt lat=\"\(formatCoord(wp.latitude))\" lon=\"\(formatCoord(wp.longitude))\">"
+        if let name = wp.name, !name.isEmpty {
+            s += "<name>\(escape(name))</name>"
+        }
+        if wp.role == .stageStop {
+            s += "<type>stage-stop</type>"
+        }
+        s += "</wpt>\n"
+        return s
     }
 
     private static func writeTrkpt(_ point: TrackPoint) -> String {

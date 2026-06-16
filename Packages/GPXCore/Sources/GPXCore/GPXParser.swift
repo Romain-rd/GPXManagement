@@ -1,11 +1,30 @@
 import Foundation
 
+/// Marqueur `<wpt>` d'un GPX (départ/arrivée, POI, col, refuge) : n'appartient pas au tracé dense.
+public struct ParsedWaypoint: Sendable, Equatable {
+    public let name: String?
+    public let latitude: Double
+    public let longitude: Double
+    public let type: String?
+    public let symbol: String?
+
+    public init(name: String?, latitude: Double, longitude: Double, type: String? = nil, symbol: String? = nil) {
+        self.name = name
+        self.latitude = latitude
+        self.longitude = longitude
+        self.type = type
+        self.symbol = symbol
+    }
+}
+
 public struct ParsedTrack: Sendable, Equatable {
     public let name: String?
     public let activityHint: String?
     public let startDate: Date?
     public let endDate: Date?
     public let points: [TrackPoint]
+    /// Marqueurs `<wpt>` du fichier (POI, refuges…), conservés pour les parcours. Vide pour FIT/TCX.
+    public let waypoints: [ParsedWaypoint]
     /// Mesures capteurs horodatées des échantillons SANS position (FC, altitude…) — sinon perdues.
     /// Vide pour une activité GPS (les capteurs sont déjà dans `points`).
     public let sensorSamples: [SensorSample]
@@ -40,12 +59,13 @@ public struct ParsedTrack: Sendable, Equatable {
         }
     }
 
-    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], sensorSamples: [SensorSample] = [], summary: Summary? = nil, creator: String? = nil) {
+    public init(name: String?, activityHint: String?, startDate: Date?, endDate: Date?, points: [TrackPoint], waypoints: [ParsedWaypoint] = [], sensorSamples: [SensorSample] = [], summary: Summary? = nil, creator: String? = nil) {
         self.name = name
         self.activityHint = activityHint
         self.startDate = startDate
         self.endDate = endDate
         self.points = points
+        self.waypoints = waypoints
         self.sensorSamples = sensorSamples
         self.summary = summary
         self.creator = creator
@@ -120,6 +140,14 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
     private var routePoints: [TrackPoint] = []
     var points: [TrackPoint] { trackPoints.isEmpty ? routePoints : trackPoints }
 
+    private(set) var waypoints: [ParsedWaypoint] = []
+    private var inWaypoint = false
+    private var currentWptLat: Double?
+    private var currentWptLon: Double?
+    private var currentWptName: String?
+    private var currentWptType: String?
+    private var currentWptSym: String?
+
     private enum PointKind { case track, route }
     private var currentKind: PointKind?
 
@@ -154,6 +182,7 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
             startDate: timestamps.first,
             endDate: timestamps.last,
             points: points,
+            waypoints: waypoints,
             creator: creator
         )
     }
@@ -170,6 +199,12 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
 
         if local == "wpt" {
             currentKind = nil
+            inWaypoint = true
+            currentWptLat = attributeDict["lat"].flatMap(Double.init)
+            currentWptLon = attributeDict["lon"].flatMap(Double.init)
+            currentWptName = nil
+            currentWptType = nil
+            currentWptSym = nil
             return
         }
 
@@ -206,13 +241,19 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
 
         switch local {
         case "name":
-            if elementStack.dropLast().contains("trk"), trackName == nil {
+            if inWaypoint {
+                currentWptName = raw.isEmpty ? nil : raw
+            } else if elementStack.dropLast().contains("trk"), trackName == nil {
                 trackName = raw.isEmpty ? nil : raw
             }
         case "type":
-            if elementStack.dropLast().contains("trk"), trackType == nil {
+            if inWaypoint {
+                currentWptType = raw.isEmpty ? nil : raw
+            } else if elementStack.dropLast().contains("trk"), trackType == nil {
                 trackType = raw.isEmpty ? nil : raw
             }
+        case "sym":
+            if inWaypoint { currentWptSym = raw.isEmpty ? nil : raw }
         case "ele":
             if currentKind != nil { currentEle = Double(raw) }
         case "time":
@@ -243,6 +284,11 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
             }
         case "wpt":
             currentKind = nil
+            inWaypoint = false
+            if let lat = currentWptLat, let lon = currentWptLon {
+                waypoints.append(ParsedWaypoint(name: currentWptName, latitude: lat, longitude: lon,
+                                                type: currentWptType, symbol: currentWptSym))
+            }
         default:
             break
         }
