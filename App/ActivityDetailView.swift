@@ -2648,6 +2648,10 @@ struct ParcoursDetailView: View {
     @State private var alts: [Double] = []
     @State private var cumGain: [Double] = []
     @State private var stages: [Stage] = []
+    // Waypoints non-stop (POI + ancrages shaping) ; seuls les POI sont édités ici (mode fidèle : pas de re-routage).
+    @State private var extraWaypoints: [RouteWaypoint] = []
+    @State private var addingPOI = false
+    @State private var selectedPoiId: UUID?
     @State private var isLoading = true
     @State private var grabbed: Int?
     @State private var dragCoord: CLLocationCoordinate2D?
@@ -2752,6 +2756,7 @@ struct ParcoursDetailView: View {
                         resizeHandle($profileHeight, min: 90, max: 500)
                         stagesList
                         actions
+                        poiList
                     }
                     .padding()
                 }
@@ -2796,7 +2801,19 @@ struct ParcoursDetailView: View {
     }
 
     private var overviewMap: some View {
-        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages, highlight: dragCoord, layer: layerBinding)
+        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages,
+                        highlight: dragCoord, waypoints: poiMarkers,
+                        onWaypointMoved: { id, c in movePOI(id: id, to: c) },
+                        onWaypointTapped: { selectedPoiId = ($0 == selectedPoiId ? nil : $0) },
+                        onMapClick: addingPOI ? { addPOI(at: $0) } : nil,
+                        layer: layerBinding)
+            .overlay(alignment: .top) {
+                if addingPOI {
+                    Text("Cliquez sur la trace pour poser un point d'intérêt")
+                        .font(.caption).padding(6)
+                        .background(.orange, in: Capsule()).foregroundStyle(.white).padding(8)
+                }
+            }
     }
 
     private var profileChart: some View {
@@ -2975,7 +2992,33 @@ struct ParcoursDetailView: View {
                 Button("Tous les 500 m D+") { recalcByGain(500) }
                 Button("Tous les 1000 m D+") { recalcByGain(1_000) }
             } label: { Label("Recalculer", systemImage: "wand.and.stars") }
+            Button { addingPOI.toggle() } label: {
+                Label(addingPOI ? "Annuler le POI" : "Ajouter un POI", systemImage: addingPOI ? "xmark" : "mappin")
+            }
+            .help("Poser un point d'intérêt sur la trace (sans modifier le tracé)")
             Spacer()
+        }
+    }
+
+    @ViewBuilder private var poiList: some View {
+        if !extraWaypoints.contains(where: { $0.role == .poi }) {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Points d'intérêt").font(.caption.bold()).foregroundStyle(.secondary)
+                ForEach(extraWaypoints.filter { $0.role == .poi }) { wp in
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
+                        TextField(String(format: "%.4f, %.4f", wp.latitude, wp.longitude), text: poiNameBinding(wp.id), onCommit: { persist() })
+                            .textFieldStyle(.plain).font(.caption)
+                        Spacer(minLength: 4)
+                        Button { deletePOI(wp.id) } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless)
+                    }
+                    .padding(.vertical, 2).padding(.horizontal, 6)
+                    .background(selectedPoiId == wp.id ? Color.accentColor.opacity(0.12) : .clear)
+                }
+            }
         }
     }
 
@@ -3029,8 +3072,9 @@ struct ParcoursDetailView: View {
         for i in stages.indices { stages[i].order = i }
         let snapshot = stages
         let pts = points
+        let pois = extraWaypoints
         Task {
-            guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts) else { return }
+            guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts, pois: pois) else { return }
             await MainActor.run {
                 // Réinjecte les stopWaypointId créés (stabilité des ids), sans écraser une édition en cours.
                 guard grabbed == nil, updated.count == stages.count else { return }
@@ -3078,7 +3122,58 @@ struct ParcoursDetailView: View {
             loaded = cleaned
         }
         if loaded.isEmpty { loaded = [Stage(activityId: activity.id, order: 0, name: "Étape 1", startIndex: 0, endIndex: pts.count - 1)] }
+        let wps = RouteWaypointCodec.decode((try? await repository.fetchRouteWaypointsData(id: activity.id)) ?? nil)
+        extraWaypoints = wps.filter { $0.role != .stageStop }
         points = pts; dists = d; alts = a; cumGain = g; stages = loaded
+    }
+
+    // MARK: POI sur la trace (mode fidèle : aimantés au tracé, jamais de re-routage)
+
+    private var poiMarkers: [WaypointMarker] {
+        extraWaypoints.enumerated().compactMap { _, w in
+            w.role == .poi ? WaypointMarker(id: w.id, coordinate: CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude), index: 0, role: .poi, name: w.name) : nil
+        }
+    }
+
+    /// Aimante une coordonnée au point du tracé le plus proche (le POI reste sur la trace).
+    private func snapped(_ c: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        guard !points.isEmpty else { return c }
+        let i = RouteWaypoint.nearestIndex(latitude: c.latitude, longitude: c.longitude, in: points)
+        return CLLocationCoordinate2D(latitude: points[i].latitude, longitude: points[i].longitude)
+    }
+
+    private func addPOI(at c: CLLocationCoordinate2D) {
+        let s = snapped(c)
+        let wp = RouteWaypoint(latitude: s.latitude, longitude: s.longitude, name: nil, role: .poi)
+        extraWaypoints.append(wp)
+        selectedPoiId = wp.id
+        addingPOI = false
+        persist()
+    }
+
+    private func movePOI(id: UUID, to c: CLLocationCoordinate2D) {
+        guard let j = extraWaypoints.firstIndex(where: { $0.id == id }) else { return }
+        let s = snapped(c)
+        extraWaypoints[j].latitude = s.latitude
+        extraWaypoints[j].longitude = s.longitude
+        persist()
+    }
+
+    private func deletePOI(_ id: UUID) {
+        extraWaypoints.removeAll { $0.id == id }
+        if selectedPoiId == id { selectedPoiId = nil }
+        persist()
+    }
+
+    private func poiNameBinding(_ id: UUID) -> Binding<String> {
+        Binding(
+            get: { extraWaypoints.first(where: { $0.id == id })?.name ?? "" },
+            set: { v in
+                guard let j = extraWaypoints.firstIndex(where: { $0.id == id }) else { return }
+                let t = v.trimmingCharacters(in: .whitespaces)
+                extraWaypoints[j].name = t.isEmpty ? nil : v
+            }
+        )
     }
 }
 
@@ -3627,6 +3722,9 @@ struct StageColoredMap: View {
     var stages: [Stage] = []
     var connectors: [[CLLocationCoordinate2D]] = []
     var highlight: CLLocationCoordinate2D? = nil
+    var waypoints: [WaypointMarker] = []
+    var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil
+    var onWaypointTapped: ((UUID) -> Void)? = nil
     var onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil
     @Binding var layer: MapLayer
 
@@ -3659,7 +3757,8 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, fitsOnce: true, onMapClick: onMapClick)
+        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, fitsOnce: true,
+                     waypoints: waypoints, onWaypointMoved: onWaypointMoved, onWaypointTapped: onWaypointTapped, onMapClick: onMapClick)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
             }

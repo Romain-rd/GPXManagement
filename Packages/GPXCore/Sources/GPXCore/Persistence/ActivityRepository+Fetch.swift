@@ -418,10 +418,13 @@ extension CoreDataActivityRepository {
 
     /// Enregistre un parcours étapé : dérive les stops `.stageStop` des bornes des étapes (en préservant les autres
     /// waypoints), écrit `routeWaypointsData` puis les étapes. Renvoie les étapes avec leur `stopWaypointId` à jour.
+    /// `pois` (si fourni) remplace les waypoints non-stop conservés (POI/shaping gérés par l'appelant).
     @discardableResult
-    public func saveStagedRoute(activityId: UUID, stages: [Stage], points: [TrackPoint]) async throws -> [Stage] {
-        let existing = RouteWaypointCodec.decode(try await fetchRouteWaypointsData(id: activityId))
-        let (waypoints, updated) = Stage.syncStops(stages, into: existing, points: points)
+    public func saveStagedRoute(activityId: UUID, stages: [Stage], points: [TrackPoint], pois: [RouteWaypoint]? = nil) async throws -> [Stage] {
+        let base: [RouteWaypoint]
+        if let pois { base = pois }
+        else { base = RouteWaypointCodec.decode(try await fetchRouteWaypointsData(id: activityId)) }
+        let (waypoints, updated) = Stage.syncStops(stages, into: base, points: points)
         try await updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(waypoints))
         try await replaceStages(activityId: activityId, with: updated)
         return updated

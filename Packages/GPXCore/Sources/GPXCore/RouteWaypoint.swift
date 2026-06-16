@@ -48,7 +48,7 @@ public struct RouteWaypoint: Codable, Identifiable, Sendable, Hashable {
     }
 
     /// Indice du point de `points` le plus proche d'une coordonnée (plus proche au sens haversine).
-    static func nearestIndex(latitude: Double, longitude: Double, in points: [TrackPoint]) -> Int {
+    public static func nearestIndex(latitude: Double, longitude: Double, in points: [TrackPoint]) -> Int {
         var best = 0
         var bestDistance = Double.greatestFiniteMagnitude
         for (i, p) in points.enumerated() {
