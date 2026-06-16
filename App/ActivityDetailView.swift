@@ -2935,6 +2935,9 @@ struct StageDetailView: View {
     @State private var nameDraft = ""
     @State private var notesDraft = ""
     @State private var isLoading = true
+    @State private var searchText = ""
+    @State private var searchResults: [MKMapItem] = []
+    @State private var isRouting = false
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
 
@@ -2944,9 +2947,27 @@ struct StageDetailView: View {
 
     private var stage: Stage? { allStages.indices.contains(stageIndex) ? allStages[stageIndex] : nil }
     private var slicePoints: [TrackPoint] { stage?.slice(of: fullPoints) ?? [] }
-    private var stats: ActivityStats { ActivityStatsCalculator.compute(points: slicePoints) }
     private var isFirst: Bool { stageIndex == 0 }
     private var isLast: Bool { stageIndex == allStages.count - 1 }
+
+    // Raccords hors-trace : arrivée (cette étape) et départ (= arrivée de l'étape précédente, inversée).
+    private var arrivalConnector: [TrackPoint] { stage?.endConnectorPoints ?? [] }
+    private var departureConnector: [TrackPoint] {
+        guard stageIndex > 0, allStages.indices.contains(stageIndex - 1) else { return [] }
+        return allStages[stageIndex - 1].endConnectorPoints.reversed()
+    }
+    private var combinedStagePoints: [TrackPoint] { departureConnector + slicePoints + arrivalConnector }
+    private var stats: ActivityStats { ActivityStatsCalculator.compute(points: combinedStagePoints) }
+
+    private func coords(_ pts: [TrackPoint]) -> [CLLocationCoordinate2D] {
+        pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    }
+    private var offTrackMarker: CLLocationCoordinate2D? {
+        guard let s = stage, let lat = s.endOffTrackLatitude, let lon = s.endOffTrackLongitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+    private var arrivalKm: Double { ActivityStatsCalculator.compute(points: arrivalConnector).distance / 1000 }
+    private var arrivalGain: Int { Int(ActivityStatsCalculator.compute(points: arrivalConnector).elevationGain.rounded()) }
 
     /// Fenêtre « loupe » : étape + quelques km de contexte avant/après (borné aux étapes voisines).
     private var windowCoords: [CLLocationCoordinate2D] {
@@ -3001,13 +3022,17 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persist() }
-                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: windowCoords, stages: windowStages, highlight: dragCoord, layer: layerBinding)
+                        StageColoredMap(activityId: activity.id, activityType: activity.activityType,
+                                        coords: windowCoords, stages: windowStages,
+                                        connectors: [coords(departureConnector), coords(arrivalConnector)].filter { $0.count >= 2 },
+                                        highlight: dragCoord ?? offTrackMarker, layer: layerBinding)
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                         DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
                         loupeProfile.frame(height: 170)
                         Text("Glissez les poignées orange (début / fin) pour ajuster l'étape. La portion grise = avant/après.")
                             .font(.caption).foregroundStyle(.secondary)
+                        arrivalSection
                         Text("Notes").font(.headline)
                         TextEditor(text: $notesDraft)
                             .frame(minHeight: 140)
@@ -3110,6 +3135,78 @@ struct StageDetailView: View {
         let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
     }
 
+    private var arrivalSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Arrivée hors-trace").font(.headline)
+                Spacer()
+                if isRouting { ProgressView().controlSize(.small) }
+                if offTrackMarker != nil {
+                    Button("Retirer", role: .destructive) { clearArrival() }.controlSize(.small)
+                }
+            }
+            Text(offTrackMarker == nil
+                 ? "Placez l'arrivée hors du tracé (ex. refuge) : le raccord est calculé et compté dans l'étape."
+                 : String(format: "Raccord d'arrivée : +%.1f km · +%d m D+ (compté ici et au départ de l'étape suivante).", arrivalKm, arrivalGain))
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                TextField("Rechercher un lieu (refuge, village…)", text: $searchText)
+                    .textFieldStyle(.roundedBorder).onSubmit { runSearch() }
+                Button("Rechercher") { runSearch() }
+            }
+            ForEach(searchResults, id: \.self) { item in
+                Button { setArrival(to: item.placemark.coordinate) } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.circle").foregroundStyle(.orange)
+                        Text(item.name ?? "Lieu").lineLimit(1)
+                        Spacer()
+                        if let t = item.placemark.title { Text(t).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func runSearch() {
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = q
+        if let s = stage, fullPoints.indices.contains(s.endIndex) {
+            let c = CLLocationCoordinate2D(latitude: fullPoints[s.endIndex].latitude, longitude: fullPoints[s.endIndex].longitude)
+            request.region = MKCoordinateRegion(center: c, latitudinalMeters: 40000, longitudinalMeters: 40000)
+        }
+        Task {
+            let response = try? await MKLocalSearch(request: request).start()
+            searchResults = response?.mapItems ?? []
+        }
+    }
+
+    private func setArrival(to point: CLLocationCoordinate2D) {
+        guard let s = stage, fullPoints.indices.contains(s.endIndex) else { return }
+        let endCoord = CLLocationCoordinate2D(latitude: fullPoints[s.endIndex].latitude, longitude: fullPoints[s.endIndex].longitude)
+        searchResults = []
+        searchText = ""
+        isRouting = true
+        Task {
+            let connector = await AppServices.shared.buildConnector(from: endCoord, to: point)
+            allStages[stageIndex].endOffTrackLatitude = point.latitude
+            allStages[stageIndex].endOffTrackLongitude = point.longitude
+            allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(connector)
+            isRouting = false
+            persist()
+        }
+    }
+
+    private func clearArrival() {
+        guard stageIndex >= 0 else { return }
+        allStages[stageIndex].endOffTrackLatitude = nil
+        allStages[stageIndex].endOffTrackLongitude = nil
+        allStages[stageIndex].endConnectorData = nil
+        persist()
+    }
+
     private func persist() {
         guard stageIndex >= 0 else { return }
         let trimmed = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3185,8 +3282,17 @@ struct StageColoredMap: View {
     let activityType: ActivityType
     let coords: [CLLocationCoordinate2D]
     var stages: [Stage] = []
+    var connectors: [[CLLocationCoordinate2D]] = []
     var highlight: CLLocationCoordinate2D? = nil
     @Binding var layer: MapLayer
+
+    private var connectorOverlays: [TrackOverlayInput] {
+        connectors.compactMap { c in
+            guard c.count >= 2 else { return nil }
+            return TrackOverlayInput(activityId: UUID(), activityType: activityType, coordinates: c,
+                                     segmentColors: [NSColor](repeating: .systemOrange, count: c.count))
+        }
+    }
 
     private var overlay: TrackOverlayInput {
         guard !stages.isEmpty, !coords.isEmpty else {
@@ -3203,7 +3309,7 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: $layer, highlight: highlight)
+        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
             }
