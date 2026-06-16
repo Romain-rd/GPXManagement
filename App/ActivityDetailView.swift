@@ -2952,10 +2952,7 @@ struct StageDetailView: View {
 
     // Raccords hors-trace : arrivée (cette étape) et départ (= arrivée de l'étape précédente, inversée).
     private var arrivalConnector: [TrackPoint] { stage?.endConnectorPoints ?? [] }
-    private var departureConnector: [TrackPoint] {
-        guard stageIndex > 0, allStages.indices.contains(stageIndex - 1) else { return [] }
-        return allStages[stageIndex - 1].endConnectorPoints.reversed()
-    }
+    private var departureConnector: [TrackPoint] { stage?.startConnectorPoints ?? [] }
     private var combinedStagePoints: [TrackPoint] { departureConnector + slicePoints + arrivalConnector }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: combinedStagePoints) }
 
@@ -3206,21 +3203,47 @@ struct StageDetailView: View {
         searchText = ""
         isRouting = true
         Task {
-            let connector = await AppServices.shared.buildConnector(from: endCoord, to: point)
+            // Raccord d'arrivée : du point de fin de l'étape (sur le tracé) vers le point hors-trace.
+            let arrival = await AppServices.shared.buildConnector(from: endCoord, to: point)
             allStages[stageIndex].endOffTrackLatitude = point.latitude
             allStages[stageIndex].endOffTrackLongitude = point.longitude
-            allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(connector)
+            allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(arrival)
+            // Raccord de départ de l'étape suivante : plus court chemin pour rejoindre la trace (point le plus proche).
+            if stageIndex + 1 < allStages.count {
+                let next = allStages[stageIndex + 1]
+                let rejoin = nearestTrackIndex(to: point, in: s.endIndex...max(s.endIndex, next.endIndex - 1))
+                let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
+                let departure = await AppServices.shared.buildConnector(from: point, to: rejoinCoord)
+                allStages[stageIndex + 1].startIndex = rejoin
+                allStages[stageIndex + 1].startConnectorData = try? TrackPointCodec.encode(departure)
+            }
             isRouting = false
             persist()
         }
     }
 
     private func clearArrival() {
-        guard stageIndex >= 0 else { return }
+        guard stageIndex >= 0, let s = stage else { return }
         allStages[stageIndex].endOffTrackLatitude = nil
         allStages[stageIndex].endOffTrackLongitude = nil
         allStages[stageIndex].endConnectorData = nil
+        if stageIndex + 1 < allStages.count {
+            allStages[stageIndex + 1].startConnectorData = nil
+            allStages[stageIndex + 1].startIndex = s.endIndex // re-contigu avec la fin de cette étape
+        }
         persist()
+    }
+
+    private func nearestTrackIndex(to p: CLLocationCoordinate2D, in range: ClosedRange<Int>) -> Int {
+        var best = range.lowerBound
+        var bestDist = Double.greatestFiniteMagnitude
+        for i in range where fullPoints.indices.contains(i) {
+            let dLat = fullPoints[i].latitude - p.latitude
+            let dLon = fullPoints[i].longitude - p.longitude
+            let d = dLat * dLat + dLon * dLon
+            if d < bestDist { bestDist = d; best = i }
+        }
+        return best
     }
 
     private func persist() {

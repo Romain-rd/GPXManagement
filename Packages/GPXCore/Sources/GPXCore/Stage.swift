@@ -16,12 +16,16 @@ public struct Stage: Identifiable, Sendable, Hashable {
     public var endOffTrackLongitude: Double?
     /// Raccord (route du point `endIndex` du tracé vers le point hors-trace), encodé en `[TrackPoint]` avec altitude.
     public var endConnectorData: Data?
+    /// Raccord de **départ** (route du point hors-trace de départ vers `startIndex` du tracé) — calculé indépendamment
+    /// (plus court pour rejoindre la trace) ; n'est pas l'inverse du raccord d'arrivée de l'étape précédente.
+    public var startConnectorData: Data?
     public var createdAt: Date
     public var updatedAt: Date
 
     public init(id: UUID = UUID(), activityId: UUID, order: Int, name: String, notes: String? = nil,
                 startIndex: Int, endIndex: Int, coverImageData: Data? = nil,
                 endOffTrackLatitude: Double? = nil, endOffTrackLongitude: Double? = nil, endConnectorData: Data? = nil,
+                startConnectorData: Data? = nil,
                 createdAt: Date = Date(), updatedAt: Date = Date()) {
         self.id = id
         self.activityId = activityId
@@ -34,6 +38,7 @@ public struct Stage: Identifiable, Sendable, Hashable {
         self.endOffTrackLatitude = endOffTrackLatitude
         self.endOffTrackLongitude = endOffTrackLongitude
         self.endConnectorData = endConnectorData
+        self.startConnectorData = startConnectorData
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -41,6 +46,12 @@ public struct Stage: Identifiable, Sendable, Hashable {
     /// Points du raccord d'arrivée (avec altitude), décodés depuis `endConnectorData`.
     public var endConnectorPoints: [TrackPoint] {
         guard let data = endConnectorData else { return [] }
+        return (try? TrackPointCodec.decode(data)) ?? []
+    }
+
+    /// Points du raccord de départ (point hors-trace → `startIndex` du tracé), décodés depuis `startConnectorData`.
+    public var startConnectorPoints: [TrackPoint] {
+        guard let data = startConnectorData else { return [] }
         return (try? TrackPointCodec.decode(data)) ?? []
     }
 
