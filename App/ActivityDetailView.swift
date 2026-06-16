@@ -2659,17 +2659,7 @@ struct ParcoursDetailView: View {
     }
 
     private var overviewMap: some View {
-        Map(initialPosition: .automatic) {
-            MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
-            ForEach(Array(junctions.enumerated()), id: \.element) { k, j in
-                if coords.indices.contains(j) {
-                    Annotation("", coordinate: coords[j]) {
-                        Text("\(k + 1)").font(.caption2.bold()).foregroundStyle(.white)
-                            .frame(width: 18, height: 18).background(Circle().fill(.orange)).overlay(Circle().stroke(.white, lineWidth: 1.5))
-                    }
-                }
-            }
-        }
+        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages)
     }
 
     private var profileChart: some View {
@@ -2913,12 +2903,8 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persistMeta() }
-                        Map(initialPosition: .automatic) {
-                            MapPolyline(coordinates: sliceCoords).stroke(.blue, lineWidth: 3)
-                            if let s = sliceCoords.first { Annotation("", coordinate: s) { dot(.green) } }
-                            if let e = sliceCoords.last { Annotation("", coordinate: e) { dot(.red) } }
-                        }
-                        .frame(height: 280).clipShape(RoundedRectangle(cornerRadius: 12))
+                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: sliceCoords)
+                            .frame(height: 300).clipShape(RoundedRectangle(cornerRadius: 12))
                         statsRow
                         if !plot.isEmpty {
                             Chart {
@@ -2986,5 +2972,68 @@ struct StageDetailView: View {
            let pts = try? TrackPointCodec.decode(data) {
             slicePoints = found.slice(of: pts)
         }
+    }
+}
+
+/// Carte IGN réelle (même outillage que le détail : sélecteur de fonds) montrant une trace, avec coloration
+/// par étape si `stages` est fourni (sinon tracé uniforme). Réutilisée par la fiche d'étape et l'aperçu.
+struct StageColoredMap: View {
+    let activityId: UUID
+    let activityType: ActivityType
+    let coords: [CLLocationCoordinate2D]
+    var stages: [Stage] = []
+    @AppStorage("defaultMapLayer") private var defaultLayerRaw = "ign_scan25"
+
+    private var layerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer.base(fromRawValue: defaultLayerRaw) }, set: { defaultLayerRaw = $0.rawValue })
+    }
+
+    private var overlay: TrackOverlayInput {
+        guard !stages.isEmpty, !coords.isEmpty else {
+            return TrackOverlayInput(activityId: activityId, activityType: activityType, coordinates: coords)
+        }
+        var colors = [NSColor](repeating: .systemGray, count: coords.count)
+        for (k, s) in stages.enumerated() {
+            let c = MapTrackPalette.colors[k % MapTrackPalette.colors.count]
+            let lo = max(0, min(s.startIndex, coords.count - 1))
+            let hi = max(lo, min(s.endIndex, coords.count - 1))
+            if lo <= hi { for i in lo...hi { colors[i] = c } }
+        }
+        return TrackOverlayInput(activityId: activityId, activityType: activityType, coordinates: coords, segmentColors: colors)
+    }
+
+    var body: some View {
+        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: layerBinding)
+            .overlay(alignment: .topTrailing) {
+                LayerPicker(layer: layerBinding).padding(8)
+            }
+    }
+}
+
+/// Carte plein cadre d'un parcours (mode Vue d'ensemble) : tracé du parcours avec ses étapes colorées.
+struct StagedRouteOverviewMap: View {
+    let activity: ActivitySummary
+    let repository: CoreDataActivityRepository
+    @State private var coords: [CLLocationCoordinate2D] = []
+    @State private var stages: [Stage] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages)
+            }
+        }
+        .task(id: activity.id) { await load() }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
+            coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        }
+        stages = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
     }
 }

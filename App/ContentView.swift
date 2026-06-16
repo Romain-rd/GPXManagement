@@ -209,7 +209,11 @@ struct ContentView: View {
                 }
             )
         case .mapOverview:
-            if let repository {
+            if let routeId = navigation.selectedStagedRouteId,
+               let route = listVM.allActivities.first(where: { $0.id == routeId }),
+               let repository {
+                StagedRouteOverviewMap(activity: route, repository: repository)
+            } else if let repository {
                 MapOverviewView(
                     activities: targetActivities,
                     selectedIds: [],
