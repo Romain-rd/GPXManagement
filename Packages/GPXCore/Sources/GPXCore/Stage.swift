@@ -10,6 +10,8 @@ public struct Stage: Identifiable, Sendable, Hashable {
     public var notes: String?
     public var startIndex: Int
     public var endIndex: Int
+    /// Point de passage `.stageStop` qui termine cette étape (référence stable, remplace à terme les indices).
+    public var stopWaypointId: UUID?
     public var coverImageData: Data?
     /// Point d'arrivée hors-trace (refuge/village à l'écart du tracé), s'il y en a un.
     public var endOffTrackLatitude: Double?
@@ -25,7 +27,7 @@ public struct Stage: Identifiable, Sendable, Hashable {
     public var updatedAt: Date
 
     public init(id: UUID = UUID(), activityId: UUID, order: Int, name: String, notes: String? = nil,
-                startIndex: Int, endIndex: Int, coverImageData: Data? = nil,
+                startIndex: Int, endIndex: Int, stopWaypointId: UUID? = nil, coverImageData: Data? = nil,
                 endOffTrackLatitude: Double? = nil, endOffTrackLongitude: Double? = nil, endConnectorData: Data? = nil,
                 startConnectorData: Data? = nil, plannedDate: Date? = nil,
                 createdAt: Date = Date(), updatedAt: Date = Date()) {
@@ -36,6 +38,7 @@ public struct Stage: Identifiable, Sendable, Hashable {
         self.notes = notes
         self.startIndex = Swift.min(startIndex, endIndex)
         self.endIndex = Swift.max(startIndex, endIndex)
+        self.stopWaypointId = stopWaypointId
         self.coverImageData = coverImageData
         self.endOffTrackLatitude = endOffTrackLatitude
         self.endOffTrackLongitude = endOffTrackLongitude
