@@ -3669,6 +3669,7 @@ struct RouteEditorView: View {
     @State private var selectedWaypointId: UUID?
     @State private var isLoading = true
     @State private var isRouting = false
+    @State private var isSaving = false
     @State private var dirty = false
     @State private var routeDone = 0
     @State private var routeTotal = 0
@@ -3706,6 +3707,13 @@ struct RouteEditorView: View {
                         }
                         .frame(width: 240).padding(10)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
+                    } else if isSaving {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Calcul de l'altitude…").font(.caption)
+                        }
+                        .padding(10)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
                     }
                 }
                 controls
@@ -3727,10 +3735,10 @@ struct RouteEditorView: View {
             }
             .labelsHidden().pickerStyle(.menu).fixedSize()
             Button { reroute() } label: { Label("Recalculer l'itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
-                .controlSize(.small).disabled(isRouting || waypoints.count < 2)
+                .controlSize(.small).disabled(isRouting || isSaving || waypoints.count < 2)
             Spacer()
             Button { saveNow() } label: { Label("Enregistrer", systemImage: "checkmark") }
-                .controlSize(.small).disabled(waypoints.count < 2 || isRouting)
+                .controlSize(.small).disabled(waypoints.count < 2 || isRouting || isSaving)
         }
     }
 
@@ -3828,16 +3836,14 @@ struct RouteEditorView: View {
     }
 
     private func saveNow() {
-        guard waypoints.count >= 2, !isRouting else { return }
+        guard waypoints.count >= 2, !isRouting, !isSaving else { return }
         let snapshot = waypoints
         let coords = routedCoords
         dirty = false
-        isRouting = true
-        routeTotal = snapshot.count - 1
-        routeDone = coords.count >= 2 ? routeTotal : 0   // si déjà routé, pas de re-routage
+        isSaving = true
         Task {
             let ok = await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: snapshot, routedCoords: coords)
-            isRouting = false
+            isSaving = false
             if ok { onSaved() }
         }
     }
