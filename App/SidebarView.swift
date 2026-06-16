@@ -12,6 +12,7 @@ struct SidebarView: View {
     @AppStorage("sidebarTypesExpanded") private var typesExpanded = false
     @AppStorage("sidebarYearsExpanded") private var yearsExpanded = true
     @AppStorage("sidebarRaidsExpanded") private var raidsExpanded = true
+    @AppStorage("sidebarParcoursExpanded") private var parcoursExpanded = true
     @AppStorage("sidebarSmartExpanded") private var smartExpanded = true
     @State private var expandedYears: Set<Int> = []
 
@@ -115,6 +116,23 @@ struct SidebarView: View {
                     }
                 } header: {
                     Text("Raids")
+                }
+            }
+
+            if !listVM.availableStagedRoutes.isEmpty {
+                Section(isExpanded: $parcoursExpanded) {
+                    ForEach(listVM.availableStagedRoutes) { route in
+                        Label(route.title, systemImage: "flag.checkered")
+                            .tag(SidebarDestination.stagedRoute(route.id))
+                            .contextMenu {
+                                Button("Quitter le mode étapes", role: .destructive) {
+                                    Task { await listVM.deleteStagedRoute(route.id) }
+                                    if navigation.selectedStagedRouteId == route.id { navigation.sidebarSelection = .allActivities }
+                                }
+                            }
+                    }
+                } header: {
+                    Text("Parcours")
                 }
             }
 

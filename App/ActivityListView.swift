@@ -50,6 +50,16 @@ struct ActivityListView: View {
             newRaidName = listVM.suggestedRaidName(for: navigation.listSelection)
             creatingRaidIds = navigation.listSelection
         }
+        .onChange(of: navigation.newStagedRouteToken) { _, _ in
+            guard let id = navigation.listSelection.first else { return }
+            Task {
+                if let routeId = await listVM.createStagedRoute(from: id) {
+                    navigation.listSelection = []
+                    navigation.selectedStageId = nil
+                    navigation.sidebarSelection = .stagedRoute(routeId)
+                }
+            }
+        }
         .alert("Nouveau raid", isPresented: Binding(get: { creatingRaidIds != nil }, set: { if !$0 { creatingRaidIds = nil } })) {
             TextField("Nom du raid", text: $newRaidName)
             Button("Annuler", role: .cancel) { creatingRaidIds = nil }
@@ -105,6 +115,7 @@ struct ActivityListView: View {
         case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
         case .smartFilter(let id):     return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
         case .raid:                    return "Activités"
+        case .stagedRoute:             return "Parcours"
         }
     }
 
@@ -255,6 +266,24 @@ struct ActivityListView: View {
                 if ids.contains(where: { id in listVM.allActivities.first(where: { $0.id == id })?.raidId != nil }) {
                     Button("Retirer du raid") {
                         Task { await listVM.removeFromRaid(activityIds: ids) }
+                    }
+                }
+            }
+            if ids.count == 1, let id = ids.first {
+                if listVM.allActivities.first(where: { $0.id == id })?.isStagedRoute == true {
+                    Button("Ouvrir le parcours en étapes") {
+                        navigation.selectedStageId = nil
+                        navigation.sidebarSelection = .stagedRoute(id)
+                    }
+                } else {
+                    Button("Créer un parcours en étapes") {
+                        Task {
+                            if let routeId = await listVM.createStagedRoute(from: id) {
+                                navigation.listSelection = []
+                                navigation.selectedStageId = nil
+                                navigation.sidebarSelection = .stagedRoute(routeId)
+                            }
+                        }
                     }
                 }
             }

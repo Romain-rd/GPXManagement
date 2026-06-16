@@ -123,6 +123,11 @@ final class WindowModel {
         guard hasSelection else { return }
         navigation.newRaidToken += 1
     }
+
+    func requestNewStagedRoute() {
+        guard hasSelection else { return }
+        navigation.newStagedRouteToken += 1
+    }
 }
 
 /// Progression d'un export/publication web, affichée dans la barre d'outils (façon Photos).

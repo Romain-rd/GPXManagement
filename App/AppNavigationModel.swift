@@ -32,6 +32,7 @@ enum SidebarDestination: Hashable {
     case year(Int)
     case yearType(Int, ActivityType)
     case raid(UUID)
+    case stagedRoute(UUID)
     case smartFilter(UUID)
 }
 
@@ -41,11 +42,19 @@ final class AppNavigationModel {
     var listSelection: Set<UUID> = []
     var visualizationMode: VisualizationMode = .activities
     var newRaidToken: Int = 0
+    var newStagedRouteToken: Int = 0
     var sidebarSelection: SidebarDestination = .allActivities
     var editingSmartFilter: SmartFilter?
+    /// Étape dont la fiche est affichée dans le volet de droite (mode parcours).
+    var selectedStageId: UUID?
 
     var selectedRaidId: UUID? {
         if case .raid(let id) = sidebarSelection { return id }
+        return nil
+    }
+
+    var selectedStagedRouteId: UUID? {
+        if case .stagedRoute(let id) = sidebarSelection { return id }
         return nil
     }
 

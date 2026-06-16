@@ -2574,12 +2574,375 @@ struct StagePlannerSheet: View {
         points = pts; dists = d; alts = a; cumGain = g; junctions = seeded
     }
 
-    private static func haversine(_ a: TrackPoint, _ b: TrackPoint) -> Double {
+    static func haversine(_ a: TrackPoint, _ b: TrackPoint) -> Double {
         let earthRadius = 6_371_000.0
         let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180
         let dLat = (b.latitude - a.latitude) * .pi / 180
         let dLon = (b.longitude - a.longitude) * .pi / 180
         let h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
         return 2 * earthRadius * asin(min(1, sqrt(h)))
+    }
+}
+
+// MARK: - Parcours en étapes
+
+/// Aperçu d'un parcours en étapes (volet central, façon Raid) : carte, profil avec jonctions déplaçables,
+/// liste des étapes. Sélectionner une étape ouvre sa fiche dans le volet de droite.
+struct ParcoursDetailView: View {
+    let activity: ActivitySummary
+    let listVM: ActivityListViewModel
+    let repository: CoreDataActivityRepository
+    @Bindable var navigation: AppNavigationModel
+
+    @State private var points: [TrackPoint] = []
+    @State private var dists: [Double] = []
+    @State private var alts: [Double] = []
+    @State private var cumGain: [Double] = []
+    @State private var stages: [Stage] = []
+    @State private var isLoading = true
+    @State private var grabbed: Int?
+
+    private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
+    private var junctions: [Int] { stages.count > 1 ? stages.dropLast().map { $0.endIndex } : [] }
+    private var totalDistance: Double { dists.last ?? 0 }
+
+    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
+    private var plot: [PlotPoint] {
+        guard !points.isEmpty else { return [] }
+        let step = max(1, points.count / 700)
+        var r: [PlotPoint] = []
+        var i = 0
+        while i < points.count { r.append(PlotPoint(id: i, km: dists[i] / 1000, alt: alts[i])); i += step }
+        let last = points.count - 1
+        if r.last?.id != last { r.append(PlotPoint(id: last, km: dists[last] / 1000, alt: alts[last])) }
+        return r
+    }
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        overviewMap.frame(height: 220).clipShape(RoundedRectangle(cornerRadius: 12))
+                        profileChart.frame(height: 150)
+                        stagesList
+                        actions
+                    }
+                    .padding()
+                }
+            }
+        }
+        .navigationTitle(activity.title)
+        .task(id: activity.id) { await load() }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(activity.title).font(.title2.bold())
+            Text(String(format: "%.0f km · +%d m · %d étape(s)", totalDistance / 1000,
+                        Int((cumGain.last ?? 0).rounded()), stages.count))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var overviewMap: some View {
+        Map(initialPosition: .automatic) {
+            MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
+            ForEach(Array(junctions.enumerated()), id: \.element) { k, j in
+                if coords.indices.contains(j) {
+                    Annotation("", coordinate: coords[j]) {
+                        Text("\(k + 1)").font(.caption2.bold()).foregroundStyle(.white)
+                            .frame(width: 18, height: 18).background(Circle().fill(.orange)).overlay(Circle().stroke(.white, lineWidth: 1.5))
+                    }
+                }
+            }
+        }
+    }
+
+    private var profileChart: some View {
+        Chart {
+            ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
+            ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
+            ForEach(Array(junctions.enumerated()), id: \.element) { _, j in
+                RuleMark(x: .value("km", dists[j] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 2))
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
+                        .onEnded { _ in grabbed = nil; persist() })
+            }
+        }
+    }
+
+    private func onDrag(start: CGPoint, current: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
+        guard stages.count > 1, let plotFrame = proxy.plotFrame else { return }
+        let rect = geo[plotFrame]
+        func meters(atX x: CGFloat) -> Double? {
+            let xIn = min(max(x - rect.origin.x, 0), rect.width)
+            guard let km: Double = proxy.value(atX: xIn, as: Double.self) else { return nil }
+            return km * 1000
+        }
+        if grabbed == nil {
+            guard let startM = meters(atX: start.x) else { return }
+            var best = 0; var bestDiff = Double.greatestFiniteMagnitude
+            for k in 0..<(stages.count - 1) {
+                let diff = abs(dists[stages[k].endIndex] - startM)
+                if diff < bestDiff { bestDiff = diff; best = k }
+            }
+            guard bestDiff < totalDistance * 0.06 else { return }
+            grabbed = best
+        }
+        guard let k = grabbed, let targetM = meters(atX: current.x) else { return }
+        var idx = nearestPointIndex(toMeters: targetM)
+        let lower = stages[k].startIndex + 1
+        let upper = stages[k + 1].endIndex - 1
+        guard lower <= upper else { return }
+        idx = min(max(idx, lower), upper)
+        stages[k].endIndex = idx
+        stages[k + 1].startIndex = idx
+    }
+
+    private var stagesList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(stages.enumerated()), id: \.element.id) { k, stage in
+                Button {
+                    navigation.selectedStageId = stage.id
+                } label: {
+                    HStack(spacing: 10) {
+                        Text("\(k + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 18)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(stage.name.isEmpty ? "Étape \(k + 1)" : stage.name).fontWeight(.medium)
+                            Text(String(format: "%.1f km · +%d m", (dists[stage.endIndex] - dists[stage.startIndex]) / 1000,
+                                        Int((cumGain[stage.endIndex] - cumGain[stage.startIndex]).rounded())))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if k > 0 {
+                            Button { merge(at: k) } label: { Image(systemName: "arrow.triangle.merge") }
+                                .buttonStyle(.borderless).help("Fusionner avec l'étape précédente")
+                        }
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                    .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
+                }
+                .buttonStyle(.plain)
+                Divider()
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack {
+            Button { addStage() } label: { Label("Ajouter une étape", systemImage: "plus") }
+            Menu {
+                Button("Tous les 10 km") { recalcByDistance(10_000) }
+                Button("Tous les 20 km") { recalcByDistance(20_000) }
+                Button("Tous les 500 m D+") { recalcByGain(500) }
+                Button("Tous les 1000 m D+") { recalcByGain(1_000) }
+            } label: { Label("Recalculer", systemImage: "wand.and.stars") }
+            Spacer()
+        }
+    }
+
+    // MARK: Édition
+
+    private func addStage() {
+        guard !stages.isEmpty else { return }
+        var bestLen = -1.0; var bestK = 0
+        for (k, s) in stages.enumerated() {
+            let len = dists[s.endIndex] - dists[s.startIndex]
+            if len > bestLen { bestLen = len; bestK = k }
+        }
+        let s = stages[bestK]
+        let mid = nearestPointIndex(toMeters: (dists[s.startIndex] + dists[s.endIndex]) / 2)
+        guard mid > s.startIndex, mid < s.endIndex else { return }
+        let first = Stage(id: s.id, activityId: activity.id, order: 0, name: s.name, notes: s.notes, startIndex: s.startIndex, endIndex: mid)
+        let second = Stage(activityId: activity.id, order: 0, name: "", startIndex: mid, endIndex: s.endIndex)
+        stages.replaceSubrange(bestK...bestK, with: [first, second])
+        persist()
+    }
+
+    private func merge(at k: Int) {
+        guard k > 0, k < stages.count else { return }
+        if navigation.selectedStageId == stages[k].id { navigation.selectedStageId = nil }
+        stages[k - 1].endIndex = stages[k].endIndex
+        stages.remove(at: k)
+        persist()
+    }
+
+    private func recalcByDistance(_ meters: Double) {
+        rebuild(TrackSegmentBuilder.byDistance(points: points, every: meters))
+    }
+    private func recalcByGain(_ meters: Double) {
+        rebuild(TrackSegmentBuilder.byElevationGain(points: points, every: meters))
+    }
+    private func rebuild(_ segments: [TrackSegment]) {
+        guard !segments.isEmpty else { return }
+        navigation.selectedStageId = nil
+        stages = segments.enumerated().map { i, seg in
+            Stage(activityId: activity.id, order: i, name: "Étape \(i + 1)", startIndex: seg.startIndex, endIndex: seg.endIndex)
+        }
+        persist()
+    }
+
+    private func persist() {
+        for i in stages.indices { stages[i].order = i }
+        let snapshot = stages
+        Task { try? await repository.replaceStages(activityId: activity.id, with: snapshot) }
+    }
+
+    private func nearestPointIndex(toMeters meters: Double) -> Int {
+        guard !dists.isEmpty else { return 0 }
+        var lo = 0, hi = dists.count - 1
+        while lo < hi { let mid = (lo + hi) / 2; if dists[mid] < meters { lo = mid + 1 } else { hi = mid } }
+        if lo > 0, abs(dists[lo - 1] - meters) < abs(dists[lo] - meters) { return lo - 1 }
+        return lo
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let data = try? await repository.fetchTrackData(id: activity.id),
+              let pts = try? TrackPointCodec.decode(data), pts.count > 1 else { return }
+        var d = [Double](repeating: 0, count: pts.count)
+        for i in 1..<pts.count { d[i] = d[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
+        var a = [Double](repeating: 0, count: pts.count)
+        var last = pts.first(where: { $0.altitude != nil })?.altitude ?? 0
+        for i in pts.indices { last = pts[i].altitude ?? last; a[i] = last }
+        var sm = a
+        for i in 1..<sm.count { sm[i] = 0.2 * a[i] + 0.8 * sm[i - 1] }
+        var g = [Double](repeating: 0, count: pts.count)
+        var anchor = sm[0]
+        for i in 1..<pts.count {
+            let delta = sm[i] - anchor; g[i] = g[i - 1]
+            if delta >= 3 { g[i] += delta; anchor = sm[i] } else if delta <= -3 { anchor = sm[i] }
+        }
+        var loaded = (try? await repository.fetchStages(activityId: activity.id)) ?? []
+        loaded.sort { $0.order < $1.order }
+        if loaded.isEmpty { loaded = [Stage(activityId: activity.id, order: 0, name: "Étape 1", startIndex: 0, endIndex: pts.count - 1)] }
+        points = pts; dists = d; alts = a; cumGain = g; stages = loaded
+    }
+}
+
+/// Fiche d'une étape (volet de droite) : carte zoomée, profil, stats, nom et notes éditables.
+struct StageDetailView: View {
+    let activity: ActivitySummary
+    let stageId: UUID
+    let repository: CoreDataActivityRepository
+
+    @State private var stage: Stage?
+    @State private var slicePoints: [TrackPoint] = []
+    @State private var nameDraft = ""
+    @State private var notesDraft = ""
+    @State private var isLoading = true
+
+    private var sliceCoords: [CLLocationCoordinate2D] { slicePoints.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
+    private var stats: ActivityStats { ActivityStatsCalculator.compute(points: slicePoints) }
+
+    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
+    private var plot: [PlotPoint] {
+        guard slicePoints.count > 1 else { return [] }
+        var d = 0.0; var r: [PlotPoint] = []
+        var lastAlt = slicePoints.first?.altitude ?? 0
+        for (i, p) in slicePoints.enumerated() {
+            if i > 0 { d += StagePlannerSheet.haversine(slicePoints[i - 1], p) }
+            lastAlt = p.altitude ?? lastAlt
+            r.append(PlotPoint(id: i, km: d / 1000, alt: lastAlt))
+        }
+        return r
+    }
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if stage == nil {
+                ContentUnavailableView("Étape introuvable", systemImage: "flag.slash")
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TextField("Nom de l'étape", text: $nameDraft)
+                            .font(.title2.bold()).textFieldStyle(.plain)
+                            .onSubmit { persistMeta() }
+                        Map(initialPosition: .automatic) {
+                            MapPolyline(coordinates: sliceCoords).stroke(.blue, lineWidth: 3)
+                            if let s = sliceCoords.first { Annotation("", coordinate: s) { dot(.green) } }
+                            if let e = sliceCoords.last { Annotation("", coordinate: e) { dot(.red) } }
+                        }
+                        .frame(height: 280).clipShape(RoundedRectangle(cornerRadius: 12))
+                        statsRow
+                        if !plot.isEmpty {
+                            Chart {
+                                ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
+                                ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
+                            }
+                            .frame(height: 150)
+                        }
+                        Text("Notes").font(.headline)
+                        TextEditor(text: $notesDraft)
+                            .frame(minHeight: 140)
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+                    }
+                    .padding()
+                }
+                .onDisappear { persistMeta() }
+            }
+        }
+        .task(id: stageId) { await load() }
+    }
+
+    private func dot(_ color: Color) -> some View {
+        Circle().fill(color).frame(width: 11, height: 11).overlay(Circle().stroke(.white, lineWidth: 2))
+    }
+
+    private var statsRow: some View {
+        HStack(spacing: 22) {
+            stat("Distance", String(format: "%.1f km", stats.distance / 1000))
+            stat("D+", String(format: "+%d m", Int(stats.elevationGain.rounded())))
+            stat("D−", String(format: "−%d m", Int(stats.elevationLoss.rounded())))
+            if stats.movingDuration > 0 { stat("Durée", Self.clock(stats.movingDuration)) }
+            Spacer()
+        }
+    }
+
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.callout.weight(.semibold)).monospacedDigit()
+        }
+    }
+
+    private static func clock(_ t: TimeInterval) -> String {
+        let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
+    }
+
+    private func persistMeta() {
+        guard var s = stage else { return }
+        let trimmedNotes = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard s.name != nameDraft || (s.notes ?? "") != trimmedNotes else { return }
+        s.name = nameDraft
+        s.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
+        stage = s
+        Task { try? await repository.updateStage(s) }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        let stages = (try? await repository.fetchStages(activityId: activity.id)) ?? []
+        guard let found = stages.first(where: { $0.id == stageId }) else { stage = nil; return }
+        stage = found
+        nameDraft = found.name
+        notesDraft = found.notes ?? ""
+        if let data = try? await repository.fetchTrackData(id: activity.id),
+           let pts = try? TrackPointCodec.decode(data) {
+            slicePoints = found.slice(of: pts)
+        }
     }
 }

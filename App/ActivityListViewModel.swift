@@ -124,6 +124,41 @@ final class ActivityListViewModel {
         }
     }
 
+    var availableStagedRoutes: [ActivitySummary] {
+        allActivities.filter { $0.isStagedRoute }.sorted { $0.startDate > $1.startDate }
+    }
+
+    /// Passe une trace en « parcours en étapes » (crée une étape initiale couvrant tout si aucune n'existe).
+    @discardableResult
+    func createStagedRoute(from activityId: UUID) async -> UUID? {
+        do {
+            let data = try await repository.fetchTrackData(id: activityId)
+            let count = data.flatMap { try? TrackPointCodec.decode($0).count } ?? 0
+            guard count > 1 else { self.error = "Trace sans points exploitables."; return nil }
+            try await repository.setStagedRoute(activityId: activityId, true)
+            let existing = try await repository.fetchStages(activityId: activityId)
+            if existing.isEmpty {
+                let stage = Stage(activityId: activityId, order: 0, name: "Étape 1", startIndex: 0, endIndex: count - 1)
+                try await repository.replaceStages(activityId: activityId, with: [stage])
+            }
+            await reload()
+            return activityId
+        } catch {
+            self.error = "Échec de la création du parcours : \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func deleteStagedRoute(_ activityId: UUID) async {
+        do {
+            try await repository.setStagedRoute(activityId: activityId, false)
+            try await repository.deleteStages(activityId: activityId)
+            await reload()
+        } catch {
+            self.error = "Échec de la suppression du parcours : \(error.localizedDescription)"
+        }
+    }
+
     func suggestedRaidName(for ids: Set<UUID>) -> String {
         let dates = allActivities.filter { ids.contains($0.id) }.map(\.startDate)
         guard let earliest = dates.min() else { return "Nouveau raid" }
