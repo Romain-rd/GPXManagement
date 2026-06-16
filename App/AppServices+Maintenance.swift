@@ -424,11 +424,16 @@ enum ConnectorRouter {
         case .line:
             return [from, to]
         case .mapkit:
-            return await mapkitRoute(from: from, to: to, transportType: .walking) ?? [from, to]
+            // MapKit refuse les segments très longs / transfrontaliers : repli BRouter avant la ligne droite.
+            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
+            if let b = await trailRoute(from: from, to: to, profile: "trekking") { return b }
+            return [from, to]
         case .car:
-            return await mapkitRoute(from: from, to: to, transportType: .automobile) ?? [from, to]
+            if let m = await mapkitRoute(from: from, to: to, transportType: .automobile) { return m }
+            if let b = await trailRoute(from: from, to: to, profile: "car-fast") { return b }
+            return [from, to]
         case .trail:
-            if let t = await trailRoute(from: from, to: to) { return t }
+            if let t = await trailRoute(from: from, to: to, profile: "hiking-mountain") { return t }
             if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
             return [from, to]
         }
@@ -457,9 +462,9 @@ enum ConnectorRouter {
         return nil
     }
 
-    private static func trailRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D]? {
-        // BRouter (serveur public, profil rando) → GeoJSON [[lon,lat,(ele)],…].
-        let urlStr = "https://brouter.de/brouter?lonlats=\(from.longitude),\(from.latitude)|\(to.longitude),\(to.latitude)&profile=hiking-mountain&alternativeidx=0&format=geojson"
+    private static func trailRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, profile: String = "hiking-mountain") async -> [CLLocationCoordinate2D]? {
+        // BRouter (serveur public) → GeoJSON [[lon,lat,(ele)],…]. Pas de limite de distance, transfrontalier.
+        let urlStr = "https://brouter.de/brouter?lonlats=\(from.longitude),\(from.latitude)|\(to.longitude),\(to.latitude)&profile=\(profile)&alternativeidx=0&format=geojson"
         guard let url = URL(string: urlStr),
               let (data, resp) = try? await URLSession.shared.data(from: url),
               (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
