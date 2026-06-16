@@ -435,15 +435,26 @@ enum ConnectorRouter {
     }
 
     private static func mapkitRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, transportType: MKDirectionsTransportType) async -> [CLLocationCoordinate2D]? {
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
-        request.transportType = transportType
-        guard let response = try? await MKDirections(request: request).calculate(),
-              let polyline = response.routes.first?.polyline else { return nil }
-        var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: polyline.pointCount)
-        polyline.getCoordinates(&coords, range: NSRange(location: 0, length: polyline.pointCount))
-        return coords.filter { CLLocationCoordinate2DIsValid($0) }
+        // MKDirections est limité en débit (throttling) : on réessaie avec un délai croissant.
+        for attempt in 0..<4 {
+            let request = MKDirections.Request()
+            request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
+            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
+            request.transportType = transportType
+            do {
+                let response = try await MKDirections(request: request).calculate()
+                guard let polyline = response.routes.first?.polyline else { return nil }
+                var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: polyline.pointCount)
+                polyline.getCoordinates(&coords, range: NSRange(location: 0, length: polyline.pointCount))
+                return coords.filter { CLLocationCoordinate2DIsValid($0) }
+            } catch {
+                let code = (error as NSError).code
+                // MKError.loadingThrottled (3) / serverFailure : on attend puis on réessaie.
+                guard attempt < 3, code == MKError.loadingThrottled.rawValue || code == MKError.serverFailure.rawValue else { return nil }
+                try? await Task.sleep(nanoseconds: UInt64(0.7 * Double(attempt + 1) * 1_000_000_000))
+            }
+        }
+        return nil
     }
 
     private static func trailRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D]? {
@@ -474,6 +485,7 @@ extension AppServices {
             let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
             var coords: [CLLocationCoordinate2D] = []
             for i in 0..<(waypoints.count - 1) {
+                if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
                 let a = CLLocationCoordinate2D(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
                 let b = CLLocationCoordinate2D(latitude: waypoints[i + 1].latitude, longitude: waypoints[i + 1].longitude)
                 var seg = await ConnectorRouter.route(from: a, to: b, engine: engine)

@@ -571,6 +571,9 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
+            } else if let wp = view.annotation as? WaypointAnnotation {
+                mapView.deselectAnnotation(view.annotation, animated: false)
+                onWaypointTapped?(wp.waypointId)
             }
         }
 
@@ -590,15 +593,12 @@ public struct TrackMapView: NSViewRepresentable {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
-            // Clic sur un point de passage existant (priorité sur l'ajout) → sélection du pin LE PLUS PROCHE.
-            if let tapWp = onWaypointTapped, !waypointAnnotations.isEmpty {
-                var best: (id: UUID, d: CGFloat)?
+            // Clic à proximité d'un point de passage : ne PAS ajouter (la sélection est gérée par didSelect).
+            if onWaypointTapped != nil {
                 for wp in waypointAnnotations {
                     let p = mapView.convert(wp.coordinate, toPointTo: mapView)
-                    let d = hypot(p.x - point.x, p.y - point.y)
-                    if d < 24, best == nil || d < best!.d { best = (wp.waypointId, d) }
+                    if hypot(p.x - point.x, p.y - point.y) < 24 { return }
                 }
-                if let best { tapWp(best.id); return }
             }
             if let place = onMapClick { place(coord); return } // mode « poser un point »
             guard let callback = onSelectActivity else { return }

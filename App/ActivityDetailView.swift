@@ -3778,6 +3778,7 @@ struct RouteEditorView: View {
         Task {
             var coords: [CLLocationCoordinate2D] = []
             for i in 0..<(snapshot.count - 1) {
+                if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
                 var seg = await ConnectorRouter.route(from: coord(snapshot[i]), to: coord(snapshot[i + 1]), engine: engine)
                 if seg.count < 2 { seg = [coord(snapshot[i]), coord(snapshot[i + 1])] }
                 if !coords.isEmpty { seg.removeFirst() }
