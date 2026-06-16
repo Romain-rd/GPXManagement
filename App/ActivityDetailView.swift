@@ -2978,9 +2978,13 @@ struct StageDetailView: View {
     private var arrivalConnector: [TrackPoint] { stage?.endConnectorPoints ?? [] }
     private var departureConnector: [TrackPoint] {
         if let pts = stage?.startConnectorPoints, !pts.isEmpty { return pts }
-        // Repli : étape précédente arrivée hors-trace sans raccord de départ dédié → inverse de son arrivée.
-        guard stageIndex > 0, allStages.indices.contains(stageIndex - 1) else { return [] }
-        return allStages[stageIndex - 1].endConnectorPoints.reversed()
+        // Repli (anciennes données sans raccord de départ dédié) : ligne directe du point hors-trace précédent
+        // vers le point de tracé de cette étape (le plus court). « Recalculer » produit le vrai raccord routé.
+        guard stageIndex > 0, let s = stage,
+              let lat = allStages[stageIndex - 1].endOffTrackLatitude,
+              let lon = allStages[stageIndex - 1].endOffTrackLongitude,
+              fullPoints.indices.contains(s.startIndex) else { return [] }
+        return [TrackPoint(latitude: lat, longitude: lon), fullPoints[s.startIndex]]
     }
     private var combinedStagePoints: [TrackPoint] { departureConnector + slicePoints + arrivalConnector }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: combinedStagePoints) }
@@ -3333,22 +3337,21 @@ struct StageDetailView: View {
         searchText = ""
         placingOnMap = false
         isRouting = true
+        let boundary = s.endIndex // jonction d'origine entre cette étape et la suivante
+        let hasNext = stageIndex + 1 < allStages.count
+        let nextEnd = hasNext ? allStages[stageIndex + 1].endIndex : 0
         Task {
-            let hasNext = stageIndex + 1 < allStages.count
-            let upper = hasNext ? (allStages[stageIndex + 1].endIndex - 1) : (fullPoints.count - 1)
-            let lower = s.startIndex + 1
-            guard lower <= upper else { isRouting = false; return }
-            // Branchement le plus court : on quitte la trace au point le plus proche de l'arrivée (économise la distance).
-            let leave = nearestTrackIndex(to: point, in: lower...upper)
+            // Arrivée : on quitte la trace au point le plus proche de P **dans cette étape** (le plus court).
+            let leave = nearestTrackIndex(to: point, in: (s.startIndex + 1)...boundary)
             let leaveCoord = CLLocationCoordinate2D(latitude: fullPoints[leave].latitude, longitude: fullPoints[leave].longitude)
             let arrival = await AppServices.shared.buildConnector(from: leaveCoord, to: point)
             allStages[stageIndex].endIndex = leave
             allStages[stageIndex].endOffTrackLatitude = point.latitude
             allStages[stageIndex].endOffTrackLongitude = point.longitude
             allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(arrival)
-            // Raccord de départ de l'étape suivante : rejoint la trace au point le plus proche, vers l'avant.
-            if hasNext {
-                let rejoin = nearestTrackIndex(to: point, in: leave...(allStages[stageIndex + 1].endIndex - 1))
+            // Départ du lendemain : on rejoint la trace au point le plus proche de P **dans l'étape suivante** (le plus court).
+            if hasNext, boundary <= nextEnd - 1 {
+                let rejoin = nearestTrackIndex(to: point, in: boundary...(nextEnd - 1))
                 let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
                 let departure = await AppServices.shared.buildConnector(from: point, to: rejoinCoord)
                 allStages[stageIndex + 1].startIndex = rejoin
