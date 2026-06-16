@@ -3304,21 +3304,27 @@ struct StageDetailView: View {
     }
 
     private func setArrival(to point: CLLocationCoordinate2D) {
-        guard let s = stage, fullPoints.indices.contains(s.endIndex) else { return }
-        let endCoord = CLLocationCoordinate2D(latitude: fullPoints[s.endIndex].latitude, longitude: fullPoints[s.endIndex].longitude)
+        guard let s = stage, !fullPoints.isEmpty else { return }
         searchResults = []
         searchText = ""
+        placingOnMap = false
         isRouting = true
         Task {
-            // Raccord d'arrivée : du point de fin de l'étape (sur le tracé) vers le point hors-trace.
-            let arrival = await AppServices.shared.buildConnector(from: endCoord, to: point)
+            let hasNext = stageIndex + 1 < allStages.count
+            let upper = hasNext ? (allStages[stageIndex + 1].endIndex - 1) : (fullPoints.count - 1)
+            let lower = s.startIndex + 1
+            guard lower <= upper else { isRouting = false; return }
+            // Branchement le plus court : on quitte la trace au point le plus proche de l'arrivée (économise la distance).
+            let leave = nearestTrackIndex(to: point, in: lower...upper)
+            let leaveCoord = CLLocationCoordinate2D(latitude: fullPoints[leave].latitude, longitude: fullPoints[leave].longitude)
+            let arrival = await AppServices.shared.buildConnector(from: leaveCoord, to: point)
+            allStages[stageIndex].endIndex = leave
             allStages[stageIndex].endOffTrackLatitude = point.latitude
             allStages[stageIndex].endOffTrackLongitude = point.longitude
             allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(arrival)
-            // Raccord de départ de l'étape suivante : plus court chemin pour rejoindre la trace (point le plus proche).
-            if stageIndex + 1 < allStages.count {
-                let next = allStages[stageIndex + 1]
-                let rejoin = nearestTrackIndex(to: point, in: s.endIndex...max(s.endIndex, next.endIndex - 1))
+            // Raccord de départ de l'étape suivante : rejoint la trace au point le plus proche, vers l'avant.
+            if hasNext {
+                let rejoin = nearestTrackIndex(to: point, in: leave...(allStages[stageIndex + 1].endIndex - 1))
                 let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
                 let departure = await AppServices.shared.buildConnector(from: point, to: rejoinCoord)
                 allStages[stageIndex + 1].startIndex = rejoin
@@ -3433,10 +3439,15 @@ struct StageColoredMap: View {
     var onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil
     @Binding var layer: MapLayer
 
+    private static let connectorIds = [
+        UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+        UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+    ]
     private var connectorOverlays: [TrackOverlayInput] {
-        connectors.compactMap { c in
+        connectors.enumerated().compactMap { i, c in
             guard c.count >= 2 else { return nil }
-            return TrackOverlayInput(activityId: UUID(), activityType: activityType, coordinates: c,
+            return TrackOverlayInput(activityId: Self.connectorIds[i % Self.connectorIds.count],
+                                     activityType: activityType, coordinates: c,
                                      segmentColors: [NSColor](repeating: .systemOrange, count: c.count))
         }
     }
@@ -3456,7 +3467,7 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, onMapClick: onMapClick)
+        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, fitsOnce: true, onMapClick: onMapClick)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
             }

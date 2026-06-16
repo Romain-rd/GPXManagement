@@ -121,8 +121,10 @@ public struct TrackMapView: NSViewRepresentable {
     public var slopeOverlayOpacity: Double
     /// Si défini, un clic sur la carte renvoie la coordonnée (mode « poser un point ») plutôt que de sélectionner une trace.
     public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
+    /// Si vrai, la carte ne se cadre qu'une seule fois (au premier affichage) et ne re-zoome plus aux mises à jour.
+    public var fitsOnce: Bool = false
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
@@ -130,6 +132,7 @@ public struct TrackMapView: NSViewRepresentable {
         self.highlightRange = highlightRange
         self.photos = photos
         self.slopeOverlayOpacity = slopeOverlayOpacity
+        self.fitsOnce = fitsOnce
         self.onSelectActivity = onSelectActivity
         self.onSelectPhoto = onSelectPhoto
         self.onMapClick = onMapClick
@@ -162,8 +165,11 @@ public struct TrackMapView: NSViewRepresentable {
             context.coordinator.currentLayer = layer
         }
         context.coordinator.applySlopeOverlay(opacity: slopeOverlayOpacity, to: mapView)
-        context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: context.coordinator.lastTrackIds != Set(tracks.map(\.activityId)))
+        let idsChanged = context.coordinator.lastTrackIds != Set(tracks.map(\.activityId))
+        let shouldFit = fitsOnce ? !context.coordinator.hasFitted : idsChanged
+        context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: shouldFit)
         context.coordinator.lastTrackIds = Set(tracks.map(\.activityId))
+        if shouldFit, !tracks.isEmpty { context.coordinator.hasFitted = true }
         context.coordinator.applyHighlight(highlight, to: mapView)
         context.coordinator.applyHighlightRange(highlightRange, to: mapView)
         context.coordinator.applyPhotos(photos, to: mapView)
@@ -198,6 +204,7 @@ public struct TrackMapView: NSViewRepresentable {
     public final class Coordinator: NSObject, MKMapViewDelegate, NSGestureRecognizerDelegate {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
+        var hasFitted = false
         weak var mapView: MKMapView?
         private let onSelectActivity: ((UUID) -> Void)?
         private let onSelectPhoto: ((String) -> Void)?
