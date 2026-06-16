@@ -72,4 +72,55 @@ public struct Stage: Identifiable, Sendable, Hashable {
     public func stats(in points: [TrackPoint]) -> ActivityStats {
         ActivityStatsCalculator.compute(points: slice(of: points))
     }
+
+    /// Renseigne `startIndex/endIndex` (champs de travail en mémoire) des étapes à partir des stops `.stageStop`
+    /// de `waypoints` : chaque étape (sauf la dernière) finit au stop référencé par `stopWaypointId`. Source de
+    /// vérité = les stops (stables même après re-routage) ; les indices ne sont plus persistés.
+    public static func assignBoundaries(_ stages: [Stage], from waypoints: [RouteWaypoint], points: [TrackPoint]) -> [Stage] {
+        guard !stages.isEmpty, points.count >= 2 else { return stages }
+        let lastIndex = points.count - 1
+        let stopIndexById = Dictionary(RouteWaypoint.stageBoundaries(waypoints, on: points), uniquingKeysWith: { a, _ in a })
+        var result = stages
+        var prevEnd = 0
+        for k in result.indices {
+            let start = (k == 0) ? 0 : prevEnd
+            let end: Int
+            if k == result.count - 1 {
+                end = lastIndex
+            } else if let sid = result[k].stopWaypointId, let idx = stopIndexById[sid] {
+                end = Swift.max(start + 1, Swift.min(idx, lastIndex))
+            } else {
+                end = Swift.max(start + 1, Swift.min(result[k].endIndex, lastIndex))
+            }
+            result[k].startIndex = start
+            result[k].endIndex = end
+            prevEnd = end
+        }
+        return result
+    }
+
+    /// Reconstruit les waypoints `.stageStop` à partir des bornes (en mémoire) des étapes : un stop par frontière
+    /// interne, posé sur `points[endIndex]`, en réutilisant l'id/nom existant. Préserve les autres waypoints
+    /// (`.shaping`/`.poi`) et renvoie les étapes avec leur `stopWaypointId` à jour. Tout est ordonné par le tracé.
+    public static func syncStops(_ stages: [Stage], into waypoints: [RouteWaypoint], points: [TrackPoint]) -> (waypoints: [RouteWaypoint], stages: [Stage]) {
+        guard points.count >= 2 else { return (waypoints, stages) }
+        let lastIndex = points.count - 1
+        let existingById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let others = waypoints.filter { $0.role != .stageStop }
+        var result = stages
+        var stops: [RouteWaypoint] = []
+        for k in result.indices where k < result.count - 1 {
+            let idx = Swift.max(0, Swift.min(result[k].endIndex, lastIndex))
+            let p = points[idx]
+            let id = result[k].stopWaypointId ?? UUID()
+            let name = result[k].stopWaypointId.flatMap { existingById[$0]?.name }
+            stops.append(RouteWaypoint(id: id, latitude: p.latitude, longitude: p.longitude, name: name, role: .stageStop))
+            result[k].stopWaypointId = id
+        }
+        if !result.isEmpty { result[result.count - 1].stopWaypointId = nil }
+        // Ordonne l'ensemble par position sur le tracé (stops + autres waypoints).
+        func idx(_ w: RouteWaypoint) -> Int { RouteWaypoint.nearestIndex(latitude: w.latitude, longitude: w.longitude, in: points) }
+        let merged = (others.map { ($0, idx($0)) } + stops.map { ($0, idx($0)) }).sorted { $0.1 < $1.1 }.map(\.0)
+        return (merged, result)
+    }
 }

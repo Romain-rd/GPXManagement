@@ -394,6 +394,25 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Étapes avec leurs bornes `startIndex/endIndex` (champs de travail) reconstruites depuis les stops `.stageStop`
+    /// de `routeWaypointsData` — source de vérité stable au re-routage.
+    public func fetchStagesResolved(activityId: UUID, points: [TrackPoint]) async throws -> [Stage] {
+        let stages = try await fetchStages(activityId: activityId)
+        let waypoints = RouteWaypointCodec.decode(try await fetchRouteWaypointsData(id: activityId))
+        return Stage.assignBoundaries(stages, from: waypoints, points: points)
+    }
+
+    /// Enregistre un parcours étapé : dérive les stops `.stageStop` des bornes des étapes (en préservant les autres
+    /// waypoints), écrit `routeWaypointsData` puis les étapes. Renvoie les étapes avec leur `stopWaypointId` à jour.
+    @discardableResult
+    public func saveStagedRoute(activityId: UUID, stages: [Stage], points: [TrackPoint]) async throws -> [Stage] {
+        let existing = RouteWaypointCodec.decode(try await fetchRouteWaypointsData(id: activityId))
+        let (waypoints, updated) = Stage.syncStops(stages, into: existing, points: points)
+        try await updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(waypoints))
+        try await replaceStages(activityId: activityId, with: updated)
+        return updated
+    }
+
     public func setStagedRoute(activityId: UUID, _ value: Bool) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
@@ -867,8 +886,9 @@ enum StageMapper {
             order: object.value(forKey: "order") as? Int ?? 0,
             name: object.value(forKey: "name") as? String ?? "",
             notes: object.value(forKey: "notes") as? String,
-            startIndex: object.value(forKey: "startIndex") as? Int ?? 0,
-            endIndex: object.value(forKey: "endIndex") as? Int ?? 0,
+            startIndex: 0,
+            endIndex: 0,
+            stopWaypointId: object.value(forKey: "stopWaypointId") as? UUID,
             coverImageData: object.value(forKey: "coverImageData") as? Data,
             endOffTrackLatitude: object.value(forKey: "endOffTrackLat") as? Double,
             endOffTrackLongitude: object.value(forKey: "endOffTrackLon") as? Double,
@@ -886,8 +906,7 @@ enum StageMapper {
         object.setValue(stage.order, forKey: "order")
         object.setValue(stage.name, forKey: "name")
         object.setValue(stage.notes, forKey: "notes")
-        object.setValue(stage.startIndex, forKey: "startIndex")
-        object.setValue(stage.endIndex, forKey: "endIndex")
+        object.setValue(stage.stopWaypointId, forKey: "stopWaypointId")
         object.setValue(stage.coverImageData, forKey: "coverImageData")
         object.setValue(stage.endOffTrackLatitude, forKey: "endOffTrackLat")
         object.setValue(stage.endOffTrackLongitude, forKey: "endOffTrackLon")

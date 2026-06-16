@@ -2731,7 +2731,7 @@ struct ParcoursDetailView: View {
         .task(id: activity.id) { await load() }
         .task(id: AppServices.shared.libraryRevision) {
             guard !points.isEmpty, grabbed == nil else { return }
-            let loaded = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+            let loaded = ((try? await repository.fetchStagesResolved(activityId: activity.id, points: points)) ?? []).sorted { $0.order < $1.order }
             if !loaded.isEmpty { stages = loaded }
         }
         .alert("Ajouter une étape", isPresented: $showAddDialog) {
@@ -2998,7 +2998,15 @@ struct ParcoursDetailView: View {
     private func persist() {
         for i in stages.indices { stages[i].order = i }
         let snapshot = stages
-        Task { try? await repository.replaceStages(activityId: activity.id, with: snapshot) }
+        let pts = points
+        Task {
+            guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts) else { return }
+            await MainActor.run {
+                // Réinjecte les stopWaypointId créés (stabilité des ids), sans écraser une édition en cours.
+                guard grabbed == nil, updated.count == stages.count else { return }
+                for i in stages.indices { stages[i].stopWaypointId = updated[i].stopWaypointId }
+            }
+        }
     }
 
     private func nearestPointIndex(toMeters meters: Double) -> Int {
@@ -3026,7 +3034,7 @@ struct ParcoursDetailView: View {
             let delta = sm[i] - anchor; g[i] = g[i - 1]
             if delta >= 3 { g[i] += delta; anchor = sm[i] } else if delta <= -3 { anchor = sm[i] }
         }
-        var loaded = (try? await repository.fetchStages(activityId: activity.id)) ?? []
+        var loaded = (try? await repository.fetchStagesResolved(activityId: activity.id, points: pts)) ?? []
         loaded.sort { $0.order < $1.order }
         // Purge : doublons d'id + étapes « fantômes » (indices hors trace ou dégénérés).
         var seen = Set<UUID>()
@@ -3034,7 +3042,7 @@ struct ParcoursDetailView: View {
             .filter { $0.startIndex >= 0 && $0.endIndex < pts.count && $0.endIndex > $0.startIndex }
         if cleaned.count != loaded.count {
             let renumbered = cleaned.enumerated().map { i, s -> Stage in var v = s; v.order = i; return v }
-            try? await repository.replaceStages(activityId: activity.id, with: renumbered)
+            try? await repository.saveStagedRoute(activityId: activity.id, stages: renumbered, points: pts)
             loaded = renumbered
         } else {
             loaded = cleaned
@@ -3510,20 +3518,27 @@ struct StageDetailView: View {
         let trimmed = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         allStages[stageIndex].name = nameDraft
         allStages[stageIndex].notes = trimmed.isEmpty ? nil : trimmed
-        let indices = [stageIndex - 1, stageIndex, stageIndex + 1].filter { allStages.indices.contains($0) }
-        let toSave = indices.map { allStages[$0] }
+        // Source de vérité = les stops : on réenregistre tout le parcours pour synchroniser les frontières d'étapes.
+        let snapshot = allStages
+        let pts = fullPoints
         Task {
-            for s in toSave { try? await repository.updateStage(s) }
+            if let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts) {
+                await MainActor.run { if updated.count == allStages.count { allStages = updated } }
+            }
             AppServices.shared.libraryRevision += 1
         }
     }
 
     private func load() async {
         defer { isLoading = false }
-        let stages = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+        var pts: [TrackPoint] = []
+        if let data = try? await repository.fetchTrackData(id: activity.id), let p = try? TrackPointCodec.decode(data) {
+            pts = p
+        }
+        let stages = ((try? await repository.fetchStagesResolved(activityId: activity.id, points: pts)) ?? []).sorted { $0.order < $1.order }
         guard let idx = stages.firstIndex(where: { $0.id == stageId }) else { allStages = []; stageIndex = -1; return }
         var d: [Double] = []
-        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
+        if !pts.isEmpty {
             fullPoints = pts
             d = [Double](repeating: 0, count: pts.count)
             for i in 1..<max(pts.count, 1) { d[i] = d[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
@@ -3647,10 +3662,12 @@ struct StagedRouteOverviewMap: View {
 
     private func load() async {
         defer { isLoading = false }
-        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
-            coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        var pts: [TrackPoint] = []
+        if let data = try? await repository.fetchTrackData(id: activity.id), let p = try? TrackPointCodec.decode(data) {
+            pts = p
+            coords = p.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
         }
-        stages = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+        stages = ((try? await repository.fetchStagesResolved(activityId: activity.id, points: pts)) ?? []).sorted { $0.order < $1.order }
     }
 }
 
