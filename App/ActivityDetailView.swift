@@ -3665,7 +3665,9 @@ struct RouteEditorView: View {
     var onSaved: () -> Void
 
     @State private var waypoints: [RouteWaypoint] = []
-    @State private var routedCoords: [CLLocationCoordinate2D] = []
+    // Un tracé routé par paire de points consécutifs (segment i = waypoints[i]→waypoints[i+1]).
+    // nil = à (re)calculer ; seuls les segments touchés par une édition sont remis à nil.
+    @State private var segments: [[CLLocationCoordinate2D]?] = []
     @State private var selectedWaypointId: UUID?
     @State private var isLoading = true
     @State private var isRouting = false
@@ -3677,7 +3679,21 @@ struct RouteEditorView: View {
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
     private var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0) } }
-    private var displayCoords: [CLLocationCoordinate2D] { routedCoords.count >= 2 ? routedCoords : waypoints.map(coord) }
+    private var hasPending: Bool { segments.contains(where: { $0 == nil }) }
+    private var busy: Bool { isRouting || isSaving }
+
+    // Tracé affiché : concaténation des segments routés (ligne droite en aperçu pour les segments en attente).
+    private var displayCoords: [CLLocationCoordinate2D] {
+        guard waypoints.count >= 2 else { return waypoints.map(coord) }
+        var out: [CLLocationCoordinate2D] = []
+        for i in 0..<(waypoints.count - 1) {
+            var seg = (i < segments.count ? segments[i] : nil) ?? [coord(waypoints[i]), coord(waypoints[i + 1])]
+            if seg.count < 2 { seg = [coord(waypoints[i]), coord(waypoints[i + 1])] }
+            if !out.isEmpty { seg.removeFirst() }
+            out.append(contentsOf: seg)
+        }
+        return out
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -3734,11 +3750,12 @@ struct RouteEditorView: View {
                 Text("Ligne").tag("line")
             }
             .labelsHidden().pickerStyle(.menu).fixedSize()
+            .onChange(of: engineRaw) { _, _ in invalidateAll() } // changer de moteur recalcule tout.
             Button { reroute() } label: { Label("Recalculer l'itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
-                .controlSize(.small).disabled(isRouting || isSaving || waypoints.count < 2)
+                .controlSize(.small).disabled(busy || waypoints.count < 2 || !hasPending)
             Spacer()
             Button { saveNow() } label: { Label("Enregistrer", systemImage: "checkmark") }
-                .controlSize(.small).disabled(waypoints.count < 2 || isRouting || isSaving)
+                .controlSize(.small).disabled(waypoints.count < 2 || busy)
         }
     }
 
@@ -3778,67 +3795,79 @@ struct RouteEditorView: View {
         )
     }
 
-    // Nomme les points sans nom par géocodage inverse (POI/col, quartier, ville…).
+    // Nomme les points sans nom via OpenStreetMap : cols/sommets proches (Overpass, 1 requête) puis ville (Nominatim).
     private func nameWaypoints() async {
         let targets = waypoints.filter { ($0.name ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
         guard !targets.isEmpty else { return }
-        let geocoder = CLGeocoder()
+        let coords = targets.map { coord($0) }
+        let passes = await OSMNaming.passes(near: coords)
         for wp in targets {
-            let loc = CLLocation(latitude: wp.latitude, longitude: wp.longitude)
-            let label = (try? await geocoder.reverseGeocodeLocation(loc)).flatMap { Self.placeLabel($0.first) }
+            let c = coord(wp)
+            var label = OSMNaming.nearestName(passes, to: c, within: 700)
+            if label == nil {
+                label = await OSMNaming.place(c)
+                try? await Task.sleep(nanoseconds: 1_100_000_000) // Nominatim : 1 requête/s.
+            }
             if let label, let j = waypoints.firstIndex(where: { $0.id == wp.id }),
                (waypoints[j].name ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
                 waypoints[j].name = label
                 dirty = true
             }
-            try? await Task.sleep(nanoseconds: 200_000_000) // CLGeocoder est limité en débit.
         }
     }
 
-    private static func placeLabel(_ p: CLPlacemark?) -> String? {
-        guard let p else { return nil }
-        if let aoi = p.areasOfInterest?.first, !aoi.isEmpty { return aoi }
-        if let sub = p.subLocality, !sub.isEmpty { return sub }
-        if let loc = p.locality, !loc.isEmpty { return loc }
-        if let name = p.name, !name.isEmpty { return name }
-        return p.administrativeArea
+    private func invalidateAll() {
+        segments = Array(repeating: nil, count: max(0, waypoints.count - 1))
+        dirty = true
     }
 
-    // Les éditions montrent un aperçu en lignes droites (instantané) ; le routage est explicite (« Recalculer »).
-    private func invalidate() { routedCoords = []; dirty = true }
+    // Remet à nil les segments adjacents à l'index `k` (les seuls touchés par un déplacement).
+    private func touch(_ k: Int) {
+        if k - 1 >= 0, k - 1 < segments.count { segments[k - 1] = nil }
+        if k >= 0, k < segments.count { segments[k] = nil }
+    }
 
     private func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
-        guard let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
         waypoints[i].latitude = c.latitude
         waypoints[i].longitude = c.longitude
-        invalidate()
+        touch(i)
+        dirty = true
     }
 
     private func addWaypoint(at c: CLLocationCoordinate2D) {
+        guard !busy else { return }
         let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude)
-        if waypoints.count < 2 {
-            waypoints.append(wp)
-        } else {
+        var p = waypoints.count
+        if waypoints.count >= 2 {
             // Meilleure position : extension à une extrémité OU insertion sur le segment au détour minimal.
-            var bestPos = waypoints.count
             var bestCost = planar(waypoints[waypoints.count - 1], c)
             let startCost = planar(waypoints[0], c)
-            if startCost < bestCost { bestCost = startCost; bestPos = 0 }
+            if startCost < bestCost { bestCost = startCost; p = 0 }
             for i in 0..<(waypoints.count - 1) {
                 let cost = planar(waypoints[i], c) + planar(waypoints[i + 1], c) - planarWW(waypoints[i], waypoints[i + 1])
-                if cost < bestCost { bestCost = cost; bestPos = i + 1 }
+                if cost < bestCost { bestCost = cost; p = i + 1 }
             }
-            waypoints.insert(wp, at: bestPos)
         }
+        waypoints.insert(wp, at: p)
+        // Mise à jour structurelle des segments : on ne recalcule que ce qui est neuf.
+        if waypoints.count == 2 { segments = [nil] }
+        else if p == 0 { segments.insert(nil, at: 0) }
+        else if p >= waypoints.count - 1 { segments.append(nil) }
+        else { segments.replaceSubrange((p - 1)...(p - 1), with: [nil, nil]) } // un segment scindé en deux.
         selectedWaypointId = wp.id
-        invalidate()
+        dirty = true
     }
 
     private func delete(_ id: UUID) {
-        guard let i = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
-        waypoints.remove(at: i)
+        guard !busy, let k = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
+        // Les deux segments autour du point fusionnent en un seul (à recalculer).
+        if k == 0 { if !segments.isEmpty { segments.removeFirst() } }
+        else if k == waypoints.count - 1 { if !segments.isEmpty { segments.removeLast() } }
+        else if k - 1 < segments.count, k < segments.count { segments.replaceSubrange((k - 1)...k, with: [nil]) }
+        waypoints.remove(at: k)
         if selectedWaypointId == id { selectedWaypointId = nil }
-        invalidate()
+        dirty = true
     }
 
     private func planar(_ w: RouteWaypoint, _ c: CLLocationCoordinate2D) -> Double {
@@ -3851,37 +3880,42 @@ struct RouteEditorView: View {
     }
 
     private func reroute() {
-        guard waypoints.count >= 2, !isRouting else { return }
-        let snapshot = waypoints
-        let engine = ConnectorRouter.Engine(rawValue: engineRaw) ?? .mapkit
-        routeTotal = snapshot.count - 1
-        routeDone = 0
+        guard waypoints.count >= 2, !busy, hasPending else { return }
         isRouting = true
         Task {
-            var coords: [CLLocationCoordinate2D] = []
-            for i in 0..<(snapshot.count - 1) {
-                if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
-                var seg = await ConnectorRouter.route(from: coord(snapshot[i]), to: coord(snapshot[i + 1]), engine: engine)
-                if seg.count < 2 { seg = [coord(snapshot[i]), coord(snapshot[i + 1])] }
-                if !coords.isEmpty { seg.removeFirst() }
-                coords.append(contentsOf: seg)
-                routeDone = i + 1
-            }
-            routedCoords = coords
-            dirty = true
+            await routeMissing()
             isRouting = false
+            dirty = true
             await nameWaypoints()
         }
     }
 
+    // Route uniquement les segments à nil (les bornes modifiées) ; les autres restent en cache.
+    private func routeMissing() async {
+        let engine = ConnectorRouter.Engine(rawValue: engineRaw) ?? .mapkit
+        let pending = segments.indices.filter { segments[$0] == nil }
+        guard !pending.isEmpty else { return }
+        routeTotal = pending.count
+        routeDone = 0
+        for (n, i) in pending.enumerated() {
+            guard i >= 0, i + 1 < waypoints.count else { continue }
+            if n > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
+            var seg = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), engine: engine)
+            if seg.count < 2 { seg = [coord(waypoints[i]), coord(waypoints[i + 1])] }
+            if i < segments.count { segments[i] = seg }
+            routeDone = n + 1
+        }
+    }
+
     private func saveNow() {
-        guard waypoints.count >= 2, !isRouting, !isSaving else { return }
+        guard waypoints.count >= 2, !busy else { return }
         dirty = false
         isSaving = true
         Task {
+            if hasPending { isRouting = true; await routeMissing(); isRouting = false } // compléter les segments manquants.
             await nameWaypoints()
             let snapshot = waypoints
-            let coords = routedCoords
+            let coords = displayCoords
             let ok = await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: snapshot, routedCoords: coords)
             isSaving = false
             if ok { onSaved() }
@@ -3894,10 +3928,42 @@ struct RouteEditorView: View {
 
     private func load() async {
         waypoints = await AppServices.shared.initialWaypoints(activityId: activity.id)
-        // Affiche le tracé existant (déjà routé) sans re-router au chargement.
-        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
-            routedCoords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        // Attribue le tracé existant à chaque segment (par point le plus proche) pour n'avoir à recalculer
+        // que les bornes modifiées ensuite.
+        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data), pts.count >= 2 {
+            let track = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            segments = Self.splitTrack(track, waypoints: waypoints)
+        } else {
+            segments = Array(repeating: nil, count: max(0, waypoints.count - 1))
         }
         isLoading = false
+    }
+
+    // Découpe un tracé continu en sous-tracés par paire de points (index le plus proche, monotone).
+    private static func splitTrack(_ track: [CLLocationCoordinate2D], waypoints: [RouteWaypoint]) -> [[CLLocationCoordinate2D]?] {
+        guard waypoints.count >= 2, track.count >= 2 else { return Array(repeating: nil, count: max(0, waypoints.count - 1)) }
+        func d2(_ a: CLLocationCoordinate2D, _ lat: Double, _ lon: Double) -> Double {
+            let dx = a.longitude - lon, dy = a.latitude - lat; return dx * dx + dy * dy
+        }
+        var idx = [Int](repeating: 0, count: waypoints.count)
+        var start = 0
+        for j in 0..<waypoints.count {
+            var best = start, bestD = Double.greatestFiniteMagnitude
+            for t in start..<track.count {
+                let dd = d2(track[t], waypoints[j].latitude, waypoints[j].longitude)
+                if dd < bestD { bestD = dd; best = t }
+            }
+            idx[j] = best
+            start = best
+        }
+        idx[0] = 0; idx[idx.count - 1] = track.count - 1
+        for j in 1..<idx.count where idx[j] <= idx[j - 1] { idx[j] = min(idx[j - 1] + 1, track.count - 1) }
+        var segs: [[CLLocationCoordinate2D]?] = []
+        for j in 0..<(waypoints.count - 1) {
+            let a = idx[j], b = max(idx[j + 1], a + 1)
+            let slice = Array(track[a...min(b, track.count - 1)])
+            segs.append(slice.count >= 2 ? slice : nil)
+        }
+        return segs
     }
 }
