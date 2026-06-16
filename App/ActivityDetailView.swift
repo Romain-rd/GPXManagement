@@ -2606,6 +2606,7 @@ struct ParcoursDetailView: View {
     @AppStorage("mapLayerParcours") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("parcoursMapHeight") private var mapHeight: Double = 240
     @AppStorage("parcoursProfileHeight") private var profileHeight: Double = 150
+    @State private var resizeAccum: CGFloat = 0
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
@@ -2643,10 +2644,10 @@ struct ParcoursDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
-                        ProfileResizeHandle { d in mapHeight = min(700, max(140, mapHeight + Double(d))) }
+                        resizeHandle($mapHeight, min: 140, max: 700)
                         zoomBar
                         profileChart.frame(height: profileHeight)
-                        ProfileResizeHandle { d in profileHeight = min(500, max(90, profileHeight + Double(d))) }
+                        resizeHandle($profileHeight, min: 90, max: 500)
                         stagesList
                         actions
                     }
@@ -2688,6 +2689,26 @@ struct ParcoursDetailView: View {
                         .onEnded { _ in grabbed = nil; persist() })
             }
         }
+    }
+
+    private func resizeHandle(_ height: Binding<Double>, min lo: Double, max hi: Double) -> some View {
+        Capsule()
+            .fill(.secondary.opacity(0.5))
+            .frame(width: 44, height: 5)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { v in
+                        let dy = v.translation.height
+                        height.wrappedValue = Swift.min(hi, Swift.max(lo, height.wrappedValue + Double(dy - resizeAccum)))
+                        resizeAccum = dy
+                    }
+                    .onEnded { _ in resizeAccum = 0 }
+            )
+            .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            .help("Glisser pour ajuster la hauteur")
     }
 
     private var zoomBar: some View {
