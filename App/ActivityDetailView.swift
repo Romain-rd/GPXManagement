@@ -2660,6 +2660,11 @@ struct ParcoursDetailView: View {
         }
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
+        .task(id: AppServices.shared.libraryRevision) {
+            guard !points.isEmpty, grabbed == nil else { return }
+            let loaded = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+            if !loaded.isEmpty { stages = loaded }
+        }
         .alert("Ajouter une étape", isPresented: $showAddDialog) {
             TextField("Distance (km)", text: $addKmRaw)
             TextField("D+ max (m, optionnel)", text: $addGainRaw)
@@ -2915,19 +2920,44 @@ struct StageDetailView: View {
     let stageId: UUID
     let repository: CoreDataActivityRepository
 
-    @State private var stage: Stage?
-    @State private var slicePoints: [TrackPoint] = []
+    @State private var fullPoints: [TrackPoint] = []
+    @State private var dists: [Double] = []
+    @State private var allStages: [Stage] = []
+    @State private var stageIndex: Int = -1
     @State private var nameDraft = ""
     @State private var notesDraft = ""
+    @State private var startKm: Double = 0
+    @State private var endKm: Double = 0
     @State private var isLoading = true
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("stageMapHeight") private var mapHeight: Double = 300
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
     }
 
+    private var stage: Stage? { allStages.indices.contains(stageIndex) ? allStages[stageIndex] : nil }
+    private var slicePoints: [TrackPoint] { stage?.slice(of: fullPoints) ?? [] }
     private var sliceCoords: [CLLocationCoordinate2D] { slicePoints.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: slicePoints) }
+    private var isFirst: Bool { stageIndex == 0 }
+    private var isLast: Bool { stageIndex == allStages.count - 1 }
+
+    // Bornes (km) des curseurs — fixées par les voisins (ne bougent pas pendant l'édition de cette étape).
+    private var startRange: ClosedRange<Double> {
+        guard let s = stage, !dists.isEmpty else { return 0...1 }
+        let lowerIdx = isFirst ? 0 : allStages[stageIndex - 1].startIndex + 1
+        let lo = dists[min(lowerIdx, dists.count - 1)] / 1000
+        let hi = dists[min(s.endIndex, dists.count - 1)] / 1000
+        return lo...max(lo + 0.01, hi)
+    }
+    private var endRange: ClosedRange<Double> {
+        guard let s = stage, !dists.isEmpty else { return 0...1 }
+        let upperIdx = isLast ? dists.count - 1 : allStages[stageIndex + 1].endIndex - 1
+        let lo = dists[min(s.startIndex, dists.count - 1)] / 1000
+        let hi = dists[min(upperIdx, dists.count - 1)] / 1000
+        return lo...max(lo + 0.01, hi)
+    }
 
     private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
     private var plot: [PlotPoint] {
@@ -2953,10 +2983,12 @@ struct StageDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
-                            .onSubmit { persistMeta() }
+                            .onSubmit { persist() }
                         StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: sliceCoords, layer: layerBinding)
-                            .frame(height: 300).clipShape(RoundedRectangle(cornerRadius: 12))
+                            .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                        DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
+                        boundsEditor
                         if !plot.isEmpty {
                             Chart {
                                 ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
@@ -2971,14 +3003,30 @@ struct StageDetailView: View {
                     }
                     .padding()
                 }
-                .onDisappear { persistMeta() }
+                .onDisappear { persist() }
             }
         }
         .task(id: stageId) { await load() }
     }
 
-    private func dot(_ color: Color) -> some View {
-        Circle().fill(color).frame(width: 11, height: 11).overlay(Circle().stroke(.white, lineWidth: 2))
+    private var boundsEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Limites de l'étape").font(.headline)
+            HStack {
+                Text("Début").frame(width: 46, alignment: .leading).foregroundStyle(.secondary)
+                Slider(value: $startKm, in: startRange) { editing in if !editing { persist() } }
+                    .disabled(isFirst)
+                Text(String(format: "%.1f km", startKm)).frame(width: 64, alignment: .trailing).monospacedDigit()
+            }
+            HStack {
+                Text("Fin").frame(width: 46, alignment: .leading).foregroundStyle(.secondary)
+                Slider(value: $endKm, in: endRange) { editing in if !editing { persist() } }
+                    .disabled(isLast)
+                Text(String(format: "%.1f km", endKm)).frame(width: 64, alignment: .trailing).monospacedDigit()
+            }
+        }
+        .onChange(of: startKm) { _, _ in applyStart() }
+        .onChange(of: endKm) { _, _ in applyEnd() }
     }
 
     private var statsRow: some View {
@@ -3002,27 +3050,83 @@ struct StageDetailView: View {
         let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
     }
 
-    private func persistMeta() {
-        guard var s = stage else { return }
-        let trimmedNotes = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard s.name != nameDraft || (s.notes ?? "") != trimmedNotes else { return }
-        s.name = nameDraft
-        s.notes = trimmedNotes.isEmpty ? nil : trimmedNotes
-        stage = s
-        Task { try? await repository.updateStage(s) }
+    private func nearestIndex(toMeters meters: Double) -> Int {
+        guard !dists.isEmpty else { return 0 }
+        var lo = 0, hi = dists.count - 1
+        while lo < hi { let mid = (lo + hi) / 2; if dists[mid] < meters { lo = mid + 1 } else { hi = mid } }
+        if lo > 0, abs(dists[lo - 1] - meters) < abs(dists[lo] - meters) { return lo - 1 }
+        return lo
+    }
+
+    private func applyStart() {
+        guard !isLoading, let s = stage, !isFirst else { return }
+        let lowerIdx = allStages[stageIndex - 1].startIndex + 1
+        let idx = min(max(nearestIndex(toMeters: startKm * 1000), lowerIdx), s.endIndex - 1)
+        allStages[stageIndex].startIndex = idx
+        allStages[stageIndex - 1].endIndex = idx
+    }
+
+    private func applyEnd() {
+        guard !isLoading, let s = stage, !isLast else { return }
+        let upperIdx = allStages[stageIndex + 1].endIndex - 1
+        let idx = min(max(nearestIndex(toMeters: endKm * 1000), s.startIndex + 1), upperIdx)
+        allStages[stageIndex].endIndex = idx
+        allStages[stageIndex + 1].startIndex = idx
+    }
+
+    private func persist() {
+        guard stageIndex >= 0 else { return }
+        let trimmed = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        allStages[stageIndex].name = nameDraft
+        allStages[stageIndex].notes = trimmed.isEmpty ? nil : trimmed
+        for i in allStages.indices { allStages[i].order = i }
+        let snapshot = allStages
+        Task {
+            try? await repository.replaceStages(activityId: activity.id, with: snapshot)
+            AppServices.shared.libraryRevision += 1
+        }
     }
 
     private func load() async {
         defer { isLoading = false }
-        let stages = (try? await repository.fetchStages(activityId: activity.id)) ?? []
-        guard let found = stages.first(where: { $0.id == stageId }) else { stage = nil; return }
-        stage = found
-        nameDraft = found.name
-        notesDraft = found.notes ?? ""
-        if let data = try? await repository.fetchTrackData(id: activity.id),
-           let pts = try? TrackPointCodec.decode(data) {
-            slicePoints = found.slice(of: pts)
+        let stages = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+        guard let idx = stages.firstIndex(where: { $0.id == stageId }) else { allStages = []; stageIndex = -1; return }
+        var d: [Double] = []
+        if let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) {
+            fullPoints = pts
+            d = [Double](repeating: 0, count: pts.count)
+            for i in 1..<max(pts.count, 1) { d[i] = d[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
         }
+        dists = d
+        allStages = stages
+        stageIndex = idx
+        nameDraft = stages[idx].name
+        notesDraft = stages[idx].notes ?? ""
+        if !d.isEmpty {
+            startKm = d[min(stages[idx].startIndex, d.count - 1)] / 1000
+            endKm = d[min(stages[idx].endIndex, d.count - 1)] / 1000
+        }
+    }
+}
+
+/// Poignée de redimensionnement vertical, centrée et continue (positif = agrandir l'élément du dessus).
+struct DragResizeHandle: View {
+    let onDelta: (CGFloat) -> Void
+    @State private var accum: CGFloat = 0
+    var body: some View {
+        Capsule()
+            .fill(.secondary.opacity(0.5))
+            .frame(width: 44, height: 5)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { v in onDelta(v.translation.height - accum); accum = v.translation.height }
+                    .onEnded { _ in accum = 0 }
+            )
+            .onHover { inside in if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() } }
+            .help("Glisser pour ajuster la hauteur de la carte")
     }
 }
 
