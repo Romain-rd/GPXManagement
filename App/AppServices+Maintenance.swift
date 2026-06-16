@@ -282,6 +282,65 @@ extension AppServices {
         }
     }
 
+    /// Simplifie une trace (Douglas-Peucker) en une activité dérivée « (simplifié) ».
+    @discardableResult
+    func simplifyActivity(parent: ActivitySummary, tolerance: Double) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return false }
+            let points = try TrackPointCodec.decode(data)
+            let simplified = TrackOperations.simplify(points: points, tolerance: tolerance)
+            guard simplified.count >= 2 else { importError = "Résultat trop court."; return false }
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (simplifié)", points: simplified, repo: repo)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la simplification : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Retire les points aberrants d'une trace en une activité dérivée « (nettoyé) ».
+    @discardableResult
+    func cleanActivity(parent: ActivitySummary, maxSpeed: Double) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return false }
+            let points = try TrackPointCodec.decode(data)
+            let result = TrackOperations.cleanOutliers(points: points, maxSpeed: maxSpeed)
+            guard result.cleaned.count >= 2 else { importError = "Résultat trop court."; return false }
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (nettoyé)", points: result.cleaned, repo: repo)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec du nettoyage : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Fusionne ≥ 2 traces (ordre chronologique, dédoublonnage) en une activité dérivée « (fusion) ».
+    @discardableResult
+    func mergeActivities(_ parents: [ActivitySummary]) async -> Bool {
+        guard parents.count >= 2, let repo = coreDataRepository else { return false }
+        do {
+            var tracks: [[TrackPoint]] = []
+            for p in parents {
+                if let data = try await repo.fetchTrackData(id: p.id) {
+                    tracks.append(try TrackPointCodec.decode(data))
+                }
+            }
+            let merged = TrackOperations.merge(tracks)
+            guard merged.count >= 2 else { importError = "Fusion vide."; return false }
+            let base = parents.min(by: { $0.startDate < $1.startDate }) ?? parents[0]
+            _ = try await createDerivedActivity(parent: base, title: "\(base.title) (fusion)", points: merged, repo: repo)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la fusion : \(error.localizedDescription)"
+            return false
+        }
+    }
+
     /// Crée une activité dérivée à partir de points édités : écrit un GPX temporaire, le ré-importe (stats
     /// recalculées) et renseigne `editedFromActivityId`.
     private func createDerivedActivity(parent: ActivitySummary, title: String, points: [TrackPoint], repo: CoreDataActivityRepository) async throws -> UUID {

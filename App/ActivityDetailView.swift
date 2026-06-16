@@ -58,6 +58,8 @@ struct ActivityDetailView: View {
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
     @State private var showSplitSheet = false
+    @State private var showSimplifySheet = false
+    @State private var showCleanSheet = false
     @State private var videoPublish = false
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
@@ -133,7 +135,7 @@ struct ActivityDetailView: View {
         }
     }
 
-    var body: some View {
+    private var contentWithEvents: some View {
         rootContent
         // Titre vidé en plein écran pour ne pas chevaucher les contrôles (barre de titre transparente).
         .navigationTitle(fullscreenMap ? "" : activity.title)
@@ -178,6 +180,12 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.splitToken) { _, _ in
             if model.hasTrack { showSplitSheet = true }
         }
+        .onChange(of: windowModel.simplifyToken) { _, _ in
+            if model.hasTrack { showSimplifySheet = true }
+        }
+        .onChange(of: windowModel.cleanToken) { _, _ in
+            if model.hasTrack { showCleanSheet = true }
+        }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
         }
@@ -187,6 +195,10 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.shareToken) { _, _ in
             if model.hasTrack { Task { await prepareShare() } }
         }
+    }
+
+    var body: some View {
+        contentWithEvents
         .toolbar {
             ToolbarItemGroup {
                 if !fullscreenMap {
@@ -305,6 +317,12 @@ struct ActivityDetailView: View {
         }
         .sheet(isPresented: $showSplitSheet) {
             SplitTrackSheet(activity: activity, repository: repository)
+        }
+        .sheet(isPresented: $showSimplifySheet) {
+            SimplifyTrackSheet(activity: activity, repository: repository)
+        }
+        .sheet(isPresented: $showCleanSheet) {
+            CleanTrackSheet(activity: activity, repository: repository)
         }
     }
 
@@ -1992,5 +2010,216 @@ struct SplitTrackSheet: View {
         let dLon = (b.longitude - a.longitude) * .pi / 180
         let h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
         return 2 * earthRadius * asin(min(1, sqrt(h)))
+    }
+}
+
+/// Simplifie une trace (Douglas-Peucker) : aperçu trace originale (gris) / simplifiée (bleu) + compteur.
+struct SimplifyTrackSheet: View {
+    let activity: ActivitySummary
+    let repository: CoreDataActivityRepository
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var points: [TrackPoint] = []
+    @State private var isLoading = true
+    @State private var isWorking = false
+    @State private var tolerance: Double = 10
+
+    private var simplified: [TrackPoint] { TrackOperations.simplify(points: points, tolerance: tolerance) }
+    private var originalCoords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
+    private var simplifiedCoords: [CLLocationCoordinate2D] { simplified.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
+    private var reduction: Int { points.isEmpty ? 0 : Int((1 - Double(simplified.count) / Double(points.count)) * 100) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Text("Simplifier la trace").font(.headline); Spacer() }.padding()
+            Divider()
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if points.count < 4 {
+                ContentUnavailableView("Trace trop courte", systemImage: "scribble",
+                                       description: Text("Pas assez de points pour simplifier.")).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Map(initialPosition: .automatic) {
+                    MapPolyline(coordinates: originalCoords).stroke(.gray.opacity(0.5), lineWidth: 5)
+                    MapPolyline(coordinates: simplifiedCoords).stroke(.blue, lineWidth: 2)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Tolérance").foregroundStyle(.secondary)
+                        Slider(value: $tolerance, in: 0...50)
+                        Text(String(format: "%.0f m", tolerance)).monospacedDigit().frame(width: 48, alignment: .trailing)
+                    }
+                    HStack {
+                        Text("Points : \(points.count) → \(simplified.count) (réduction \(reduction) %)")
+                            .font(.callout).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    HStack {
+                        Button("Annuler") { dismiss() }
+                        Spacer()
+                        Button {
+                            Task { isWorking = true; let ok = await AppServices.shared.simplifyActivity(parent: activity, tolerance: tolerance); isWorking = false; if ok { dismiss() } }
+                        } label: {
+                            if isWorking { ProgressView().controlSize(.small) } else { Label("Appliquer", systemImage: "scribble") }
+                        }
+                        .buttonStyle(.borderedProminent).disabled(isWorking)
+                    }
+                }
+                .padding()
+            }
+        }
+        .frame(width: 660, height: 580)
+        .task { await load() }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) else { return }
+        points = pts
+    }
+}
+
+/// Fusionne ≥ 2 traces : aperçu des tracés + liste chronologique + stats agrégées → une trace dérivée.
+struct MergeTracksSheet: View {
+    let activities: [ActivitySummary]
+    let repository: CoreDataActivityRepository
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var tracks: [[CLLocationCoordinate2D]] = []
+    @State private var isLoading = true
+    @State private var isWorking = false
+
+    private var sorted: [ActivitySummary] { activities.sorted { $0.startDate < $1.startDate } }
+    private var totalDistance: Double { activities.reduce(0) { $0 + $1.distance } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Text("Fusionner \(activities.count) traces").font(.headline); Spacer() }.padding()
+            Divider()
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Map(initialPosition: .automatic) {
+                    ForEach(Array(tracks.enumerated()), id: \.offset) { _, coords in
+                        MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(sorted) { a in
+                        HStack {
+                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
+                            Text(a.title).lineLimit(1)
+                            Spacer()
+                            Text(Self.dateFormatter.string(from: a.startDate)).foregroundStyle(.secondary).font(.caption)
+                        }
+                    }
+                    Divider()
+                    Text(String(format: "Distance cumulée ≈ %.1f km — résultat : 1 trace chronologique", totalDistance / 1000))
+                        .font(.callout).foregroundStyle(.secondary)
+                    HStack {
+                        Button("Annuler") { dismiss() }
+                        Spacer()
+                        Button {
+                            Task { isWorking = true; let ok = await AppServices.shared.mergeActivities(activities); isWorking = false; if ok { dismiss() } }
+                        } label: {
+                            if isWorking { ProgressView().controlSize(.small) } else { Label("Fusionner", systemImage: "arrow.triangle.merge") }
+                        }
+                        .buttonStyle(.borderedProminent).disabled(isWorking || activities.count < 2)
+                    }
+                }
+                .padding()
+            }
+        }
+        .frame(width: 660, height: 600)
+        .task { await load() }
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .medium; f.timeStyle = .short; return f
+    }()
+
+    private func load() async {
+        defer { isLoading = false }
+        var result: [[CLLocationCoordinate2D]] = []
+        for a in sorted {
+            if let data = try? await repository.fetchTrackData(id: a.id), let pts = try? TrackPointCodec.decode(data) {
+                result.append(pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
+            }
+        }
+        tracks = result
+    }
+}
+
+/// Nettoie les points aberrants : points retirés en rouge sur la carte + slider seuil de vitesse + compteur.
+struct CleanTrackSheet: View {
+    let activity: ActivitySummary
+    let repository: CoreDataActivityRepository
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var points: [TrackPoint] = []
+    @State private var isLoading = true
+    @State private var isWorking = false
+    @State private var maxSpeedKmh: Double = 200
+
+    private var maxSpeedMps: Double { maxSpeedKmh / 3.6 }
+    private var result: TrackOperations.CleanResult { TrackOperations.cleanOutliers(points: points, maxSpeed: maxSpeedMps) }
+    private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Text("Nettoyer les points aberrants").font(.headline); Spacer() }.padding()
+            Divider()
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if points.count < 3 {
+                ContentUnavailableView("Trace trop courte", systemImage: "sparkles",
+                                       description: Text("Pas assez de points.")).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Map(initialPosition: .automatic) {
+                    MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
+                    ForEach(result.removedIndices, id: \.self) { idx in
+                        if coords.indices.contains(idx) {
+                            Annotation("", coordinate: coords[idx]) {
+                                Circle().fill(.red).frame(width: 9, height: 9).overlay(Circle().stroke(.white, lineWidth: 1))
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Vitesse max").foregroundStyle(.secondary)
+                        Slider(value: $maxSpeedKmh, in: 50...400)
+                        Text(String(format: "%.0f km/h", maxSpeedKmh)).monospacedDigit().frame(width: 64, alignment: .trailing)
+                    }
+                    HStack {
+                        Text("\(result.removedIndices.count) point(s) seront retirés")
+                            .font(.callout).foregroundStyle(result.removedIndices.isEmpty ? Color.secondary : Color.red)
+                        Spacer()
+                    }
+                    HStack {
+                        Button("Annuler") { dismiss() }
+                        Spacer()
+                        Button {
+                            Task { isWorking = true; let ok = await AppServices.shared.cleanActivity(parent: activity, maxSpeed: maxSpeedMps); isWorking = false; if ok { dismiss() } }
+                        } label: {
+                            if isWorking { ProgressView().controlSize(.small) } else { Label("Appliquer", systemImage: "sparkles") }
+                        }
+                        .buttonStyle(.borderedProminent).disabled(isWorking || result.removedIndices.isEmpty)
+                    }
+                }
+                .padding()
+            }
+        }
+        .frame(width: 660, height: 580)
+        .task { await load() }
+    }
+
+    private func load() async {
+        defer { isLoading = false }
+        guard let data = try? await repository.fetchTrackData(id: activity.id), let pts = try? TrackPointCodec.decode(data) else { return }
+        points = pts
     }
 }

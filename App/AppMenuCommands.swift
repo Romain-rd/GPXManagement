@@ -137,6 +137,21 @@ struct AppMenuCommands: Commands {
                 window?.requestSplit()
             }
             .disabled(!(window?.hasSelection ?? false))
+
+            Button("Simplifier la trace…") {
+                window?.requestSimplify()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
+            Button("Nettoyer les points aberrants…") {
+                window?.requestClean()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
+            Button("Fusionner les traces…") {
+                window?.requestMerge()
+            }
+            .disabled(!(window?.canMerge ?? false))
         }
     }
 }

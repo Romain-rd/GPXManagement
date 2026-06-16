@@ -6,6 +6,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var window: WindowModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var mergeCandidates: [ActivitySummary] = []
+    @State private var showMergeSheet = false
     private let webProgress = WebExportProgress.shared
 
     init(services: AppServices = .shared) {
@@ -37,7 +39,7 @@ struct ContentView: View {
         return baseActivities.filter { navigation.listSelection.contains($0.id) }
     }
 
-    var body: some View {
+    private var splitView: some View {
         // En plein écran carte on force le repli sidebar + liste (la carte occupe tout) ; sinon visibilité normale.
         NavigationSplitView(columnVisibility: Binding(
             get: { window.mapFullscreen ? .detailOnly : columnVisibility },
@@ -95,6 +97,10 @@ struct ContentView: View {
         // Plein écran carte façon Plan.app : barre de titre transparente (pastilles flottantes conservées) ;
         // titre vidé + recherche retirée côté vues, contrôles décalés sous la barre d'outils (qui reste présente).
         .toolbarBackground(window.isMapImmersive ? .hidden : .automatic, for: .windowToolbar)
+    }
+
+    var body: some View {
+        splitView
         // Carte d'un raid en plein écran : overlay couvrant toute la fenêtre (réutilise la vue d'ensemble).
         .overlay { raidFullscreenOverlay }
         .focusedSceneValue(\.windowModel, window)
@@ -127,6 +133,15 @@ struct ContentView: View {
         }
         .onChange(of: services.libraryRevision) { _, _ in
             Task { await listVM.reload() }
+        }
+        .onChange(of: window.mergeToken) { _, _ in
+            mergeCandidates = window.selectedSummaries
+            showMergeSheet = true
+        }
+        .sheet(isPresented: $showMergeSheet) {
+            if let repository {
+                MergeTracksSheet(activities: mergeCandidates, repository: repository)
+            }
         }
         .sheet(isPresented: hasPendingImportsBinding) {
             ImportSheetView(services: services)
