@@ -2968,6 +2968,8 @@ struct StageDetailView: View {
     }
     private var arrivalKm: Double { ActivityStatsCalculator.compute(points: arrivalConnector).distance / 1000 }
     private var arrivalGain: Int { Int(ActivityStatsCalculator.compute(points: arrivalConnector).elevationGain.rounded()) }
+    private var departureKm: Double { ActivityStatsCalculator.compute(points: departureConnector).distance / 1000 }
+    private var departureGain: Int { Int(ActivityStatsCalculator.compute(points: departureConnector).elevationGain.rounded()) }
 
     /// Fenêtre « loupe » : étape + quelques km de contexte avant/après (borné aux étapes voisines).
     private var windowCoords: [CLLocationCoordinate2D] {
@@ -3029,6 +3031,7 @@ struct StageDetailView: View {
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                         DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
+                        departureBanner
                         loupeProfile.frame(height: 170)
                         Text("Glissez les poignées orange (début / fin) pour ajuster l'étape. La portion grise = avant/après.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -3133,6 +3136,19 @@ struct StageDetailView: View {
 
     private static func clock(_ t: TimeInterval) -> String {
         let m = Int((t / 60).rounded()); return String(format: "%dh%02d", m / 60, m % 60)
+    }
+
+    @ViewBuilder private var departureBanner: some View {
+        if !departureConnector.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.up.forward").foregroundStyle(.orange)
+                Text(String(format: "Départ hors-trace : +%.1f km · +%d m D+ (raccord depuis l'arrivée de l'étape précédente)", departureKm, departureGain))
+                    .font(.callout)
+                Spacer()
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.12)))
+        }
     }
 
     private var arrivalSection: some View {
