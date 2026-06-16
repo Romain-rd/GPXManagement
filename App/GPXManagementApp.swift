@@ -121,6 +121,10 @@ struct ActivityDetailWindowView: View {
         }
         .frame(minWidth: 720, minHeight: 640)
         .environment(\.managedObjectContext, AppServices.shared.persistence.container.viewContext)
+        // La fenêtre autonome devient la cible des commandes du menu (Activité / Édition) quand elle est au premier plan,
+        // et son activité est marquée « sélectionnée » pour activer ces commandes.
+        .focusedSceneValue(\.windowModel, model)
+        .onAppear { model.navigation.listSelection = [activityId] }
         .task { await model.listVM.reload() }
     }
 }
