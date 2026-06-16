@@ -107,6 +107,25 @@ public final class MapViewProxy {
     public var boundsSize: CGSize? { mapView?.bounds.size }
 }
 
+public struct WaypointMarker: Sendable, Identifiable {
+    public let id: UUID
+    public let coordinate: CLLocationCoordinate2D
+    public let index: Int
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int) {
+        self.id = id; self.coordinate = coordinate; self.index = index
+    }
+}
+
+final class WaypointAnnotation: MKPointAnnotation {
+    let waypointId: UUID
+    let index: Int
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int) {
+        self.waypointId = id; self.index = index
+        super.init()
+        self.coordinate = coordinate
+    }
+}
+
 public struct TrackMapView: NSViewRepresentable {
     public let tracks: [TrackOverlayInput]
     @Binding public var layer: MapLayer
@@ -123,8 +142,12 @@ public struct TrackMapView: NSViewRepresentable {
     public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
     /// Si vrai, la carte ne se cadre qu'une seule fois (au premier affichage) et ne re-zoome plus aux mises à jour.
     public var fitsOnce: Bool = false
+    /// Points de passage éditables (pins numérotés déplaçables).
+    public var waypoints: [WaypointMarker] = []
+    public var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)?
+    public var onWaypointTapped: ((UUID) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
@@ -133,6 +156,9 @@ public struct TrackMapView: NSViewRepresentable {
         self.photos = photos
         self.slopeOverlayOpacity = slopeOverlayOpacity
         self.fitsOnce = fitsOnce
+        self.waypoints = waypoints
+        self.onWaypointMoved = onWaypointMoved
+        self.onWaypointTapped = onWaypointTapped
         self.onSelectActivity = onSelectActivity
         self.onSelectPhoto = onSelectPhoto
         self.onMapClick = onMapClick
@@ -174,6 +200,9 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.applyHighlightRange(highlightRange, to: mapView)
         context.coordinator.applyPhotos(photos, to: mapView)
         context.coordinator.onMapClick = onMapClick
+        context.coordinator.onWaypointMoved = onWaypointMoved
+        context.coordinator.onWaypointTapped = onWaypointTapped
+        context.coordinator.applyWaypoints(waypoints, to: mapView)
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -209,6 +238,9 @@ public struct TrackMapView: NSViewRepresentable {
         private let onSelectActivity: ((UUID) -> Void)?
         private let onSelectPhoto: ((String) -> Void)?
         var onMapClick: ((CLLocationCoordinate2D) -> Void)?
+        var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)?
+        var onWaypointTapped: ((UUID) -> Void)?
+        private var waypointAnnotations: [WaypointAnnotation] = []
         private var highlightAnnotation: HighlightAnnotation?
         private var photoAnnotations: [String: PhotoAnnotation] = [:]
         private var slopeOverlay: IGNTileOverlay?
@@ -314,6 +346,24 @@ public struct TrackMapView: NSViewRepresentable {
                 highlightAnnotation = annotation
                 mapView.addAnnotation(annotation)
             }
+        }
+
+        func applyWaypoints(_ markers: [WaypointMarker], to mapView: MKMapView) {
+            // Pas de reconstruction pendant un drag (sinon le pin saute) : on diffe sur (id, index, coord).
+            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.coordinate.latitude),\($0.coordinate.longitude)" }.joined(separator: ";")
+            if sig == waypointSignature { return }
+            waypointSignature = sig
+            mapView.removeAnnotations(waypointAnnotations)
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index) }
+            mapView.addAnnotations(waypointAnnotations)
+        }
+        private var waypointSignature = ""
+
+        public func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
+            guard newState == .ending || newState == .canceling,
+                  let wp = view.annotation as? WaypointAnnotation else { return }
+            view.setDragState(.none, animated: false)
+            if newState == .ending { onWaypointMoved?(wp.waypointId, wp.coordinate) }
         }
 
         private var rangePolyline: SegmentRangePolyline?
@@ -502,6 +552,18 @@ public struct TrackMapView: NSViewRepresentable {
                 view.canShowCallout = false
                 return view
             }
+            if let wp = annotation as? WaypointAnnotation {
+                let identifier = "waypoint"
+                let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
+                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                marker.annotation = annotation
+                marker.markerTintColor = .systemBlue
+                marker.glyphText = "\(wp.index + 1)"
+                marker.isDraggable = true
+                marker.canShowCallout = false
+                marker.animatesWhenAdded = false
+                return marker
+            }
             return nil
         }
 
@@ -528,6 +590,13 @@ public struct TrackMapView: NSViewRepresentable {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
+            // Clic sur un point de passage existant (priorité sur l'ajout) → sélection.
+            if let tapWp = onWaypointTapped {
+                for wp in waypointAnnotations {
+                    let p = mapView.convert(wp.coordinate, toPointTo: mapView)
+                    if hypot(p.x - point.x, p.y - point.y) < 22 { tapWp(wp.waypointId); return }
+                }
+            }
             if let place = onMapClick { place(coord); return } // mode « poser un point »
             guard let callback = onSelectActivity else { return }
             let mapPoint = MKMapPoint(coord)

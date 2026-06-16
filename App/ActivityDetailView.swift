@@ -60,6 +60,7 @@ struct ActivityDetailView: View {
     @State private var showCustomGainSegment = false
     @State private var customSegmentGain = ""
     @State private var showStagePlanner = false
+    @State private var showRouteEditor = false
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -198,6 +199,10 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.duplicateToken) { _, _ in
             Task { await AppServices.shared.duplicateActivity(parent: activity) }
         }
+        .onChange(of: windowModel.editRouteToken) { _, _ in
+            if activity.isCourse, model.hasTrack { showRouteEditor = true }
+            else { AppServices.shared.importError = "« Modifier l'itinéraire » est réservé aux parcours." }
+        }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
         }
@@ -335,6 +340,11 @@ struct ActivityDetailView: View {
         }
         .sheet(isPresented: $showCleanSheet) {
             CleanTrackSheet(activity: activity, repository: repository)
+        }
+        .sheet(isPresented: $showRouteEditor) {
+            RouteEditorSheet(activity: activity, repository: repository) {
+                Task { await listVM.reload() }
+            }
         }
     }
 
@@ -3632,5 +3642,168 @@ struct StagedRouteOverviewMap: View {
             coords = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
         }
         stages = ((try? await repository.fetchStages(activityId: activity.id)) ?? []).sorted { $0.order < $1.order }
+    }
+}
+
+/// Éditeur d'itinéraire d'un parcours : points de passage déplaçables sur la carte IGN, ajout au clic,
+/// suppression, routage entre les points (moteur configurable). Enregistre via applyRouteWaypoints.
+struct RouteEditorSheet: View {
+    let activity: ActivitySummary
+    let repository: CoreDataActivityRepository
+    var onSaved: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var waypoints: [RouteWaypoint] = []
+    @State private var routedCoords: [CLLocationCoordinate2D] = []
+    @State private var selectedWaypointId: UUID?
+    @State private var isLoading = true
+    @State private var isRouting = false
+    @State private var isSaving = false
+    @AppStorage("mapLayerRoute") private var layerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("connectorEngine") private var engineRaw = "mapkit"
+
+    private var layerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+    }
+    private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
+    private var markers: [WaypointMarker] {
+        waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0) }
+    }
+    private var displayCoords: [CLLocationCoordinate2D] {
+        routedCoords.count >= 2 ? routedCoords : waypoints.map(coord)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Modifier l'itinéraire").font(.headline)
+                Spacer()
+                if isRouting { ProgressView().controlSize(.small) }
+                Text("\(waypoints.count) point(s)").foregroundStyle(.secondary)
+            }
+            .padding()
+            Divider()
+            if isLoading {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                TrackMapView(
+                    tracks: displayCoords.count >= 2
+                        ? [TrackOverlayInput(activityId: activity.id, activityType: activity.activityType, coordinates: displayCoords)]
+                        : [],
+                    layer: layerBinding, fitsOnce: true, waypoints: markers,
+                    onWaypointMoved: { id, c in moveWaypoint(id: id, to: c) },
+                    onWaypointTapped: { selectedWaypointId = ($0 == selectedWaypointId ? nil : $0) },
+                    onMapClick: { addWaypoint(at: $0) }
+                )
+                .overlay(alignment: .topTrailing) { LayerPicker(layer: layerBinding).padding(8) }
+                .overlay(alignment: .top) {
+                    Text("Clic sur la carte = ajouter un point · glisser un point = déplacer · clic sur un point = sélectionner")
+                        .font(.caption).padding(6).background(.thinMaterial, in: Capsule()).padding(8)
+                }
+                controls
+            }
+        }
+        .frame(width: 760, height: 660)
+        .task { await load() }
+    }
+
+    private var controls: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Text("Itinéraire").font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: $engineRaw) {
+                    Text("MapKit (piéton)").tag("mapkit")
+                    Text("Sentiers (BRouter)").tag("trail")
+                    Text("Ligne directe").tag("line")
+                }
+                .labelsHidden().pickerStyle(.menu).fixedSize()
+                .onChange(of: engineRaw) { _, _ in reroute() }
+                Button("Recalculer") { reroute() }.controlSize(.small)
+                Spacer()
+                Button("Supprimer le point", role: .destructive) { deleteSelected() }
+                    .controlSize(.small).disabled(selectedWaypointId == nil || waypoints.count <= 2)
+            }
+            HStack {
+                Button("Annuler") { dismiss() }
+                Spacer()
+                Button {
+                    Task {
+                        isSaving = true
+                        let ok = await AppServices.shared.applyRouteWaypoints(activityId: activity.id, waypoints: waypoints)
+                        isSaving = false
+                        if ok { onSaved(); dismiss() }
+                    }
+                } label: {
+                    if isSaving { ProgressView().controlSize(.small) } else { Label("Enregistrer", systemImage: "checkmark") }
+                }
+                .buttonStyle(.borderedProminent).disabled(isSaving || waypoints.count < 2)
+            }
+        }
+        .padding()
+    }
+
+    private func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
+        guard let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        waypoints[i].latitude = c.latitude
+        waypoints[i].longitude = c.longitude
+        reroute()
+    }
+
+    private func addWaypoint(at c: CLLocationCoordinate2D) {
+        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude)
+        if waypoints.count < 2 {
+            waypoints.append(wp)
+        } else {
+            // Insère sur le segment qui minimise le détour.
+            var bestI = waypoints.count - 1
+            var bestCost = Double.greatestFiniteMagnitude
+            for i in 0..<(waypoints.count - 1) {
+                let cost = planar(waypoints[i], c) + planar(waypoints[i + 1], c) - planarWW(waypoints[i], waypoints[i + 1])
+                if cost < bestCost { bestCost = cost; bestI = i }
+            }
+            waypoints.insert(wp, at: bestI + 1)
+        }
+        selectedWaypointId = wp.id
+        reroute()
+    }
+
+    private func deleteSelected() {
+        guard let id = selectedWaypointId, let i = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
+        waypoints.remove(at: i)
+        selectedWaypointId = nil
+        reroute()
+    }
+
+    private func planar(_ w: RouteWaypoint, _ c: CLLocationCoordinate2D) -> Double {
+        let dx = w.longitude - c.longitude, dy = w.latitude - c.latitude
+        return (dx * dx + dy * dy).squareRoot()
+    }
+    private func planarWW(_ a: RouteWaypoint, _ b: RouteWaypoint) -> Double {
+        let dx = a.longitude - b.longitude, dy = a.latitude - b.latitude
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
+    private func reroute() {
+        guard waypoints.count >= 2 else { routedCoords = waypoints.map(coord); return }
+        let snapshot = waypoints
+        let engine = ConnectorRouter.Engine(rawValue: engineRaw) ?? .mapkit
+        isRouting = true
+        Task {
+            var coords: [CLLocationCoordinate2D] = []
+            for i in 0..<(snapshot.count - 1) {
+                var seg = await ConnectorRouter.route(from: coord(snapshot[i]), to: coord(snapshot[i + 1]), engine: engine)
+                if seg.count < 2 { seg = [coord(snapshot[i]), coord(snapshot[i + 1])] }
+                if !coords.isEmpty { seg.removeFirst() }
+                coords.append(contentsOf: seg)
+            }
+            routedCoords = coords
+            isRouting = false
+        }
+    }
+
+    private func load() async {
+        waypoints = await AppServices.shared.initialWaypoints(activityId: activity.id)
+        isLoading = false
+        reroute()
     }
 }
