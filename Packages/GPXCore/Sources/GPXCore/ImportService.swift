@@ -54,8 +54,10 @@ public struct ActivityCreationPayload: Sendable {
     public let fileSHA256: String
     public let stravaId: String?
     public let isCourse: Bool
+    /// Points de passage initiaux (POI/arrêts issus des `<wpt>` d'un parcours), encodés JSON — nil si aucun.
+    public let routeWaypointsData: Data?
 
-    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, sensorData: Data = Data(), fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false) {
+    public init(id: UUID, title: String, activityType: ActivityType, origin: ActivityOrigin, sourceFileName: String, sourceFileFormat: SourceFileFormat, sourceApp: String? = nil, startDate: Date, endDate: Date, stats: ActivityStats, trackData: Data, sensorData: Data = Data(), fileSHA256: String, stravaId: String? = nil, isCourse: Bool = false, routeWaypointsData: Data? = nil) {
         self.id = id
         self.title = title
         self.activityType = activityType
@@ -71,6 +73,7 @@ public struct ActivityCreationPayload: Sendable {
         self.fileSHA256 = fileSHA256
         self.stravaId = stravaId
         self.isCourse = isCourse
+        self.routeWaypointsData = routeWaypointsData
     }
 }
 
@@ -263,6 +266,12 @@ public actor ImportService {
         let relativePath = try await storage.store(sourceFile: proposal.sourceURL, for: descriptor)
         let trackData = try TrackPointCodec.encode(proposal.parsed.points)
 
+        // Pour un parcours, on conserve les <wpt> du fichier comme points de passage (POI / arrêts d'étape).
+        let resolvedIsCourse = isCourse ?? proposal.suggestedIsCourse
+        let routeWaypointsData: Data? = (resolvedIsCourse && !proposal.parsed.waypoints.isEmpty)
+            ? RouteWaypointCodec.encode(Self.routeWaypoints(from: proposal.parsed))
+            : nil
+
         let payload = ActivityCreationPayload(
             id: id,
             title: title,
@@ -278,11 +287,30 @@ public actor ImportService {
             sensorData: Self.encodeSensors(proposal.parsed),
             fileSHA256: proposal.fileSHA256,
             stravaId: proposal.stravaId,
-            isCourse: isCourse ?? proposal.suggestedIsCourse
+            isCourse: resolvedIsCourse,
+            routeWaypointsData: routeWaypointsData
         )
 
         try await repository.createActivity(payload)
         return id
+    }
+
+    /// Convertit les `<wpt>` d'un parcours en points de passage : `.stageStop` si proche du départ/arrivée du
+    /// tracé ou marqué `stage-stop` (notre export), sinon `.poi`.
+    static func routeWaypoints(from parsed: ParsedTrack) -> [RouteWaypoint] {
+        let start = parsed.points.first
+        let end = parsed.points.last
+        return parsed.waypoints.map { w in
+            let isStop = w.type == "stage-stop"
+                || isNear(w, start) || isNear(w, end)
+            return RouteWaypoint(latitude: w.latitude, longitude: w.longitude, name: w.name,
+                                 role: isStop ? .stageStop : .poi)
+        }
+    }
+
+    private static func isNear(_ w: ParsedWaypoint, _ p: TrackPoint?, within meters: Double = 100) -> Bool {
+        guard let p else { return false }
+        return GeoMath.haversine(lat1: w.latitude, lon1: w.longitude, lat2: p.latitude, lon2: p.longitude) <= meters
     }
 
     private func detectFormat(url: URL) throws -> SourceFileFormat {

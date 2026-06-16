@@ -67,6 +67,7 @@ public final class CoreDataActivityRepository: ActivityRepository, @unchecked Se
             activity.setValue(payload.stats.boundingBox.maxLongitude, forKey: "maxLongitude")
             activity.setValue(payload.trackData, forKey: "trackData")
             activity.setValue(payload.sensorData.isEmpty ? nil : payload.sensorData, forKey: "sensorData")
+            activity.setValue(payload.routeWaypointsData, forKey: "routeWaypointsData")
             activity.setValue(payload.isCourse, forKey: "isCourse")
             let now = Date()
             activity.setValue(now, forKey: "createdAt")
