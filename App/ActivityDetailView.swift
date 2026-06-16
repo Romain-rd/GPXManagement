@@ -2999,8 +2999,10 @@ struct ParcoursDetailView: View {
         }
         var loaded = (try? await repository.fetchStages(activityId: activity.id)) ?? []
         loaded.sort { $0.order < $1.order }
-        // Purge des étapes « fantômes » : indices hors trace ou dégénérés (longueur nulle).
-        let cleaned = loaded.filter { $0.startIndex >= 0 && $0.endIndex < pts.count && $0.endIndex > $0.startIndex }
+        // Purge : doublons d'id + étapes « fantômes » (indices hors trace ou dégénérés).
+        var seen = Set<UUID>()
+        let cleaned = loaded.filter { seen.insert($0.id).inserted }
+            .filter { $0.startIndex >= 0 && $0.endIndex < pts.count && $0.endIndex > $0.startIndex }
         if cleaned.count != loaded.count {
             let renumbered = cleaned.enumerated().map { i, s -> Stage in var v = s; v.order = i; return v }
             try? await repository.replaceStages(activityId: activity.id, with: renumbered)
@@ -3468,15 +3470,17 @@ struct StageDetailView: View {
         return best
     }
 
+    /// Sauvegarde ciblée : la fiche ne met à jour QUE ses propres étapes (courante + voisines modifiées),
+    /// sans réécrire toute la liste — évite d'écraser les changements de structure faits dans l'aperçu (suppression…).
     private func persist() {
         guard stageIndex >= 0 else { return }
         let trimmed = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         allStages[stageIndex].name = nameDraft
         allStages[stageIndex].notes = trimmed.isEmpty ? nil : trimmed
-        for i in allStages.indices { allStages[i].order = i }
-        let snapshot = allStages
+        let indices = [stageIndex - 1, stageIndex, stageIndex + 1].filter { allStages.indices.contains($0) }
+        let toSave = indices.map { allStages[$0] }
         Task {
-            try? await repository.replaceStages(activityId: activity.id, with: snapshot)
+            for s in toSave { try? await repository.updateStage(s) }
             AppServices.shared.libraryRevision += 1
         }
     }
