@@ -37,6 +37,21 @@ final class TrackOperationsTests: XCTestCase {
         XCTAssertEqual(result.cleaned.count, pts.count - outlierIndices.count)
     }
 
+    func testReversePreservesGeometryAndKeepsAscendingTime() {
+        let pts = (0..<5).map { p(45 + Double($0) * 0.001, 6, t: Double($0) * 10) }
+        let reversed = TrackOperations.reverse(points: pts)
+        XCTAssertEqual(reversed.map { $0.latitude }, pts.map { $0.latitude }.reversed())
+        let times = reversed.compactMap { $0.timestamp?.timeIntervalSince1970 }
+        XCTAssertEqual(times, times.sorted(), "horodatages croissants")
+        XCTAssertEqual(times.first, 0)
+        XCTAssertEqual(times.last, 40)
+    }
+
+    func testReverseWithoutTimestampsJustFlips() {
+        let pts = (0..<4).map { p(45 + Double($0) * 0.001, 6) }
+        XCTAssertEqual(TrackOperations.reverse(points: pts), Array(pts.reversed()))
+    }
+
     func testSimplifyToleranceZeroReturnsInput() {
         let pts = (0..<10).map { p(45 + Double($0) * 0.001, 6 + Double($0) * 0.0005) }
         XCTAssertEqual(TrackOperations.simplify(points: pts, tolerance: 0), pts)

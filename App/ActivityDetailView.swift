@@ -186,6 +186,9 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.cleanToken) { _, _ in
             if model.hasTrack { showCleanSheet = true }
         }
+        .onChange(of: windowModel.reverseToken) { _, _ in
+            if model.hasTrack { Task { await AppServices.shared.reverseActivity(parent: activity) } }
+        }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
         }
@@ -2080,18 +2083,27 @@ struct SimplifyTrackSheet: View {
     }
 }
 
-/// Fusionne ≥ 2 traces : aperçu des tracés + liste chronologique + stats agrégées → une trace dérivée.
+/// Fusionne ≥ 2 traces : aperçu + ordre de raccordement + sens par trace (départ vert / arrivée rouge).
 struct MergeTracksSheet: View {
     let activities: [ActivitySummary]
     let repository: CoreDataActivityRepository
     @Environment(\.dismiss) private var dismiss
 
-    @State private var tracks: [[CLLocationCoordinate2D]] = []
+    private struct Item: Identifiable {
+        let id: UUID
+        let summary: ActivitySummary
+        let points: [TrackPoint]
+        var reversed: Bool = false
+        var coords: [CLLocationCoordinate2D] {
+            let c = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+            return reversed ? c.reversed() : c
+        }
+        var orientedPoints: [TrackPoint] { reversed ? TrackOperations.reverse(points: points) : points }
+    }
+
+    @State private var items: [Item] = []
     @State private var isLoading = true
     @State private var isWorking = false
-
-    private var sorted: [ActivitySummary] { activities.sorted { $0.startDate < $1.startDate } }
-    private var totalDistance: Double { activities.reduce(0) { $0 + $1.distance } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2101,54 +2113,90 @@ struct MergeTracksSheet: View {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Map(initialPosition: .automatic) {
-                    ForEach(Array(tracks.enumerated()), id: \.offset) { _, coords in
-                        MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
+                    ForEach(items) { item in
+                        MapPolyline(coordinates: item.coords).stroke(.blue, lineWidth: 2)
+                        if let start = item.coords.first {
+                            Annotation("", coordinate: start) { marker(.green) }
+                        }
+                        if let end = item.coords.last {
+                            Annotation("", coordinate: end) { marker(.red) }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(sorted) { a in
-                        HStack {
-                            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
-                            Text(a.title).lineLimit(1)
-                            Spacer()
-                            Text(Self.dateFormatter.string(from: a.startDate)).foregroundStyle(.secondary).font(.caption)
-                        }
-                    }
-                    Divider()
-                    Text(String(format: "Distance cumulée ≈ %.1f km — résultat : 1 trace chronologique", totalDistance / 1000))
-                        .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Annuler") { dismiss() }
-                        Spacer()
-                        Button {
-                            Task { isWorking = true; let ok = await AppServices.shared.mergeActivities(activities); isWorking = false; if ok { dismiss() } }
-                        } label: {
-                            if isWorking { ProgressView().controlSize(.small) } else { Label("Fusionner", systemImage: "arrow.triangle.merge") }
-                        }
-                        .buttonStyle(.borderedProminent).disabled(isWorking || activities.count < 2)
-                    }
-                }
-                .padding()
+                trackList
             }
         }
-        .frame(width: 660, height: 600)
+        .frame(width: 680, height: 660)
         .task { await load() }
     }
 
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .medium; f.timeStyle = .short; return f
-    }()
+    private func marker(_ color: Color) -> some View {
+        Circle().fill(color).frame(width: 11, height: 11).overlay(Circle().stroke(.white, lineWidth: 2))
+    }
+
+    private var trackList: some View {
+        VStack(spacing: 8) {
+            Text("Ordre de raccordement — vert = départ, rouge = arrivée")
+                .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                        HStack(spacing: 10) {
+                            Text("\(idx + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 16)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.summary.title).lineLimit(1)
+                                Text(item.reversed ? "sens inversé" : "sens d'origine")
+                                    .font(.caption2).foregroundStyle(item.reversed ? Color.orange : Color.secondary)
+                            }
+                            Spacer()
+                            Button { items[idx].reversed.toggle() } label: { Image(systemName: "arrow.left.arrow.right") }
+                                .help("Inverser le sens de cette trace")
+                            Button { move(idx, by: -1) } label: { Image(systemName: "chevron.up") }.disabled(idx == 0)
+                            Button { move(idx, by: 1) } label: { Image(systemName: "chevron.down") }.disabled(idx == items.count - 1)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+            }
+            .frame(maxHeight: 150)
+            Divider()
+            HStack {
+                Button("Annuler") { dismiss() }
+                Spacer()
+                Button {
+                    Task {
+                        isWorking = true
+                        let points = items.flatMap { $0.orientedPoints }
+                        let ok = await AppServices.shared.saveMergedActivity(points: points, parents: items.map { $0.summary })
+                        isWorking = false
+                        if ok { dismiss() }
+                    }
+                } label: {
+                    if isWorking { ProgressView().controlSize(.small) } else { Label("Fusionner", systemImage: "arrow.triangle.merge") }
+                }
+                .buttonStyle(.borderedProminent).disabled(isWorking || items.count < 2)
+            }
+        }
+        .padding()
+    }
+
+    private func move(_ idx: Int, by offset: Int) {
+        let target = idx + offset
+        guard items.indices.contains(target) else { return }
+        items.swapAt(idx, target)
+    }
 
     private func load() async {
         defer { isLoading = false }
-        var result: [[CLLocationCoordinate2D]] = []
+        let sorted = activities.sorted { $0.startDate < $1.startDate }
+        var result: [Item] = []
         for a in sorted {
             if let data = try? await repository.fetchTrackData(id: a.id), let pts = try? TrackPointCodec.decode(data) {
-                result.append(pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
+                result.append(Item(id: a.id, summary: a, points: pts))
             }
         }
-        tracks = result
+        items = result
     }
 }
 

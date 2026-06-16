@@ -148,6 +148,11 @@ struct AppMenuCommands: Commands {
             }
             .disabled(!(window?.hasSelection ?? false))
 
+            Button("Inverser le sens de la trace") {
+                window?.requestReverse()
+            }
+            .disabled(!(window?.hasSelection ?? false))
+
             Button("Fusionner les traces…") {
                 window?.requestMerge()
             }

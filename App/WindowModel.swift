@@ -104,10 +104,12 @@ final class WindowModel {
     var simplifyToken: Int = 0
     var cleanToken: Int = 0
     var mergeToken: Int = 0
+    var reverseToken: Int = 0
 
     func requestRepair() { guard hasSelection else { return }; repairToken += 1 }
     func requestGenerateElevation() { guard hasSelection else { return }; elevationToken += 1 }
     func requestSplit() { guard hasSelection else { return }; splitToken += 1 }
+    func requestReverse() { guard hasSelection else { return }; reverseToken += 1 }
     func requestSimplify() { guard hasSelection else { return }; simplifyToken += 1 }
     func requestClean() { guard hasSelection else { return }; cleanToken += 1 }
     func requestMerge() { guard canMerge else { return }; mergeToken += 1 }

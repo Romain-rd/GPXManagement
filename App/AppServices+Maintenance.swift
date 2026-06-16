@@ -318,21 +318,31 @@ extension AppServices {
         }
     }
 
-    /// Fusionne ≥ 2 traces (ordre chronologique, dédoublonnage) en une activité dérivée « (fusion) ».
+    /// Inverse le sens d'une trace en une activité dérivée « (sens inversé) ».
     @discardableResult
-    func mergeActivities(_ parents: [ActivitySummary]) async -> Bool {
-        guard parents.count >= 2, let repo = coreDataRepository else { return false }
+    func reverseActivity(parent: ActivitySummary) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
         do {
-            var tracks: [[TrackPoint]] = []
-            for p in parents {
-                if let data = try await repo.fetchTrackData(id: p.id) {
-                    tracks.append(try TrackPointCodec.decode(data))
-                }
-            }
-            let merged = TrackOperations.merge(tracks)
-            guard merged.count >= 2 else { importError = "Fusion vide."; return false }
-            let base = parents.min(by: { $0.startDate < $1.startDate }) ?? parents[0]
-            _ = try await createDerivedActivity(parent: base, title: "\(base.title) (fusion)", points: merged, repo: repo)
+            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return false }
+            let points = try TrackPointCodec.decode(data)
+            let reversed = TrackOperations.reverse(points: points)
+            guard reversed.count >= 2 else { importError = "Trace trop courte."; return false }
+            _ = try await createDerivedActivity(parent: parent, title: "\(parent.title) (sens inversé)", points: reversed, repo: repo)
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de l'inversion : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Enregistre une fusion : les points déjà ordonnés/orientés par l'UI deviennent une activité dérivée « (fusion) ».
+    @discardableResult
+    func saveMergedActivity(points: [TrackPoint], parents: [ActivitySummary]) async -> Bool {
+        guard points.count >= 2, let repo = coreDataRepository,
+              let base = parents.min(by: { $0.startDate < $1.startDate }) else { return false }
+        do {
+            _ = try await createDerivedActivity(parent: base, title: "\(base.title) (fusion)", points: points, repo: repo)
             libraryRevision += 1
             return true
         } catch {

@@ -27,6 +27,22 @@ public enum TrackOperations {
         return result
     }
 
+    /// Inverse le sens d'une trace. Géométrie renversée ; si tous les points sont horodatés, les
+    /// horodatages sont ré-affectés en miroir des deltas pour rester croissants (durée totale conservée).
+    public static func reverse(points: [TrackPoint]) -> [TrackPoint] {
+        guard points.count > 1 else { return points }
+        let reversed = Array(points.reversed())
+        let times = points.compactMap { $0.timestamp }
+        guard times.count == points.count, let t0 = times.first, let tn = times.last else {
+            return reversed
+        }
+        return reversed.map { p in
+            let newTime = t0.addingTimeInterval(tn.timeIntervalSince(p.timestamp!))
+            return TrackPoint(latitude: p.latitude, longitude: p.longitude, altitude: p.altitude,
+                              timestamp: newTime, heartRate: p.heartRate, cadence: p.cadence, power: p.power)
+        }
+    }
+
     public struct CleanResult: Sendable, Equatable {
         public let cleaned: [TrackPoint]
         public let removedIndices: [Int]
