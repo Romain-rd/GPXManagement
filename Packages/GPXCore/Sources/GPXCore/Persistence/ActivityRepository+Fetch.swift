@@ -321,6 +321,69 @@ extension CoreDataActivityRepository {
         }
     }
 
+    // MARK: - Étapes (parcours)
+
+    public func fetchStages(activityId: UUID) async throws -> [Stage] {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Stage")
+            fetch.predicate = NSPredicate(format: "activityId == %@", activityId as CVarArg)
+            return try context.fetch(fetch).compactMap(StageMapper.map).sorted { $0.order < $1.order }
+        }
+    }
+
+    /// Remplace toutes les étapes d'une trace (la partition est recalculée d'un bloc).
+    public func replaceStages(activityId: UUID, with stages: [Stage]) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Stage")
+            fetch.predicate = NSPredicate(format: "activityId == %@", activityId as CVarArg)
+            for obj in try context.fetch(fetch) { context.delete(obj) }
+            for stage in stages {
+                let obj = NSEntityDescription.insertNewObject(forEntityName: "Stage", into: context)
+                StageMapper.apply(stage, to: obj)
+            }
+            try context.save()
+        }
+    }
+
+    public func updateStage(_ stage: Stage) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Stage")
+            fetch.predicate = NSPredicate(format: "id == %@", stage.id as CVarArg)
+            fetch.fetchLimit = 1
+            guard let obj = try context.fetch(fetch).first else { return }
+            var updated = stage
+            updated.updatedAt = Date()
+            StageMapper.apply(updated, to: obj)
+            try context.save()
+        }
+    }
+
+    public func deleteStages(activityId: UUID) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Stage")
+            fetch.predicate = NSPredicate(format: "activityId == %@", activityId as CVarArg)
+            for obj in try context.fetch(fetch) { context.delete(obj) }
+            try context.save()
+        }
+    }
+
+    public func setStagedRoute(activityId: UUID, _ value: Bool) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", activityId as CVarArg)
+            fetch.fetchLimit = 1
+            guard let activity = try context.fetch(fetch).first else { return }
+            activity.setValue(value, forKey: "isStagedRoute")
+            activity.setValue(Date(), forKey: "updatedAt")
+            try context.save()
+        }
+    }
+
     public func applyReprocess(id: UUID, result: ReprocessResult, newType: ActivityType?) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {
@@ -529,7 +592,8 @@ enum ActivitySummaryMapper {
             raidId: object.value(forKey: "raidId") as? UUID,
             isCourse: object.value(forKey: "isCourse") as? Bool ?? false,
             isPublished: (object.value(forKey: "webPublishedURL") as? String)?.isEmpty == false
-                      || (object.value(forKey: "filmPublishedURL") as? String)?.isEmpty == false
+                      || (object.value(forKey: "filmPublishedURL") as? String)?.isEmpty == false,
+            isStagedRoute: object.value(forKey: "isStagedRoute") as? Bool ?? false
         )
     }
 }
@@ -767,5 +831,37 @@ enum RaidMapper {
         object.setValue(try? JSONEncoder().encode(raid.participants), forKey: "participantsData")
         object.setValue(raid.createdAt, forKey: "createdAt")
         object.setValue(raid.updatedAt, forKey: "updatedAt")
+    }
+}
+
+enum StageMapper {
+    static func map(_ object: NSManagedObject) -> Stage? {
+        guard let id = object.value(forKey: "id") as? UUID,
+              let activityId = object.value(forKey: "activityId") as? UUID else { return nil }
+        return Stage(
+            id: id,
+            activityId: activityId,
+            order: object.value(forKey: "order") as? Int ?? 0,
+            name: object.value(forKey: "name") as? String ?? "",
+            notes: object.value(forKey: "notes") as? String,
+            startIndex: object.value(forKey: "startIndex") as? Int ?? 0,
+            endIndex: object.value(forKey: "endIndex") as? Int ?? 0,
+            coverImageData: object.value(forKey: "coverImageData") as? Data,
+            createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
+            updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
+        )
+    }
+
+    static func apply(_ stage: Stage, to object: NSManagedObject) {
+        object.setValue(stage.id, forKey: "id")
+        object.setValue(stage.activityId, forKey: "activityId")
+        object.setValue(stage.order, forKey: "order")
+        object.setValue(stage.name, forKey: "name")
+        object.setValue(stage.notes, forKey: "notes")
+        object.setValue(stage.startIndex, forKey: "startIndex")
+        object.setValue(stage.endIndex, forKey: "endIndex")
+        object.setValue(stage.coverImageData, forKey: "coverImageData")
+        object.setValue(stage.createdAt, forKey: "createdAt")
+        object.setValue(stage.updatedAt, forKey: "updatedAt")
     }
 }

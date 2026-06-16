@@ -26,6 +26,8 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
     public let isCourse: Bool
     /// `true` si l'activité a une page web ou un film publié sur GPXManagement.net.
     public let isPublished: Bool
+    /// `true` si la trace est un parcours organisé en étapes.
+    public let isStagedRoute: Bool
 
     /// Catégorie dérivée de `sourceApp` pour l'affichage et le filtrage.
     public var source: ActivitySource { ActivitySource(rawCreator: sourceApp) }
@@ -53,7 +55,8 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
         notes: String?,
         raidId: UUID? = nil,
         isCourse: Bool = false,
-        isPublished: Bool = false
+        isPublished: Bool = false,
+        isStagedRoute: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -78,21 +81,22 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
         self.raidId = raidId
         self.isCourse = isCourse
         self.isPublished = isPublished
+        self.isStagedRoute = isStagedRoute
     }
 
     public func updatingTitle(_ newTitle: String) -> ActivitySummary {
-        ActivitySummary(id: id, title: newTitle, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished)
+        ActivitySummary(id: id, title: newTitle, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute)
     }
 
     public func updatingNotes(_ newNotes: String?) -> ActivitySummary {
-        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: newNotes, raidId: raidId, isCourse: isCourse, isPublished: isPublished)
+        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: newNotes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute)
     }
 
     public func updatingActivityType(_ newType: ActivityType) -> ActivitySummary {
-        ActivitySummary(id: id, title: title, activityType: newType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished)
+        ActivitySummary(id: id, title: title, activityType: newType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute)
     }
 
     public func updatingIsCourse(_ newIsCourse: Bool) -> ActivitySummary {
-        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: newIsCourse)
+        ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: newIsCourse, isPublished: isPublished, isStagedRoute: isStagedRoute)
     }
 }
