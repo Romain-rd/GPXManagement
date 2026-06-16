@@ -2809,36 +2809,45 @@ struct ParcoursDetailView: View {
     private var stagesList: some View {
         VStack(spacing: 0) {
             ForEach(Array(stages.enumerated()), id: \.element.id) { k, stage in
-                Button {
-                    navigation.selectedStageId = stage.id
-                } label: {
-                    HStack(spacing: 10) {
-                        Text("\(k + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 18)
-                        VStack(alignment: .leading, spacing: 1) {
-                            HStack(spacing: 5) {
-                                Text(stage.name.isEmpty ? "Étape \(k + 1)" : stage.name).fontWeight(.medium)
-                                if stage.endConnectorData != nil || stage.startConnectorData != nil {
-                                    Image(systemName: "arrow.up.forward").font(.caption2).foregroundStyle(.orange)
-                                }
-                            }
+                HStack(spacing: 10) {
+                    Text("\(k + 1)").font(.caption.bold()).foregroundStyle(.secondary).frame(width: 18)
+                    VStack(alignment: .leading, spacing: 1) {
+                        TextField("Étape \(k + 1)", text: Binding(
+                            get: { stages.indices.contains(k) ? stages[k].name : "" },
+                            set: { if stages.indices.contains(k) { stages[k].name = $0 } }))
+                            .textFieldStyle(.plain).fontWeight(.medium)
+                            .onSubmit { persist() }
+                        HStack(spacing: 6) {
                             Text(String(format: "%.1f km · +%d m", stageKm(stage), stageGain(stage)))
-                                .font(.caption).foregroundStyle(.secondary)
+                            if let extra = offTrackExtra(stage) {
+                                Text(extra).foregroundStyle(.orange)
+                            }
                         }
-                        Spacer()
-                        if k > 0 {
-                            Button { merge(at: k) } label: { Image(systemName: "arrow.triangle.merge") }
-                                .buttonStyle(.borderless).help("Fusionner avec l'étape précédente")
-                        }
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        .font(.caption).foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 7)
-                    .contentShape(Rectangle())
-                    .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
+                    Spacer()
+                    if k > 0 {
+                        Button { merge(at: k) } label: { Image(systemName: "arrow.triangle.merge") }
+                            .buttonStyle(.borderless).help("Fusionner avec l'étape précédente")
+                    }
+                    Button { navigation.selectedStageId = stage.id } label: { Image(systemName: "chevron.right") }
+                        .buttonStyle(.borderless).help("Ouvrir la fiche de l'étape")
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 7)
+                .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
                 Divider()
             }
         }
+    }
+
+    /// Écart hors-trace d'une étape (raccords départ + arrivée), pour l'afficher dans la liste.
+    private func offTrackExtra(_ s: Stage) -> String? {
+        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints)
+        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints)
+        let km = (dep.distance + arr.distance) / 1000
+        let gain = Int((dep.elevationGain + arr.elevationGain).rounded())
+        guard km > 0.05 || gain > 0 else { return nil }
+        return String(format: "↗ hors-trace +%.1f km · +%d m", km, gain)
     }
 
     private var actions: some View {
@@ -2933,6 +2942,15 @@ struct ParcoursDetailView: View {
         }
         var loaded = (try? await repository.fetchStages(activityId: activity.id)) ?? []
         loaded.sort { $0.order < $1.order }
+        // Purge des étapes « fantômes » : indices hors trace ou dégénérés (longueur nulle).
+        let cleaned = loaded.filter { $0.startIndex >= 0 && $0.endIndex < pts.count && $0.endIndex > $0.startIndex }
+        if cleaned.count != loaded.count {
+            let renumbered = cleaned.enumerated().map { i, s -> Stage in var v = s; v.order = i; return v }
+            try? await repository.replaceStages(activityId: activity.id, with: renumbered)
+            loaded = renumbered
+        } else {
+            loaded = cleaned
+        }
         if loaded.isEmpty { loaded = [Stage(activityId: activity.id, order: 0, name: "Étape 1", startIndex: 0, endIndex: pts.count - 1)] }
         points = pts; dists = d; alts = a; cumGain = g; stages = loaded
     }
