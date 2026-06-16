@@ -417,26 +417,28 @@ extension AppServices {
 
 /// Calcule un raccord piéton entre deux points (du tracé vers un point hors-trace).
 enum ConnectorRouter {
-    enum Engine: String, CaseIterable { case mapkit, trail, line }
+    enum Engine: String, CaseIterable { case mapkit, trail, car, line }
 
     static func route(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, engine: Engine) async -> [CLLocationCoordinate2D] {
         switch engine {
         case .line:
             return [from, to]
         case .mapkit:
-            return await mapkitRoute(from: from, to: to) ?? [from, to]
+            return await mapkitRoute(from: from, to: to, transportType: .walking) ?? [from, to]
+        case .car:
+            return await mapkitRoute(from: from, to: to, transportType: .automobile) ?? [from, to]
         case .trail:
             if let t = await trailRoute(from: from, to: to) { return t }
-            if let m = await mapkitRoute(from: from, to: to) { return m }
+            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
             return [from, to]
         }
     }
 
-    private static func mapkitRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D]? {
+    private static func mapkitRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, transportType: MKDirectionsTransportType) async -> [CLLocationCoordinate2D]? {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
-        request.transportType = .walking
+        request.transportType = transportType
         guard let response = try? await MKDirections(request: request).calculate(),
               let polyline = response.routes.first?.polyline else { return nil }
         var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: polyline.pointCount)

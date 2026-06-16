@@ -3411,8 +3411,9 @@ struct StageDetailView: View {
             HStack(spacing: 8) {
                 Text("Itinéraire").font(.caption).foregroundStyle(.secondary)
                 Picker("", selection: $engineRaw) {
-                    Text("MapKit (piéton)").tag("mapkit")
+                    Text("À pied (MapKit)").tag("mapkit")
                     Text("Sentiers (BRouter)").tag("trail")
+                    Text("Route (auto/moto)").tag("car")
                     Text("Ligne directe").tag("line")
                 }
                 .labelsHidden().pickerStyle(.menu).fixedSize()
@@ -3707,8 +3708,9 @@ struct RouteEditorView: View {
             Text("\(waypoints.count) pt").font(.caption).foregroundStyle(.secondary)
             if isRouting { ProgressView().controlSize(.small) }
             Picker("", selection: $engineRaw) {
-                Text("MapKit").tag("mapkit")
+                Text("À pied").tag("mapkit")
                 Text("Sentiers").tag("trail")
+                Text("Route (auto/moto)").tag("car")
                 Text("Ligne").tag("line")
             }
             .labelsHidden().pickerStyle(.menu).fixedSize()
