@@ -2603,6 +2603,13 @@ struct ParcoursDetailView: View {
     @State private var grabbed: Int?
     @State private var zoomSpanKm: Double?
     @State private var centerKm: Double = 0
+    @AppStorage("mapLayerParcours") private var layerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("parcoursMapHeight") private var mapHeight: Double = 240
+    @AppStorage("parcoursProfileHeight") private var profileHeight: Double = 150
+
+    private var layerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+    }
 
     private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
     private var junctions: [Int] { stages.count > 1 ? stages.dropLast().map { $0.endIndex } : [] }
@@ -2635,9 +2642,11 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
-                        overviewMap.frame(height: 220).clipShape(RoundedRectangle(cornerRadius: 12))
+                        overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                        ProfileResizeHandle { d in mapHeight = min(700, max(140, mapHeight + Double(d))) }
                         zoomBar
-                        profileChart.frame(height: 150)
+                        profileChart.frame(height: profileHeight)
+                        ProfileResizeHandle { d in profileHeight = min(500, max(90, profileHeight + Double(d))) }
                         stagesList
                         actions
                     }
@@ -2659,7 +2668,7 @@ struct ParcoursDetailView: View {
     }
 
     private var overviewMap: some View {
-        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages)
+        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages, layer: layerBinding)
     }
 
     private var profileChart: some View {
@@ -2874,6 +2883,11 @@ struct StageDetailView: View {
     @State private var nameDraft = ""
     @State private var notesDraft = ""
     @State private var isLoading = true
+    @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
+
+    private var layerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+    }
 
     private var sliceCoords: [CLLocationCoordinate2D] { slicePoints.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
     private var stats: ActivityStats { ActivityStatsCalculator.compute(points: slicePoints) }
@@ -2903,7 +2917,7 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persistMeta() }
-                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: sliceCoords)
+                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: sliceCoords, layer: layerBinding)
                             .frame(height: 300).clipShape(RoundedRectangle(cornerRadius: 12))
                         statsRow
                         if !plot.isEmpty {
@@ -2982,11 +2996,7 @@ struct StageColoredMap: View {
     let activityType: ActivityType
     let coords: [CLLocationCoordinate2D]
     var stages: [Stage] = []
-    @AppStorage("defaultMapLayer") private var defaultLayerRaw = "ign_scan25"
-
-    private var layerBinding: Binding<MapLayer> {
-        Binding(get: { MapLayer.base(fromRawValue: defaultLayerRaw) }, set: { defaultLayerRaw = $0.rawValue })
-    }
+    @Binding var layer: MapLayer
 
     private var overlay: TrackOverlayInput {
         guard !stages.isEmpty, !coords.isEmpty else {
@@ -3003,9 +3013,9 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: layerBinding)
+        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: $layer)
             .overlay(alignment: .topTrailing) {
-                LayerPicker(layer: layerBinding).padding(8)
+                LayerPicker(layer: $layer).padding(8)
             }
     }
 }
@@ -3017,13 +3027,18 @@ struct StagedRouteOverviewMap: View {
     @State private var coords: [CLLocationCoordinate2D] = []
     @State private var stages: [Stage] = []
     @State private var isLoading = true
+    @AppStorage("mapLayerParcoursMap") private var layerRaw = MapLayer.ignScan25.rawValue
+
+    private var layerBinding: Binding<MapLayer> {
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+    }
 
     var body: some View {
         Group {
             if isLoading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages)
+                StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages, layer: layerBinding)
             }
         }
         .task(id: activity.id) { await load() }

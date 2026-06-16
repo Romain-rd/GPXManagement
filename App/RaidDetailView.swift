@@ -19,7 +19,7 @@ struct RaidDetailView: View {
     @State private var draft: Raid
     @State private var model: RaidDetailViewModel
     @State private var hoveredStageId: UUID?
-    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @AppStorage("mapLayerRaid") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
