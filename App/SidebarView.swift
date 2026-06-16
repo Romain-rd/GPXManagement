@@ -125,7 +125,7 @@ struct SidebarView: View {
                         Label(route.title, systemImage: "flag.checkered")
                             .tag(SidebarDestination.stagedRoute(route.id))
                             .contextMenu {
-                                Button("Quitter le mode étapes", role: .destructive) {
+                                Button("Supprimer le parcours", role: .destructive) {
                                     Task { await listVM.deleteStagedRoute(route.id) }
                                     if navigation.selectedStagedRouteId == route.id { navigation.sidebarSelection = .allActivities }
                                 }

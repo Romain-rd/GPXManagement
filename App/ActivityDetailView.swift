@@ -2601,10 +2601,19 @@ struct ParcoursDetailView: View {
     @State private var stages: [Stage] = []
     @State private var isLoading = true
     @State private var grabbed: Int?
+    @State private var zoomSpanKm: Double?
+    @State private var centerKm: Double = 0
 
     private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
     private var junctions: [Int] { stages.count > 1 ? stages.dropLast().map { $0.endIndex } : [] }
     private var totalDistance: Double { dists.last ?? 0 }
+    private var totalKm: Double { totalDistance / 1000 }
+    private var visibleDomain: ClosedRange<Double> {
+        guard let span = zoomSpanKm, span < totalKm else { return 0...max(totalKm, 0.001) }
+        let half = span / 2
+        let c = min(max(centerKm, half), totalKm - half)
+        return (c - half)...(c + half)
+    }
 
     private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
     private var plot: [PlotPoint] {
@@ -2627,6 +2636,7 @@ struct ParcoursDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         overviewMap.frame(height: 220).clipShape(RoundedRectangle(cornerRadius: 12))
+                        zoomBar
                         profileChart.frame(height: 150)
                         stagesList
                         actions
@@ -2670,6 +2680,7 @@ struct ParcoursDetailView: View {
                 RuleMark(x: .value("km", dists[j] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 2))
             }
         }
+        .chartXScale(domain: visibleDomain)
         .chartOverlay { proxy in
             GeometryReader { geo in
                 Rectangle().fill(.clear).contentShape(Rectangle())
@@ -2678,6 +2689,37 @@ struct ParcoursDetailView: View {
                         .onEnded { _ in grabbed = nil; persist() })
             }
         }
+    }
+
+    private var zoomBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.left.and.right.text.vertical").foregroundStyle(.secondary).font(.caption)
+            Button { zoomOut() } label: { Image(systemName: "minus.magnifyingglass") }
+            Button { zoomIn() } label: { Image(systemName: "plus.magnifyingglass") }
+            Button { pan(-0.4) } label: { Image(systemName: "chevron.left") }.disabled(zoomSpanKm == nil)
+            Button { pan(0.4) } label: { Image(systemName: "chevron.right") }.disabled(zoomSpanKm == nil)
+            if zoomSpanKm != nil {
+                Button("Tout") { zoomSpanKm = nil }
+                Text(String(format: "%.1f–%.1f km", visibleDomain.lowerBound, visibleDomain.upperBound))
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            Spacer()
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+    }
+
+    private func zoomIn() {
+        if zoomSpanKm == nil { centerKm = totalKm / 2 }
+        zoomSpanKm = max((zoomSpanKm ?? totalKm) / 2, 0.5)
+    }
+    private func zoomOut() {
+        let next = (zoomSpanKm ?? totalKm) * 2
+        zoomSpanKm = next >= totalKm ? nil : next
+    }
+    private func pan(_ fraction: Double) {
+        guard let span = zoomSpanKm else { return }
+        centerKm = min(max(centerKm + span * fraction, span / 2), totalKm - span / 2)
     }
 
     private func onDrag(start: CGPoint, current: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {

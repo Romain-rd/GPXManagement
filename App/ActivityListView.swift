@@ -51,9 +51,11 @@ struct ActivityListView: View {
             creatingRaidIds = navigation.listSelection
         }
         .onChange(of: navigation.newStagedRouteToken) { _, _ in
-            guard let id = navigation.listSelection.first else { return }
+            guard let id = navigation.listSelection.first,
+                  let summary = listVM.allActivities.first(where: { $0.id == id }) else { return }
             Task {
-                if let routeId = await listVM.createStagedRoute(from: id) {
+                if let routeId = await services.createStagedRouteCopy(parent: summary) {
+                    await listVM.reload()
                     navigation.listSelection = []
                     navigation.selectedStageId = nil
                     navigation.sidebarSelection = .stagedRoute(routeId)
@@ -269,8 +271,8 @@ struct ActivityListView: View {
                     }
                 }
             }
-            if ids.count == 1, let id = ids.first {
-                if listVM.allActivities.first(where: { $0.id == id })?.isStagedRoute == true {
+            if ids.count == 1, let id = ids.first, let summary = listVM.allActivities.first(where: { $0.id == id }) {
+                if summary.isStagedRoute {
                     Button("Ouvrir le parcours en étapes") {
                         navigation.selectedStageId = nil
                         navigation.sidebarSelection = .stagedRoute(id)
@@ -278,7 +280,8 @@ struct ActivityListView: View {
                 } else {
                     Button("Créer un parcours en étapes") {
                         Task {
-                            if let routeId = await listVM.createStagedRoute(from: id) {
+                            if let routeId = await services.createStagedRouteCopy(parent: summary) {
+                                await listVM.reload()
                                 navigation.listSelection = []
                                 navigation.selectedStageId = nil
                                 navigation.sidebarSelection = .stagedRoute(routeId)
