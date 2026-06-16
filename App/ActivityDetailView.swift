@@ -2607,6 +2607,9 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursMapHeight") private var mapHeight: Double = 240
     @AppStorage("parcoursProfileHeight") private var profileHeight: Double = 150
     @State private var resizeAccum: CGFloat = 0
+    @State private var showAddDialog = false
+    @AppStorage("parcoursAddKm") private var addKmRaw = "10"
+    @AppStorage("parcoursAddGainMax") private var addGainRaw = ""
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
@@ -2657,6 +2660,14 @@ struct ParcoursDetailView: View {
         }
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
+        .alert("Ajouter une étape", isPresented: $showAddDialog) {
+            TextField("Distance (km)", text: $addKmRaw)
+            TextField("D+ max (m, optionnel)", text: $addGainRaw)
+            Button("Ajouter") { addStageWithLimits() }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Coupe la dernière étape à la distance indiquée, ou plus tôt si le D+ max est atteint.")
+        }
     }
 
     private var header: some View {
@@ -2803,7 +2814,7 @@ struct ParcoursDetailView: View {
 
     private var actions: some View {
         HStack {
-            Button { addStage() } label: { Label("Ajouter une étape", systemImage: "plus") }
+            Button { showAddDialog = true } label: { Label("Ajouter une étape", systemImage: "plus") }
             Menu {
                 Button("Tous les 10 km") { recalcByDistance(10_000) }
                 Button("Tous les 20 km") { recalcByDistance(20_000) }
@@ -2816,19 +2827,24 @@ struct ParcoursDetailView: View {
 
     // MARK: Édition
 
-    private func addStage() {
-        guard !stages.isEmpty else { return }
-        var bestLen = -1.0; var bestK = 0
-        for (k, s) in stages.enumerated() {
-            let len = dists[s.endIndex] - dists[s.startIndex]
-            if len > bestLen { bestLen = len; bestK = k }
+    /// Ajoute une étape en coupant la dernière : jusqu'à `km`, ou plus tôt si le `D+ max` est atteint.
+    private func addStageWithLimits() {
+        guard let last = stages.last else { return }
+        let a = last.startIndex, b = last.endIndex
+        let targetDist = (Double(addKmRaw.replacingOccurrences(of: ",", with: ".")) ?? 0) * 1000
+        let targetGain = Double(addGainRaw.replacingOccurrences(of: ",", with: ".")) ?? 0
+        guard targetDist > 0 || targetGain > 0, b > a + 1 else { return }
+        var cut = b
+        for i in (a + 1)..<b {
+            let distHit = targetDist > 0 && (dists[i] - dists[a] >= targetDist)
+            let gainHit = targetGain > 0 && (cumGain[i] - cumGain[a] >= targetGain)
+            if distHit || gainHit { cut = i; break }
         }
-        let s = stages[bestK]
-        let mid = nearestPointIndex(toMeters: (dists[s.startIndex] + dists[s.endIndex]) / 2)
-        guard mid > s.startIndex, mid < s.endIndex else { return }
-        let first = Stage(id: s.id, activityId: activity.id, order: 0, name: s.name, notes: s.notes, startIndex: s.startIndex, endIndex: mid)
-        let second = Stage(activityId: activity.id, order: 0, name: "", startIndex: mid, endIndex: s.endIndex)
-        stages.replaceSubrange(bestK...bestK, with: [first, second])
+        guard cut > a, cut < b else { return } // le reste tient dans les limites → pas de découpe
+        let first = Stage(id: last.id, activityId: activity.id, order: 0, name: last.name, notes: last.notes, startIndex: a, endIndex: cut)
+        let second = Stage(activityId: activity.id, order: 0, name: "", startIndex: cut, endIndex: b)
+        stages[stages.count - 1] = first
+        stages.append(second)
         persist()
     }
 

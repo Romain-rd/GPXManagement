@@ -356,8 +356,24 @@ public struct TrackMapView: NSViewRepresentable {
 
         private func tracksSignature(_ tracks: [TrackOverlayInput]) -> String {
             tracks.map { t in
-                let c = t.segmentColors
-                let colorKey = c == nil ? "u" : "\(c!.count):\(c!.first?.description ?? ""):\(c!.last?.description ?? "")"
+                let colorKey: String
+                if let c = t.segmentColors {
+                    // Positions des frontières de couleur (= jonctions d'étapes) : change quand on déplace une jonction.
+                    // Repli sur count:first:last si trop de runs (coloration vitesse/pente par point), qui ne bougent pas.
+                    var boundaries: [Int] = []
+                    var tooMany = false
+                    if c.count > 1 {
+                        for i in 1..<c.count where c[i] != c[i - 1] {
+                            boundaries.append(i)
+                            if boundaries.count > 64 { tooMany = true; break }
+                        }
+                    }
+                    colorKey = tooMany
+                        ? "\(c.count):\(c.first?.description ?? ""):\(c.last?.description ?? "")"
+                        : "\(c.count):b:" + boundaries.map(String.init).joined(separator: ",")
+                } else {
+                    colorKey = "u"
+                }
                 return "\(t.activityId.uuidString)|\(t.coordinates.count)|\(colorKey)"
             }.joined(separator: ";")
         }
