@@ -119,8 +119,10 @@ public struct TrackMapView: NSViewRepresentable {
     public var onSelectPhoto: ((String) -> Void)?
     /// Opacité (0…1) de la couche « pentes » IGN superposée au fond. 0 = masquée.
     public var slopeOverlayOpacity: Double
+    /// Si défini, un clic sur la carte renvoie la coordonnée (mode « poser un point ») plutôt que de sélectionner une trace.
+    public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
@@ -130,6 +132,7 @@ public struct TrackMapView: NSViewRepresentable {
         self.slopeOverlayOpacity = slopeOverlayOpacity
         self.onSelectActivity = onSelectActivity
         self.onSelectPhoto = onSelectPhoto
+        self.onMapClick = onMapClick
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -147,11 +150,9 @@ public struct TrackMapView: NSViewRepresentable {
         proxy?.mapView = mapView
         context.coordinator.mapView = mapView
         configure(mapView: mapView, layer: layer)
-        if onSelectActivity != nil {
-            let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
-            tap.delegate = context.coordinator
-            mapView.addGestureRecognizer(tap)
-        }
+        let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
+        tap.delegate = context.coordinator
+        mapView.addGestureRecognizer(tap)
         return mapView
     }
 
@@ -166,6 +167,7 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.applyHighlight(highlight, to: mapView)
         context.coordinator.applyHighlightRange(highlightRange, to: mapView)
         context.coordinator.applyPhotos(photos, to: mapView)
+        context.coordinator.onMapClick = onMapClick
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -199,6 +201,7 @@ public struct TrackMapView: NSViewRepresentable {
         weak var mapView: MKMapView?
         private let onSelectActivity: ((UUID) -> Void)?
         private let onSelectPhoto: ((String) -> Void)?
+        var onMapClick: ((CLLocationCoordinate2D) -> Void)?
         private var highlightAnnotation: HighlightAnnotation?
         private var photoAnnotations: [String: PhotoAnnotation] = [:]
         private var slopeOverlay: IGNTileOverlay?
@@ -515,10 +518,11 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
-            guard let mapView = gesture.view as? MKMapView,
-                  let callback = onSelectActivity else { return }
+            guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
+            if let place = onMapClick { place(coord); return } // mode « poser un point »
+            guard let callback = onSelectActivity else { return }
             let mapPoint = MKMapPoint(coord)
             let tolerance = 800.0 / Double(mapView.bounds.width) * mapView.visibleMapRect.size.width
             for case let polyline as IdentifiedPolyline in mapView.overlays {

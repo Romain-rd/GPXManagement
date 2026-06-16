@@ -2960,6 +2960,7 @@ struct StageDetailView: View {
     @State private var searchText = ""
     @State private var searchResults: [MKMapItem] = []
     @State private var isRouting = false
+    @State private var placingOnMap = false
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
     @AppStorage("connectorEngine") private var engineRaw = "mapkit"
@@ -3079,8 +3080,18 @@ struct StageDetailView: View {
                         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                                         coords: windowCoords, stages: windowStages,
                                         connectors: [coords(departureConnector), coords(arrivalConnector)].filter { $0.count >= 2 },
-                                        highlight: dragCoord ?? offTrackMarker, layer: layerBinding)
+                                        highlight: dragCoord ?? offTrackMarker,
+                                        onMapClick: placingOnMap ? { setArrival(to: $0); placingOnMap = false } : nil,
+                                        layer: layerBinding)
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(alignment: .top) {
+                                if placingOnMap {
+                                    Text("Cliquez sur la carte pour poser l'arrivée hors-trace")
+                                        .font(.caption).padding(6)
+                                        .background(.orange, in: Capsule()).foregroundStyle(.white)
+                                        .padding(8)
+                                }
+                            }
                         DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
                         departureBanner
@@ -3229,6 +3240,7 @@ struct StageDetailView: View {
                 TextField("Rechercher un lieu (refuge, village…)", text: $searchText)
                     .textFieldStyle(.roundedBorder).onSubmit { runSearch() }
                 Button("Rechercher") { runSearch() }
+                Button(placingOnMap ? "Annuler" : "Choisir sur la carte") { placingOnMap.toggle() }
             }
             HStack(spacing: 8) {
                 Text("Itinéraire").font(.caption).foregroundStyle(.secondary)
@@ -3396,6 +3408,7 @@ struct StageColoredMap: View {
     var stages: [Stage] = []
     var connectors: [[CLLocationCoordinate2D]] = []
     var highlight: CLLocationCoordinate2D? = nil
+    var onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil
     @Binding var layer: MapLayer
 
     private var connectorOverlays: [TrackOverlayInput] {
@@ -3421,7 +3434,7 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight)
+        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, onMapClick: onMapClick)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
             }
