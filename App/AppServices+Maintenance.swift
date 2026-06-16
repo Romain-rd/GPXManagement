@@ -1,5 +1,6 @@
 import Foundation
 import GPXCore
+import MapKit
 
 // MARK: - Maintenance de la bibliothèque (suppression, renommage, recalculs, resync CloudKit)
 
@@ -411,5 +412,62 @@ extension AppServices {
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
+    }
+}
+
+/// Calcule un raccord piéton entre deux points (du tracé vers un point hors-trace).
+enum ConnectorRouter {
+    enum Engine: String, CaseIterable { case mapkit, trail, line }
+
+    static func route(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, engine: Engine) async -> [CLLocationCoordinate2D] {
+        switch engine {
+        case .line:
+            return [from, to]
+        case .mapkit:
+            return await mapkitRoute(from: from, to: to) ?? [from, to]
+        case .trail:
+            if let t = await trailRoute(from: from, to: to) { return t }
+            if let m = await mapkitRoute(from: from, to: to) { return m }
+            return [from, to]
+        }
+    }
+
+    private static func mapkitRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D]? {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
+        request.transportType = .walking
+        guard let response = try? await MKDirections(request: request).calculate(),
+              let polyline = response.routes.first?.polyline else { return nil }
+        var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: polyline.pointCount)
+        polyline.getCoordinates(&coords, range: NSRange(location: 0, length: polyline.pointCount))
+        return coords.filter { CLLocationCoordinate2DIsValid($0) }
+    }
+
+    private static func trailRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [CLLocationCoordinate2D]? {
+        // BRouter (serveur public, profil rando) → GeoJSON [[lon,lat,(ele)],…].
+        let urlStr = "https://brouter.de/brouter?lonlats=\(from.longitude),\(from.latitude)|\(to.longitude),\(to.latitude)&profile=hiking-mountain&alternativeidx=0&format=geojson"
+        guard let url = URL(string: urlStr),
+              let (data, resp) = try? await URLSession.shared.data(from: url),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        struct GeoJSON: Decodable {
+            let features: [Feature]
+            struct Feature: Decodable { let geometry: Geometry }
+            struct Geometry: Decodable { let coordinates: [[Double]] }
+        }
+        guard let gj = try? JSONDecoder().decode(GeoJSON.self, from: data),
+              let coords = gj.features.first?.geometry.coordinates, coords.count >= 2 else { return nil }
+        return coords.compactMap { $0.count >= 2 ? CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) : nil }
+    }
+}
+
+extension AppServices {
+    /// Raccord (route + altitude IGN) du point `from` (sur le tracé) vers `to` (hors-trace), renvoyé en `[TrackPoint]`.
+    func buildConnector(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [TrackPoint] {
+        let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
+        var coords = await ConnectorRouter.route(from: from, to: to, engine: engine)
+        if coords.count < 2 { coords = [from, to] }
+        let raw = coords.map { TrackPoint(latitude: $0.latitude, longitude: $0.longitude) }
+        return await ElevationEnricher.shared.enrich(points: raw).points
     }
 }

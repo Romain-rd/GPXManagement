@@ -11,11 +11,17 @@ public struct Stage: Identifiable, Sendable, Hashable {
     public var startIndex: Int
     public var endIndex: Int
     public var coverImageData: Data?
+    /// Point d'arrivée hors-trace (refuge/village à l'écart du tracé), s'il y en a un.
+    public var endOffTrackLatitude: Double?
+    public var endOffTrackLongitude: Double?
+    /// Raccord (route du point `endIndex` du tracé vers le point hors-trace), encodé en `[TrackPoint]` avec altitude.
+    public var endConnectorData: Data?
     public var createdAt: Date
     public var updatedAt: Date
 
     public init(id: UUID = UUID(), activityId: UUID, order: Int, name: String, notes: String? = nil,
                 startIndex: Int, endIndex: Int, coverImageData: Data? = nil,
+                endOffTrackLatitude: Double? = nil, endOffTrackLongitude: Double? = nil, endConnectorData: Data? = nil,
                 createdAt: Date = Date(), updatedAt: Date = Date()) {
         self.id = id
         self.activityId = activityId
@@ -25,8 +31,17 @@ public struct Stage: Identifiable, Sendable, Hashable {
         self.startIndex = Swift.min(startIndex, endIndex)
         self.endIndex = Swift.max(startIndex, endIndex)
         self.coverImageData = coverImageData
+        self.endOffTrackLatitude = endOffTrackLatitude
+        self.endOffTrackLongitude = endOffTrackLongitude
+        self.endConnectorData = endConnectorData
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Points du raccord d'arrivée (avec altitude), décodés depuis `endConnectorData`.
+    public var endConnectorPoints: [TrackPoint] {
+        guard let data = endConnectorData else { return [] }
+        return (try? TrackPointCodec.decode(data)) ?? []
     }
 
     /// Points couverts, bornés au tableau (robuste si la trace a changé).
