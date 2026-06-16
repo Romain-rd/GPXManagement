@@ -2601,6 +2601,7 @@ struct ParcoursDetailView: View {
     @State private var stages: [Stage] = []
     @State private var isLoading = true
     @State private var grabbed: Int?
+    @State private var dragCoord: CLLocationCoordinate2D?
     @State private var zoomSpanKm: Double?
     @State private var centerKm: Double = 0
     @AppStorage("mapLayerParcours") private var layerRaw = MapLayer.ignScan25.rawValue
@@ -2685,7 +2686,7 @@ struct ParcoursDetailView: View {
     }
 
     private var overviewMap: some View {
-        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages, layer: layerBinding)
+        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages, highlight: dragCoord, layer: layerBinding)
     }
 
     private var profileChart: some View {
@@ -2702,7 +2703,7 @@ struct ParcoursDetailView: View {
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0)
                         .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
-                        .onEnded { _ in grabbed = nil; persist() })
+                        .onEnded { _ in grabbed = nil; dragCoord = nil; persist() })
             }
         }
     }
@@ -2784,6 +2785,7 @@ struct ParcoursDetailView: View {
         idx = min(max(idx, lower), upper)
         stages[k].endIndex = idx
         stages[k + 1].startIndex = idx
+        if coords.indices.contains(idx) { dragCoord = coords[idx] }
     }
 
     private var stagesList: some View {
@@ -2929,6 +2931,7 @@ struct StageDetailView: View {
     @State private var w0 = 0
     @State private var w1 = 0
     @State private var grabbed: Handle?
+    @State private var dragCoord: CLLocationCoordinate2D?
     @State private var nameDraft = ""
     @State private var notesDraft = ""
     @State private var isLoading = true
@@ -2987,7 +2990,7 @@ struct StageDetailView: View {
                         TextField("Nom de l'étape", text: $nameDraft)
                             .font(.title2.bold()).textFieldStyle(.plain)
                             .onSubmit { persist() }
-                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: windowCoords, stages: windowStages, layer: layerBinding)
+                        StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: windowCoords, stages: windowStages, highlight: dragCoord, layer: layerBinding)
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                         DragResizeHandle { d in mapHeight = min(700, max(160, mapHeight + Double(d))) }
                         statsRow
@@ -3029,7 +3032,7 @@ struct StageDetailView: View {
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0)
                         .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
-                        .onEnded { _ in if grabbed != nil { grabbed = nil; persist() } })
+                        .onEnded { _ in if grabbed != nil { grabbed = nil; dragCoord = nil; persist() } })
             }
         }
     }
@@ -3057,10 +3060,12 @@ struct StageDetailView: View {
             let clamped = min(max(idx, allStages[stageIndex - 1].startIndex + 1), allStages[stageIndex].endIndex - 1)
             allStages[stageIndex].startIndex = clamped
             allStages[stageIndex - 1].endIndex = clamped
+            if fullPoints.indices.contains(clamped) { dragCoord = CLLocationCoordinate2D(latitude: fullPoints[clamped].latitude, longitude: fullPoints[clamped].longitude) }
         case .end where !isLast:
             let clamped = min(max(idx, allStages[stageIndex].startIndex + 1), allStages[stageIndex + 1].endIndex - 1)
             allStages[stageIndex].endIndex = clamped
             allStages[stageIndex + 1].startIndex = clamped
+            if fullPoints.indices.contains(clamped) { dragCoord = CLLocationCoordinate2D(latitude: fullPoints[clamped].latitude, longitude: fullPoints[clamped].longitude) }
         default:
             break
         }
@@ -3170,6 +3175,7 @@ struct StageColoredMap: View {
     let activityType: ActivityType
     let coords: [CLLocationCoordinate2D]
     var stages: [Stage] = []
+    var highlight: CLLocationCoordinate2D? = nil
     @Binding var layer: MapLayer
 
     private var overlay: TrackOverlayInput {
@@ -3187,7 +3193,7 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: $layer)
+        TrackMapView(tracks: coords.isEmpty ? [] : [overlay], layer: $layer, highlight: highlight)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
             }

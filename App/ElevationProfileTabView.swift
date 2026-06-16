@@ -418,10 +418,11 @@ struct ElevationProfileTabView: View {
                 dragStartIndex = start
                 dragCurrentIndex = current
                 selectedIndex = nil
-                highlightedCoordinate = nil
+                // Suivi temps réel sur la carte : point rond à la position courante du drag.
+                if hoverSamples.indices.contains(current) { highlightedCoordinate = hoverSamples[current].coordinate }
             }
             .onEnded { _ in
-                defer { dragStartIndex = nil; dragCurrentIndex = nil }
+                defer { dragStartIndex = nil; dragCurrentIndex = nil; highlightedCoordinate = nil }
                 guard let a = dragStartIndex, let b = dragCurrentIndex else { return }
                 let lo = min(a, b), hi = max(a, b)
                 guard hi > lo, trimmedProfile.indices.contains(hi) else { return }
