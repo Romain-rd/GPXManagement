@@ -295,17 +295,29 @@ public actor ImportService {
         return id
     }
 
-    /// Convertit les `<wpt>` d'un parcours en points de passage : `.stageStop` si proche du départ/arrivée du
-    /// tracé ou marqué `stage-stop` (notre export), sinon `.poi`.
+    /// Points de passage initiaux d'un parcours : ancrages de routage dérivés du tracé (`.shaping`) FUSIONNÉS avec les
+    /// `<wpt>` du fichier (POI / arrêts d'étape), insérés à leur position dans le tracé. Un `<wpt>` est `.stageStop` s'il
+    /// est proche du départ/arrivée ou marqué `stage-stop` (notre export), sinon `.poi`.
     static func routeWaypoints(from parsed: ParsedTrack) -> [RouteWaypoint] {
-        let start = parsed.points.first
-        let end = parsed.points.last
-        return parsed.waypoints.map { w in
-            let isStop = w.type == "stage-stop"
-                || isNear(w, start) || isNear(w, end)
-            return RouteWaypoint(latitude: w.latitude, longitude: w.longitude, name: w.name,
-                                 role: isStop ? .stageStop : .poi)
+        let points = parsed.points
+        let start = points.first
+        let end = points.last
+        let pois: [(wp: RouteWaypoint, index: Int)] = parsed.waypoints.map { w in
+            let isStop = w.type == "stage-stop" || isNear(w, start) || isNear(w, end)
+            let wp = RouteWaypoint(latitude: w.latitude, longitude: w.longitude, name: w.name,
+                                   role: isStop ? .stageStop : .poi)
+            let idx = points.isEmpty ? 0 : RouteWaypoint.nearestIndex(latitude: w.latitude, longitude: w.longitude, in: points)
+            return (wp, idx)
         }
+        guard points.count >= 2 else { return pois.map(\.wp) }
+
+        let poiIndices = pois.map(\.index)
+        // Ancrages dérivés, en écartant ceux qui coïncident (à 1 point près) avec un POI pour éviter les doublons.
+        let anchors: [(wp: RouteWaypoint, index: Int)] = RouteWaypoint.derivedAnchors(from: points)
+            .map { ($0, RouteWaypoint.nearestIndex(latitude: $0.latitude, longitude: $0.longitude, in: points)) }
+            .filter { a in !poiIndices.contains { abs($0 - a.index) <= 1 } }
+
+        return (anchors + pois).sorted { $0.index < $1.index }.map(\.wp)
     }
 
     private static func isNear(_ w: ParsedWaypoint, _ p: TrackPoint?, within meters: Double = 100) -> Bool {

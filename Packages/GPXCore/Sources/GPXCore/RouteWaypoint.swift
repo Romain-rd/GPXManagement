@@ -34,18 +34,36 @@ public struct RouteWaypoint: Codable, Identifiable, Sendable, Hashable {
         role = try c.decodeIfPresent(Role.self, forKey: .role) ?? .shaping
     }
 
+    /// Ancrages de routage `.shaping` dérivés d'un tracé : tracé simplifié (Douglas-Peucker) puis borné à ~40 points.
+    public static func derivedAnchors(from points: [TrackPoint]) -> [RouteWaypoint] {
+        guard points.count >= 2 else { return [] }
+        var anchors = TrackOperations.simplify(points: points, tolerance: 50)
+        if anchors.count > 40 {
+            let step = max(1, anchors.count / 40)
+            var reduced = stride(from: 0, to: anchors.count, by: step).map { anchors[$0] }
+            if reduced.last != points[points.count - 1] { reduced.append(points[points.count - 1]) }
+            anchors = reduced
+        }
+        return anchors.map { RouteWaypoint(latitude: $0.latitude, longitude: $0.longitude, role: .shaping) }
+    }
+
+    /// Indice du point de `points` le plus proche d'une coordonnée (plus proche au sens haversine).
+    static func nearestIndex(latitude: Double, longitude: Double, in points: [TrackPoint]) -> Int {
+        var best = 0
+        var bestDistance = Double.greatestFiniteMagnitude
+        for (i, p) in points.enumerated() {
+            let d = GeoMath.haversine(lat1: latitude, lon1: longitude, lat2: p.latitude, lon2: p.longitude)
+            if d < bestDistance { bestDistance = d; best = i }
+        }
+        return best
+    }
+
     /// Bornes d'étapes : pour chaque `.stageStop` (dans l'ordre), l'indice du point de `points` le plus proche.
     /// Sert à dériver les plages d'étapes sans stocker d'indices fragiles dans la trace.
     public static func stageBoundaries(_ waypoints: [RouteWaypoint], on points: [TrackPoint]) -> [(stopId: UUID, index: Int)] {
         guard !points.isEmpty else { return [] }
-        return waypoints.filter { $0.role == .stageStop }.map { wp in
-            var bestIndex = 0
-            var bestDistance = Double.greatestFiniteMagnitude
-            for (i, p) in points.enumerated() {
-                let d = GeoMath.haversine(lat1: wp.latitude, lon1: wp.longitude, lat2: p.latitude, lon2: p.longitude)
-                if d < bestDistance { bestDistance = d; bestIndex = i }
-            }
-            return (wp.id, bestIndex)
+        return waypoints.filter { $0.role == .stageStop }.map {
+            ($0.id, nearestIndex(latitude: $0.latitude, longitude: $0.longitude, in: points))
         }
     }
 }

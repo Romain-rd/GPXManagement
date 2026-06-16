@@ -601,14 +601,7 @@ extension AppServices {
         }
         guard let td = try? await repo.fetchTrackData(id: activityId),
               let pts = try? TrackPointCodec.decode(td), pts.count >= 2 else { return [] }
-        var anchors = TrackOperations.simplify(points: pts, tolerance: 50)
-        if anchors.count > 40 {
-            let step = max(1, anchors.count / 40)
-            var reduced = stride(from: 0, to: anchors.count, by: step).map { anchors[$0] }
-            if reduced.last != pts.last { reduced.append(pts[pts.count - 1]) }
-            anchors = reduced
-        }
-        return anchors.map { RouteWaypoint(latitude: $0.latitude, longitude: $0.longitude) }
+        return RouteWaypoint.derivedAnchors(from: pts)
     }
 
     /// Raccord (route + altitude IGN) du point `from` (sur le tracé) vers `to` (hors-trace), renvoyé en `[TrackPoint]`.
