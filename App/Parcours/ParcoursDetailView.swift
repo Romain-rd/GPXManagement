@@ -26,6 +26,7 @@ struct ParcoursDetailView: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var tool: ParcoursTool = .select
+    @State private var initialToolSet = false
     @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
@@ -742,12 +743,17 @@ struct ParcoursDetailView: View {
 
     private func load() async {
         defer { isLoading = false }
+        // À la PREMIÈRE ouverture du parcours : modifiable → mode itinéraire (outils d'édition visibles) ;
+        // fidèle → mode sélection. On ne le règle qu'une fois (sinon impossible de quitter le mode itinéraire,
+        // car load() est aussi rappelé après une sauvegarde).
+        if !initialToolSet {
+            initialToolSet = true
+            tool = activity.isEditableRoute ? .route : .select
+        }
         let raw = try? await repository.fetchTrackData(id: activity.id)
         let decoded = raw.flatMap { try? TrackPointCodec.decode($0) } ?? []
-        // Parcours vide (créé de zéro) : on ouvre directement l'outil itinéraire pour poser les points.
         guard decoded.count > 1 else {
             points = decoded
-            if activity.isEditableRoute { tool = .route }
             return
         }
         let pts = decoded
