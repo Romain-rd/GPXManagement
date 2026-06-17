@@ -25,6 +25,9 @@ struct ParcoursDetailView: View {
     var showsInlineInspector: Bool = false
     @Environment(\.openWindow) private var openWindow
 
+    /// Au-delà : tracé dense (GR importé) → non éditable par ancrages (gel + dégradation). Voir load().
+    private static let maxRouteEditablePoints = 1500
+
     @State private var tool: ParcoursTool = .select
     @State private var initialToolSet = false
     @State private var showEditableRouteDialog = false
@@ -280,8 +283,12 @@ struct ParcoursDetailView: View {
             Button { showEditableRouteDialog = true } label: { Image(systemName: "lock.open").frame(width: 30, height: 24) }
                 .buttonStyle(.borderless).help("Verrouiller le tracé (fidèle)")
         } else {
+            let tooDense = points.count > Self.maxRouteEditablePoints
             Button { showEditableRouteDialog = true } label: { Label("Rendre modifiable", systemImage: "lock").font(.callout) }
-                .buttonStyle(.borderless).help("Débloquer le re-tracé de l'itinéraire entre points de passage")
+                .buttonStyle(.borderless).disabled(tooDense)
+                .help(tooDense
+                      ? "Tracé trop dense (\(points.count) points) pour l'édition d'itinéraire — l'édition légère d'un GR viendra plus tard. Les arrêts et POI restent éditables."
+                      : "Débloquer le re-tracé de l'itinéraire entre points de passage")
         }
     }
 
@@ -763,8 +770,19 @@ struct ParcoursDetailView: View {
         // (✚ pour un parcours vide à dessiner, sinon sélection). Une seule fois (load() est rappelé au save).
         if !initialToolSet {
             initialToolSet = true
-            tool = (activity.isEditableRoute && decoded.count < 2) ? .route : .select
-            if activity.isEditableRoute { await routeModel.load(activityId: activity.id) }
+            // Un tracé importé dense (GR, plusieurs milliers de points) n'est PAS éditable par ancrages :
+            // en dériver les points de passage (Douglas-Peucker sur tout le tracé) gèle l'app et dégraderait
+            // la géométrie précise. On n'autorise l'édition d'itinéraire que si des points de passage sont déjà
+            // stockés (parcours dessiné) ou si le tracé est assez court pour une dérivation instantanée.
+            let storedWp = RouteWaypointCodec.decode(try? await repository.fetchRouteWaypointsData(id: activity.id))
+            let canRouteEdit = !storedWp.isEmpty || decoded.count <= Self.maxRouteEditablePoints
+            if activity.isEditableRoute && !canRouteEdit {
+                await listVM.setEditableRoute(id: activity.id, false)   // repasse en fidèle (anti-gel)
+                tool = .select
+            } else {
+                tool = (activity.isEditableRoute && decoded.count < 2) ? .route : .select
+                if activity.isEditableRoute { await routeModel.load(activityId: activity.id) }
+            }
         }
         guard decoded.count > 1 else {
             points = decoded
