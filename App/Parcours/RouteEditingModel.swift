@@ -140,7 +140,7 @@ final class RouteEditingModel {
         routeDone = 0
         for (n, i) in pending.enumerated() {
             guard i >= 0, i + 1 < waypoints.count else { continue }
-            if n > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
+            if n > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 350_000_000) }
             var seg = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), engine: engine)
             if seg.count < 2 { seg = [coord(waypoints[i]), coord(waypoints[i + 1])] }
             if i < segments.count { segments[i] = seg }

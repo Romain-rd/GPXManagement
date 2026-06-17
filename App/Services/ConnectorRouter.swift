@@ -12,10 +12,12 @@ enum ConnectorRouter {
         case .mapkit:
             // MapKit refuse les segments très longs / transfrontaliers : repli BRouter avant la ligne droite.
             if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
+            print("⚠️ [ConnectorRouter] MapKit (à pied) indisponible → repli BRouter trekking")
             if let b = await trailRoute(from: from, to: to, profile: "trekking") { return b }
             return [from, to]
         case .car:
             if let m = await mapkitRoute(from: from, to: to, transportType: .automobile) { return m }
+            print("⚠️ [ConnectorRouter] MapKit (auto) indisponible → repli BRouter car-fast (peut emprunter de petites routes)")
             if let b = await trailRoute(from: from, to: to, profile: "car-fast") { return b }
             return [from, to]
         case .trail:
@@ -26,8 +28,10 @@ enum ConnectorRouter {
     }
 
     private static func mapkitRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, transportType: MKDirectionsTransportType) async -> [CLLocationCoordinate2D]? {
-        // MKDirections est limité en débit (throttling) : on réessaie avec un délai croissant.
-        for attempt in 0..<4 {
+        // MKDirections est limité en débit (throttling) ; le repli BRouter donne de moins bons itinéraires routiers,
+        // donc on insiste sur MapKit : nombreuses tentatives + backoff long avant d'abandonner.
+        let maxAttempts = 7
+        for attempt in 0..<maxAttempts {
             let request = MKDirections.Request()
             request.source = MKMapItem(placemark: MKPlacemark(coordinate: from))
             request.destination = MKMapItem(placemark: MKPlacemark(coordinate: to))
@@ -40,9 +44,11 @@ enum ConnectorRouter {
                 return coords.filter { CLLocationCoordinate2DIsValid($0) }
             } catch {
                 let code = (error as NSError).code
-                // MKError.loadingThrottled (3) / serverFailure : on attend puis on réessaie.
-                guard attempt < 3, code == MKError.loadingThrottled.rawValue || code == MKError.serverFailure.rawValue else { return nil }
-                try? await Task.sleep(nanoseconds: UInt64(0.7 * Double(attempt + 1) * 1_000_000_000))
+                // Erreurs transitoires (throttle / serveur / inconnue) : on attend (jusqu'à ~3 s) puis on réessaie.
+                // Seul « aucun itinéraire trouvé » (directionsNotFound) est définitif → repli immédiat.
+                let permanent = code == MKError.directionsNotFound.rawValue || code == MKError.placemarkNotFound.rawValue
+                guard !permanent, attempt < maxAttempts - 1 else { return nil }
+                try? await Task.sleep(nanoseconds: UInt64(min(3.0, 0.6 * Double(attempt + 1)) * 1_000_000_000))
             }
         }
         return nil
