@@ -166,13 +166,20 @@ struct ParcoursDetailView: View {
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 140, max: 700)
                         }
+                        // Profil + dates : nécessitent le tracé enrichi (altitude) → sur le tracé sauvegardé.
                         if !points.isEmpty {
                             dateBar
                             zoomBar
                             profileChart.frame(height: profileHeight)
                             resizeHandle($profileHeight, min: 90, max: 500)
+                        }
+                        // Détail des étapes : EN DIRECT en mode modifiable (dès qu'un itinéraire existe, sans
+                        // enregistrer) ; sur le tracé sauvegardé en mode fidèle.
+                        if activity.isEditableRoute {
+                            if routeModel.waypoints.count >= 2 { parcoursOutline }
+                        } else if !points.isEmpty {
                             parcoursOutline
-                            if !activity.isEditableRoute { actions }
+                            actions
                         }
                     }
                     .padding()
