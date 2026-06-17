@@ -213,13 +213,17 @@ struct ParcoursDetailView: View {
     }
 
     private var toolPalette: some View {
-        HStack(spacing: 6) {
-            toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
-            toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
-            toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+        HStack(spacing: 10) {
+            HStack(spacing: 2) {
+                toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
+                toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
+                toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+                if activity.isEditableRoute {
+                    toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
+                }
+            }
             Divider().frame(height: 18)
             if activity.isEditableRoute {
-                toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
                 Button { showEditableRouteDialog = true } label: {
                     Image(systemName: "lock.open").frame(width: 30, height: 24)
                 }
@@ -233,6 +237,8 @@ struct ParcoursDetailView: View {
             Spacer()
             Text(toolHint).font(.caption).foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func toolButton(_ t: ParcoursTool, _ icon: String, _ help: String) -> some View {
