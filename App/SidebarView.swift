@@ -6,6 +6,7 @@ import GPXMapKit
 struct SidebarView: View {
     @Bindable var navigation: AppNavigationModel
     @Bindable var listVM: ActivityListViewModel
+    @Environment(\.openWindow) private var openWindow
 
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
@@ -113,7 +114,10 @@ struct SidebarView: View {
                         Label(route.title, systemImage: "flag.checkered")
                             .badge("\(listVM.stageCount(route.id)) ét.")
                             .tag(SidebarDestination.stagedRoute(route.id))
+                            .simultaneousGesture(TapGesture(count: 2).onEnded { openWindow(value: route.id) })
                             .contextMenu {
+                                Button("Ouvrir dans une nouvelle fenêtre") { openWindow(value: route.id) }
+                                Divider()
                                 Button("Supprimer le parcours", role: .destructive) {
                                     Task { await listVM.deleteStagedRoute(route.id) }
                                     if navigation.selectedStagedRouteId == route.id { navigation.sidebarSelection = .allActivities }

@@ -68,8 +68,11 @@ struct ContentView: View {
             // Parcours (mode activités) : la colonne de détail = inspecteur d'étape escamotable.
             // Largeur 0 tant qu'aucune étape n'est sélectionnée (la carte du milieu prend toute la place).
             if navigation.selectedStagedRouteId != nil, navigation.visualizationMode == .activities {
-                modeContent
-                    .navigationSplitViewColumnWidth(navigation.selectedStageId != nil && navigation.showStageInspector ? 380 : 0)
+                if navigation.selectedStageId != nil, navigation.showStageInspector {
+                    modeContent.navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 680)
+                } else {
+                    modeContent.navigationSplitViewColumnWidth(0)
+                }
             } else {
                 modeContent
             }
