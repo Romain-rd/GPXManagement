@@ -7,54 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		016796AE01F74D7D97627AAE /* RaidParticipantEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860483180DB04447A5028238 /* RaidParticipantEditor.swift */; };
-		0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7ACADC04245857846CE60BC /* SidebarView.swift */; };
-		0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */; };
-		142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */; };
 		1EBC3FD34D98053DF310C1C3 /* PersistenceControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */; };
-		2196EB1626D843B78A77CC5B /* ActivityPhotosSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */; };
-		29CB53642CAF41618C48C0B8 /* RaidDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */; };
-		2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */; };
-		3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */; };
-		31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D245452CFD3422DFE36DB3 /* WindowModel.swift */; };
-		344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7894B1C175BDAA6118892D /* AppConfig.swift */; };
-		39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47DE51F8BF3C4AABD07045B9 /* ContentView.swift */; };
-		3A09C7E784CB4841A454F4D2 /* AppServices+Reorganization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */; };
 		3DAD5B0820EBA343E4EC07DB /* ActivityFiltersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */; };
-		410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */; };
 		49D54D695ECF125EA368F30D /* ActivityListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */; };
-		4F869CD74F2E49469F073D93 /* AppServices+StravaSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */; };
-		54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79107E0008C422D10DDDD339 /* RaidDetailView.swift */; };
 		5E2086A9A62998F215D1204F /* GPXCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5239B19228804795EAC2D36D /* GPXCore */; };
-		5F19BC99145848069C022407 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */; };
-		65A5E03A8CBC46D9BF28DFF2 /* VideoLayoutEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */; };
 		69199036BADF737CF4157B63 /* CoreDataActivityRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */; };
-		6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */; };
-		7832411EC3544FBD8C6ACBD0 /* AppServices+Maintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = C224C00D324846DEA702074F /* AppServices+Maintenance.swift */; };
 		7AACCEF42FE06C5100F79540 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 7AACCEF32FE06C5100F79540 /* Sparkle */; };
-		7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */; };
 		81736EFE6298E038A37C3C89 /* GPXMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE15CBBEA76E19E78D5872B /* GPXMapKit */; };
-		82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */; };
-		9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */; };
-		9C539C5D85DE4C56A01384F2 /* MediaEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993988649DA7481EA3345D2C /* MediaEditor.swift */; };
 		A09BBA5DF7EEC457B4A36494 /* GPXStrava in Frameworks */ = {isa = PBXBuildFile; productRef = 9DCF9B9E7F35B6CCDB8C5227 /* GPXStrava */; };
 		A52A49DCAB0612268A04D686 /* AppNavigationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */; };
-		B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */; };
-		B1EA52FD0FBC4BECA0E7D302 /* CloudPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */; };
-		BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */; };
 		BEEF00000000000000000001 /* GPXRender in Frameworks */ = {isa = PBXBuildFile; productRef = BEEF00000000000000000002 /* GPXRender */; };
-		C7789234717598A80B08C875 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44934C5F563E2D198B67B314 /* PreferencesView.swift */; };
-		D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */; };
-		D5DBBF34BE864945925E4527 /* ActivityMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */; };
-		D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */; };
-		D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98887F275D8B5C626A27859 /* ActivityFilters.swift */; };
-		DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */; };
-		DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */; };
-		E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */; };
-		EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25EFB570B8ADC9F59F35BD /* ExportService.swift */; };
-		F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8F705DA1DD220140BBC3930E /* Assets.xcassets */; };
-		F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */; };
-		F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9471D358879C561216F8F27A /* AppServices.swift */; };
 		FACE00000000000000000001 /* GPXVideo in Frameworks */ = {isa = PBXBuildFile; productRef = FACE00000000000000000002 /* GPXVideo */; };
 /* End PBXBuildFile section */
 
@@ -69,56 +31,28 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListView.swift; sourceTree = "<group>"; };
-		09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLayoutEditor.swift; sourceTree = "<group>"; };
-		10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailViewModel.swift; sourceTree = "<group>"; };
 		16A70666354C457A73737CCA /* ActivityListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModelTests.swift; sourceTree = "<group>"; };
-		1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartFilterEditor.swift; sourceTree = "<group>"; };
-		1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GPXManagementTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapOverviewView.swift; sourceTree = "<group>"; };
-		2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityListViewModel.swift; sourceTree = "<group>"; };
-		44934C5F563E2D198B67B314 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
-		47DE51F8BF3C4AABD07045B9 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudPreferences.swift; sourceTree = "<group>"; };
 		4E4E13A6F1C2CEE82DE9E10C /* GPXCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXCore; path = Packages/GPXCore; sourceTree = SOURCE_ROOT; };
-		4F25EFB570B8ADC9F59F35BD /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		511C1F8CEF9FB82EAD305726 /* ActivityFiltersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFiltersTests.swift; sourceTree = "<group>"; };
-		5B7894B1C175BDAA6118892D /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailView.swift; sourceTree = "<group>"; };
-		79107E0008C422D10DDDD339 /* RaidDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidDetailView.swift; sourceTree = "<group>"; };
-		860483180DB04447A5028238 /* RaidParticipantEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaidParticipantEditor.swift; sourceTree = "<group>"; };
-		881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPXManagementApp.swift; sourceTree = "<group>"; };
 		8F500433FA42D658E7E55468 /* PersistenceControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceControllerTests.swift; sourceTree = "<group>"; };
-		8F705DA1DD220140BBC3930E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuCommands.swift; sourceTree = "<group>"; };
 		90D3C33FF122DE77F1F8FC03 /* GPXStrava */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXStrava; path = Packages/GPXStrava; sourceTree = SOURCE_ROOT; };
-		9471D358879C561216F8F27A /* AppServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppServices.swift; sourceTree = "<group>"; };
-		993988649DA7481EA3345D2C /* MediaEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaEditor.swift; sourceTree = "<group>"; };
 		9BB4378936EFA44AA940A32D /* GPXManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GPXManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+Reorganization.swift"; sourceTree = "<group>"; };
-		B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityDetailViewModel.swift; sourceTree = "<group>"; };
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
-		B5D245452CFD3422DFE36DB3 /* WindowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowModel.swift; sourceTree = "<group>"; };
-		B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevationProfileTabView.swift; sourceTree = "<group>"; };
-		B98887F275D8B5C626A27859 /* ActivityFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFilters.swift; sourceTree = "<group>"; };
-		BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetPresenter.swift; sourceTree = "<group>"; };
-		BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSheetView.swift; sourceTree = "<group>"; };
-		BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityMapCard.swift; sourceTree = "<group>"; };
-		BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+StravaSync.swift"; sourceTree = "<group>"; };
-		BDB3AE470DCC71F2465AD70B /* GPXManagement.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = GPXManagement.xcdatamodel; sourceTree = "<group>"; };
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
-		BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
-		C224C00D324846DEA702074F /* AppServices+Maintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppServices+Maintenance.swift"; sourceTree = "<group>"; };
-		C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackAuthServer.swift; sourceTree = "<group>"; };
-		C7ACADC04245857846CE60BC /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModelTests.swift; sourceTree = "<group>"; };
-		E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedFolderBookmark.swift; sourceTree = "<group>"; };
-		E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
-		EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StravaAuthService.swift; sourceTree = "<group>"; };
-		FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityPhotosSection.swift; sourceTree = "<group>"; };
-		"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		34403255D9D44C79ED156356 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		9B1C2C51D48DEF11B69FB9A0 /* Frameworks */ = {
@@ -152,7 +86,7 @@
 		31D3505FC14BFFCB687B0352 = {
 			isa = PBXGroup;
 			children = (
-				63E09BD6D9C59B595A913FA5 /* App */,
+				34403255D9D44C79ED156356 /* App */,
 				F8D3C5F1C21B7CF9AA48F4A5 /* Packages */,
 				9A14BC8D83C80C5B09244DF9 /* Tests */,
 				93E8E9B8009CA324990F9289 /* Products */,
@@ -160,55 +94,10 @@
 			);
 			sourceTree = "<group>";
 		};
-		63E09BD6D9C59B595A913FA5 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */,
-				6E64D5DD1BE5DF58C2625F1E /* ActivityDetailView.swift */,
-				B40ACE96A38A43359347DE88 /* ActivityDetailViewModel.swift */,
-				BD75C0061A8E4C4B9B1C6C59 /* ActivityMapCard.swift */,
-				FFC3432FEEA048DE8B8C6B45 /* ActivityPhotosSection.swift */,
-				993988649DA7481EA3345D2C /* MediaEditor.swift */,
-				09C6973D34F34671B94ED93D /* VideoLayoutEditor.swift */,
-				1795B8F0095E4A3E850BC2F0 /* MetricCard.swift */,
-				B98887F275D8B5C626A27859 /* ActivityFilters.swift */,
-				06BAC4C516BA0226397D3EA0 /* ActivityListView.swift */,
-				2FB37342DF74343E57194E4A /* ActivityListViewModel.swift */,
-				5B7894B1C175BDAA6118892D /* AppConfig.swift */,
-				8F9434B077DCE5272E1D00B1 /* AppMenuCommands.swift */,
-				E9840C1FCD15F75054C19379 /* AppNavigationModel.swift */,
-				9471D358879C561216F8F27A /* AppServices.swift */,
-				4B24AAA6F0EF4F8185B367B9 /* CloudPreferences.swift */,
-				B2F4B254BB354CDFA26F7C58 /* AppServices+Reorganization.swift */,
-				BDA0A708EBE04E10BD540A2A /* AppServices+StravaSync.swift */,
-				C224C00D324846DEA702074F /* AppServices+Maintenance.swift */,
-				8F705DA1DD220140BBC3930E /* Assets.xcassets */,
-				47DE51F8BF3C4AABD07045B9 /* ContentView.swift */,
-				B8CE4067AC1DCB63FF6E24CB /* ElevationProfileTabView.swift */,
-				4F25EFB570B8ADC9F59F35BD /* ExportService.swift */,
-				881B3B85AC3FA32F7448F36D /* GPXManagementApp.swift */,
-				BCA9233BFE561762B93C76B1 /* ImportSheetView.swift */,
-				C6545C6C3CE57E394AB5A159 /* LoopbackAuthServer.swift */,
-				2F9C838C6B437D9DF7A6CC8D /* MapOverviewView.swift */,
-				44934C5F563E2D198B67B314 /* PreferencesView.swift */,
-				79107E0008C422D10DDDD339 /* RaidDetailView.swift */,
-				860483180DB04447A5028238 /* RaidParticipantEditor.swift */,
-				10F6E3FF8FEC4DB09A13646E /* RaidDetailViewModel.swift */,
-				BAC9CF76AE150635672E8857 /* ShareSheetPresenter.swift */,
-				C7ACADC04245857846CE60BC /* SidebarView.swift */,
-				1725682C7BEA8837BD9731C8 /* SmartFilterEditor.swift */,
-				BFAFF883B4B09D6E4AB85DC5 /* StatisticsView.swift */,
-				EAAFE30C2FA070FC4FD64D78 /* StravaAuthService.swift */,
-				E5BCD998BFFC82CEEDC4499A /* WatchedFolderBookmark.swift */,
-				B5D245452CFD3422DFE36DB3 /* WindowModel.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
 		7AACCEF12FDFE50F00F79540 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */,
+				TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -255,6 +144,9 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				34403255D9D44C79ED156356 /* App */,
+			);
 			name = GPXManagement;
 			packageProductDependencies = (
 				5239B19228804795EAC2D36D /* GPXCore */,
@@ -280,8 +172,6 @@
 				FE45B52B0B03D05EC59B551E /* PBXTargetDependency */,
 			);
 			name = GPXManagementTests;
-			packageProductDependencies = (
-			);
 			productName = GPXManagementTests;
 			productReference = 2B8BC6F8DDA104FE6198459C /* GPXManagementTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -315,11 +205,11 @@
 			mainGroup = 31D3505FC14BFFCB687B0352;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */,
-				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */,
-				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */,
-				BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */,
-				FACE00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXVideo" */,
+				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "GPXCore" */,
+				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "GPXMapKit" */,
+				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "GPXStrava" */,
+				BEEF00000000000000000003 /* XCLocalSwiftPackageReference "GPXRender" */,
+				FACE00000000000000000003 /* XCLocalSwiftPackageReference "GPXVideo" */,
 				7AACCEF22FE06C5100F79540 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -338,7 +228,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F0A5EB4FDD853897B9FB006A /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,43 +238,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E6784C8C241D977B76C59218 /* ActivityDetailView.swift in Sources */,
-				2D068B229842414EB44185BB /* ActivityDetailViewModel.swift in Sources */,
-				D5DBBF34BE864945925E4527 /* ActivityMapCard.swift in Sources */,
-				2196EB1626D843B78A77CC5B /* ActivityPhotosSection.swift in Sources */,
-				9C539C5D85DE4C56A01384F2 /* MediaEditor.swift in Sources */,
-				65A5E03A8CBC46D9BF28DFF2 /* VideoLayoutEditor.swift in Sources */,
-				5F19BC99145848069C022407 /* MetricCard.swift in Sources */,
-				D7008894E7CF3699752F5BAA /* ActivityFilters.swift in Sources */,
-				410F21A9B0AE3A65C2330391 /* ActivityListView.swift in Sources */,
-				B155DD32F10F7E53B5669310 /* ActivityListViewModel.swift in Sources */,
-				344E862C2C36B743BBF942CA /* AppConfig.swift in Sources */,
-				82748118CB1AA951878EA118 /* AppMenuCommands.swift in Sources */,
-				3151DC7EC006F01210D9F495 /* AppNavigationModel.swift in Sources */,
-				F9092879FCF1E3F1F322CC87 /* AppServices.swift in Sources */,
-				B1EA52FD0FBC4BECA0E7D302 /* CloudPreferences.swift in Sources */,
-				3A09C7E784CB4841A454F4D2 /* AppServices+Reorganization.swift in Sources */,
-				4F869CD74F2E49469F073D93 /* AppServices+StravaSync.swift in Sources */,
-				7832411EC3544FBD8C6ACBD0 /* AppServices+Maintenance.swift in Sources */,
-				39D301DC3CCC900FC28AE222 /* ContentView.swift in Sources */,
-				F48E76AED4CC898FEF48B3BD /* ElevationProfileTabView.swift in Sources */,
-				EFF8314AE61F0E8679693572 /* ExportService.swift in Sources */,
-				D6FF349D16AA8D61B537F015 /* GPXManagement.xcdatamodeld in Sources */,
-				BD99557E4746390806BAD915 /* GPXManagementApp.swift in Sources */,
-				DADF4AE8BB621F147969D087 /* ImportSheetView.swift in Sources */,
-				DBEF18F6635075910546A61F /* LoopbackAuthServer.swift in Sources */,
-				7EAFDC4BE21D92DFDE6A8AE1 /* MapOverviewView.swift in Sources */,
-				C7789234717598A80B08C875 /* PreferencesView.swift in Sources */,
-				54E98E6AF98CF3D65676B847 /* RaidDetailView.swift in Sources */,
-				016796AE01F74D7D97627AAE /* RaidParticipantEditor.swift in Sources */,
-				29CB53642CAF41618C48C0B8 /* RaidDetailViewModel.swift in Sources */,
-				0F395490C0FE24DC653CE63D /* ShareSheetPresenter.swift in Sources */,
-				0912EE100A84D9FFBC926AFE /* SidebarView.swift in Sources */,
-				9803751A7D4CB52AB0D190A7 /* SmartFilterEditor.swift in Sources */,
-				142A6FDD9CB4F91229688DDD /* StatisticsView.swift in Sources */,
-				D0F9F8527458C8CA0C83E736 /* StravaAuthService.swift in Sources */,
-				6F6D9CD499B2FE619B9FB92A /* WatchedFolderBookmark.swift in Sources */,
-				31D03464E7B186D9B785D0D9 /* WindowModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -433,7 +285,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */;
+			baseConfigurationReference = TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -521,7 +373,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */;
+			baseConfigurationReference = TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -652,23 +504,23 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */ = {
+		3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "GPXCore" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXCore;
 		};
-		BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */ = {
+		BEEF00000000000000000003 /* XCLocalSwiftPackageReference "GPXRender" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXRender;
 		};
-		EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */ = {
+		EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "GPXStrava" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXStrava;
 		};
-		FACE00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXVideo" */ = {
+		FACE00000000000000000003 /* XCLocalSwiftPackageReference "GPXVideo" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXVideo;
 		};
-		FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */ = {
+		FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "GPXMapKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXMapKit;
 		};
@@ -712,19 +564,6 @@
 			productName = GPXVideo;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCVersionGroup section */
-		A458D1355A394930CBEFB440 /* GPXManagement.xcdatamodeld */ = {
-			isa = XCVersionGroup;
-			children = (
-				BDB3AE470DCC71F2465AD70B /* GPXManagement.xcdatamodel */,
-			);
-			currentVersion = BDB3AE470DCC71F2465AD70B /* GPXManagement.xcdatamodel */;
-			path = GPXManagement.xcdatamodeld;
-			sourceTree = "<group>";
-			versionGroupType = wrapper.xcdatamodel;
-		};
-/* End XCVersionGroup section */
 	};
 	rootObject = 686AD7DFE4CAAEC625B308C4 /* Project object */;
 }
