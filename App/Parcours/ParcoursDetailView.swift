@@ -28,6 +28,19 @@ struct ParcoursDetailView: View {
     @State private var tool: ParcoursTool = .select
     @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
+    @State private var routeModel: RouteEditingModel
+    @State private var placeQuery = ""
+    @State private var searching = false
+
+    init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
+         navigation: AppNavigationModel, showsInlineInspector: Bool = false) {
+        self.activity = activity
+        self.listVM = listVM
+        self.repository = repository
+        self.navigation = navigation
+        self.showsInlineInspector = showsInlineInspector
+        _routeModel = State(initialValue: RouteEditingModel(repository: repository))
+    }
 
     @State private var points: [TrackPoint] = []
     @State private var dists: [Double] = []
@@ -135,9 +148,9 @@ struct ParcoursDetailView: View {
                         header
                         toolPalette
                         if tool == .route && activity.isEditableRoute {
-                            RouteEditorView(activity: activity, repository: repository, layer: layerBinding, mapHeight: $mapHeight) {
-                                Task { await load() }
-                            }
+                            routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                            resizeHandle($mapHeight, min: 200, max: 900)
+                            routeWaypointList
                         } else {
                             dateBar
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
@@ -152,6 +165,13 @@ struct ParcoursDetailView: View {
                     }
                     .padding()
                 }
+            }
+        }
+        .onChange(of: tool) { old, new in
+            if new == .route, old != .route {
+                Task { await routeModel.load(activityId: activity.id) }
+            } else if old == .route, new != .route {
+                routeModel.saveIfNeeded(activityId: activity.id) { Task { await load() } }
             }
         }
         .slideOverInspector(width: $inspectorWidth,
@@ -234,11 +254,51 @@ struct ParcoursDetailView: View {
                 }
                 .buttonStyle(.borderless).help("Débloquer le re-tracé de l'itinéraire entre points de passage")
             }
-            Spacer()
-            Text(toolHint).font(.caption).foregroundStyle(.secondary)
+            if tool == .route && activity.isEditableRoute {
+                routeControls
+            } else {
+                Spacer()
+                Text(toolHint).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Contrôles de routage, présents dans la barre **uniquement** en mode itinéraire modifiable.
+    @ViewBuilder private var routeControls: some View {
+        Divider().frame(height: 18)
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Rechercher un lieu…", text: $placeQuery)
+                .textFieldStyle(.plain).frame(minWidth: 110)
+                .onSubmit { Task { searching = true; await routeModel.search(placeQuery); searching = false } }
+            if searching { ProgressView().controlSize(.mini) }
+            else if !placeQuery.isEmpty {
+                Button { placeQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(.quaternary.opacity(0.5), in: Capsule())
+        Picker("Moteur", selection: Binding(
+            get: { routeModel.engineRaw },
+            set: { routeModel.engineRaw = $0; UserDefaults.standard.set($0, forKey: "connectorEngine"); routeModel.invalidateAll() }
+        )) {
+            Text("À pied").tag("mapkit")
+            Text("Sentiers").tag("trail")
+            Text("Route (auto/moto)").tag("car")
+            Text("Ligne").tag("line")
+        }
+        .labelsHidden().pickerStyle(.menu).fixedSize()
+        Button { routeModel.reroute() } label: { Image(systemName: "arrow.triangle.turn.up.right.diamond") }
+            .help("Recalculer l'itinéraire").disabled(routeModel.busy || routeModel.waypoints.count < 2 || !routeModel.hasPending)
+        Button { routeModel.fit() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+            .help("Cadrer le parcours").disabled(routeModel.waypoints.isEmpty)
+        Spacer()
+        Text("\(routeModel.waypoints.count) pt").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+        Button { routeModel.save(activityId: activity.id) { Task { await load() } } } label: { Label("Enregistrer", systemImage: "checkmark") }
+            .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.waypoints.count < 2 || routeModel.busy)
     }
 
     private func toolButton(_ t: ParcoursTool, _ icon: String, _ help: String) -> some View {
@@ -267,6 +327,71 @@ struct ParcoursDetailView: View {
                         onWaypointTapped: { tapMarker($0) },
                         onMapClick: tool == .poi || tool == .stageStop ? { mapClick(at: $0) } : nil,
                         layer: layerBinding)
+    }
+
+    /// Carte unique en mode itinéraire : tracé routé + points de passage déplaçables, clic = ajouter.
+    private var routeMap: some View {
+        StageColoredMap(activityId: activity.id, activityType: activity.activityType,
+                        coords: routeModel.displayCoords, waypoints: routeModel.markers,
+                        onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
+                        onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
+                        onMapClick: { routeModel.addWaypoint(at: $0) },
+                        proxy: routeModel.proxy, layer: layerBinding)
+            .overlay(alignment: .top) {
+                if routeModel.waypoints.isEmpty {
+                    Label("Cliquez sur la carte pour poser le premier point", systemImage: "hand.tap")
+                        .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.thinMaterial, in: Capsule()).padding(8)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if routeModel.isRouting {
+                    VStack(spacing: 4) {
+                        Text("Routage \(routeModel.routeDone)/\(routeModel.routeTotal)…").font(.caption)
+                        ProgressView(value: Double(routeModel.routeDone), total: Double(max(routeModel.routeTotal, 1)))
+                    }
+                    .frame(width: 240).padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
+                } else if routeModel.isSaving {
+                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Calcul de l'altitude…").font(.caption) }
+                        .padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
+                }
+            }
+    }
+
+    private var routeWaypointList: some View {
+        ScrollView {
+            VStack(spacing: 1) {
+                ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
+                    HStack(spacing: 8) {
+                        Button { routeModel.cycleRole(wp.id) } label: { routeRoleIcon(wp.role) }
+                            .buttonStyle(.borderless)
+                            .help("Rôle : point de tracé · point d'intérêt · arrêt d'étape (cliquer pour changer)")
+                        Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(routeModel.selectedWaypointId == wp.id ? Color.orange : Color.blue))
+                            .contentShape(Circle())
+                            .onTapGesture { routeModel.selectedWaypointId = (routeModel.selectedWaypointId == wp.id ? nil : wp.id) }
+                        TextField(String(format: "%.4f, %.4f", wp.latitude, wp.longitude),
+                                  text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
+                            .textFieldStyle(.plain).font(.caption)
+                        Spacer(minLength: 4)
+                        Button { routeModel.delete(wp.id) } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless).disabled(routeModel.waypoints.count <= 2)
+                    }
+                    .padding(.vertical, 2).padding(.horizontal, 6)
+                    .background(routeModel.selectedWaypointId == wp.id ? Color.accentColor.opacity(0.12) : .clear)
+                }
+            }
+        }
+        .frame(maxHeight: 130)
+    }
+
+    @ViewBuilder private func routeRoleIcon(_ role: RouteWaypoint.Role) -> some View {
+        switch role {
+        case .shaping: Image(systemName: "smallcircle.filled.circle").foregroundStyle(.secondary)
+        case .poi: Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
+        case .stageStop: Image(systemName: "flag.circle.fill").foregroundStyle(.green)
+        }
     }
 
     /// Drapeaux des fins d'étape internes (déplaçables sur la carte avec l'outil sélection).
