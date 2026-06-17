@@ -27,6 +27,8 @@ struct ParcoursDetailView: View {
 
     /// Au-delà : tracé dense (GR importé) → non éditable par ancrages (gel + dégradation). Voir load().
     private static let maxRouteEditablePoints = 1500
+    /// Id stable du repère d'aperçu de recherche (déplaçable, non encore dans le tracé).
+    private static let searchPreviewId = UUID()
 
     @State private var tool: ParcoursTool = .select
     @State private var initialToolSet = false
@@ -419,11 +421,20 @@ struct ParcoursDetailView: View {
         }
     }
 
+    /// Repère d'aperçu déplaçable du résultat de recherche (ajustement de l'emplacement avant la pose).
+    private var searchPreviewMarkers: [WaypointMarker] {
+        guard let r = searchResult else { return [] }
+        return [WaypointMarker(id: Self.searchPreviewId, coordinate: r.coordinate, index: -1, role: .poi, name: r.name, isPreview: true)]
+    }
+
     /// Carte unique d'un parcours modifiable : tracé routé + points de passage typés, clic = ajouter (selon l'outil).
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
-                        coords: routeModel.displayCoords, highlight: searchResult?.coordinate, waypoints: routeModel.markers,
-                        onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
+                        coords: routeModel.displayCoords, waypoints: routeModel.markers + searchPreviewMarkers,
+                        onWaypointMoved: { id, c in
+                            if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
+                            else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
+                        },
                         onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
@@ -432,6 +443,7 @@ struct ParcoursDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin.circle.fill").foregroundStyle(.red)
                         Text(r.name).lineLimit(1)
+                        Text("· glisse le repère pour ajuster").foregroundStyle(.secondary)
                         Button("Ajouter ce point") { addSearchResult() }
                             .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.busy)
                         Button { searchResult = nil } label: { Image(systemName: "xmark.circle.fill") }

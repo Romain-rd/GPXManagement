@@ -114,8 +114,9 @@ public struct WaypointMarker: Sendable, Identifiable {
     public let role: RouteWaypoint.Role
     public let name: String?
     public let label: String?     // numéro d'ordre affiché dans l'épingle (nil = icône par rôle)
-    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil) {
-        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label
+    public let isPreview: Bool    // repère d'aperçu (recherche) déplaçable, pas encore dans le tracé
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil, isPreview: Bool = false) {
+        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label; self.isPreview = isPreview
     }
 }
 
@@ -124,8 +125,9 @@ final class WaypointAnnotation: MKPointAnnotation {
     let index: Int
     let role: RouteWaypoint.Role
     let label: String?
-    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?) {
-        self.waypointId = id; self.index = index; self.role = role; self.label = label
+    let isPreview: Bool
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool) {
+        self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview
         super.init()
         self.coordinate = coordinate
         self.title = name
@@ -360,7 +362,7 @@ public struct TrackMapView: NSViewRepresentable {
             if sig == waypointSignature { return }
             waypointSignature = sig
             mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label) }
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview) }
             mapView.addAnnotations(waypointAnnotations)
         }
         private var waypointSignature = ""
@@ -590,13 +592,19 @@ public struct TrackMapView: NSViewRepresentable {
                 let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 marker.annotation = annotation
-                marker.markerTintColor = wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray)
-                if let label = wp.label {
-                    marker.glyphText = label
-                    marker.glyphImage = nil
-                } else {
+                if wp.isPreview {
+                    marker.markerTintColor = .systemRed
                     marker.glyphText = nil
-                    marker.glyphImage = NSImage(systemSymbolName: wp.role == .stageStop ? "flag.fill" : "mappin", accessibilityDescription: nil)
+                    marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
+                } else {
+                    marker.markerTintColor = wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray)
+                    if let label = wp.label {
+                        marker.glyphText = label
+                        marker.glyphImage = nil
+                    } else {
+                        marker.glyphText = nil
+                        marker.glyphImage = NSImage(systemSymbolName: wp.role == .stageStop ? "flag.fill" : "mappin", accessibilityDescription: nil)
+                    }
                 }
                 marker.isDraggable = true
                 marker.canShowCallout = (wp.title?.isEmpty == false)
