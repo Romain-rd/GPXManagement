@@ -190,6 +190,11 @@ public struct TrackMapView: NSViewRepresentable {
         let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
         tap.delegate = context.coordinator
         mapView.addGestureRecognizer(tap)
+        // Glissement personnalisé des points de passage (le drag natif macOS exige une sélection préalable
+        // et entre en conflit avec le défilement). Le pan ne s'active que près d'un point (voir le délégué).
+        let pan = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
+        pan.delegate = context.coordinator
+        mapView.addGestureRecognizer(pan)
         return mapView
     }
 
@@ -582,7 +587,7 @@ public struct TrackMapView: NSViewRepresentable {
                     view.annotation = annotation
                     view.image = Self.shapingImage
                     view.centerOffset = .zero
-                    view.isDraggable = true
+                    view.isDraggable = false   // déplacement géré par handlePan (pan personnalisé)
                     view.canShowCallout = false
                     view.displayPriority = .defaultLow
                     return view
@@ -606,7 +611,7 @@ public struct TrackMapView: NSViewRepresentable {
                         marker.glyphImage = NSImage(systemSymbolName: wp.role == .stageStop ? "flag.fill" : "mappin", accessibilityDescription: nil)
                     }
                 }
-                marker.isDraggable = true
+                marker.isDraggable = false  // déplacement géré par handlePan (pan personnalisé)
                 marker.canShowCallout = (wp.title?.isEmpty == false)
                 marker.animatesWhenAdded = false
                 marker.displayPriority = .required   // ne pas masquer/agréger les pins voisins
@@ -620,24 +625,61 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
-            } else if let wp = view.annotation as? WaypointAnnotation {
+            } else if view.annotation is WaypointAnnotation {
+                // Sélection gérée par handleClick ; déplacement par handlePan. On annule la sélection native.
                 mapView.deselectAnnotation(view.annotation, animated: false)
-                onWaypointTapped?(wp.waypointId)
             }
         }
 
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
-            guard let mapView = gestureRecognizer.view, let superview = mapView.superview else { return true }
+            guard let mapView = gestureRecognizer.view as? MKMapView, let superview = mapView.superview else { return true }
             let superPoint = superview.convert(event.locationInWindow, from: nil)
-            guard let hit = mapView.hitTest(superPoint) else { return true }
-            var view: NSView? = hit
-            while let current = view, current !== mapView {
-                // Laisser MKMapView gérer nativement les contrôles ET les marqueurs (sélection + déplacement).
-                // Sans ça, le geste de clic intercepte le clic sur une épingle → pas de sélection ni de drag.
-                if current is NSControl || current is MKAnnotationView { return false }
-                view = current.superview
+            if let hit = mapView.hitTest(superPoint) {
+                var view: NSView? = hit
+                while let current = view, current !== mapView {
+                    if current is NSControl { return false }   // ne pas voler les clics des boutons
+                    view = current.superview
+                }
+            }
+            // Le pan de déplacement ne s'active QUE près d'un point de passage (sinon la carte défile normalement).
+            if gestureRecognizer is NSPanGestureRecognizer {
+                let local = mapView.convert(event.locationInWindow, from: nil)
+                return nearestWaypointAnnotation(toPoint: local, in: mapView) != nil
             }
             return true
+        }
+
+        var draggingAnnotation: WaypointAnnotation?
+
+        private func nearestWaypointAnnotation(toPoint point: CGPoint, in mapView: MKMapView, threshold: CGFloat = 28) -> WaypointAnnotation? {
+            var best: (ann: WaypointAnnotation, d: CGFloat)?
+            for wp in waypointAnnotations {
+                let p = mapView.convert(wp.coordinate, toPointTo: mapView)
+                let d = hypot(p.x - point.x, p.y - point.y)
+                if d < threshold, best == nil || d < best!.d { best = (wp, d) }
+            }
+            return best?.ann
+        }
+
+        @objc func handlePan(_ g: NSPanGestureRecognizer) {
+            guard let mapView = g.view as? MKMapView else { return }
+            let point = g.location(in: mapView)
+            switch g.state {
+            case .began:
+                draggingAnnotation = nearestWaypointAnnotation(toPoint: point, in: mapView)
+                if draggingAnnotation != nil { mapView.isScrollEnabled = false }
+            case .changed:
+                draggingAnnotation?.coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            case .ended, .cancelled, .failed:
+                if let ann = draggingAnnotation {
+                    let coord = mapView.convert(point, toCoordinateFrom: mapView)
+                    ann.coordinate = coord
+                    onWaypointMoved?(ann.waypointId, coord)
+                }
+                draggingAnnotation = nil
+                mapView.isScrollEnabled = true
+            default: break
+            }
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
