@@ -638,6 +638,7 @@ struct RaidDetailView: View {
                 } else {
                     TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0, onSelectActivity: { id in
                         navigation.listSelection = [id]
+                        navigation.showStageInspector = true
                     })
                     .frame(height: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -679,6 +680,7 @@ struct RaidDetailView: View {
         HStack(spacing: 12) {
             Button {
                 navigation.listSelection = [activity.id]
+                navigation.showStageInspector = true
             } label: {
                 HStack(spacing: 12) {
                     Text("J\(index)")
