@@ -17,6 +17,18 @@ struct AppMenuCommands: Commands {
             .keyboardShortcut("n", modifiers: [.command, .shift])
             .disabled(!(window?.hasSelection ?? false))
 
+            Button("Nouveau parcours…") {
+                guard let window else { return }
+                Task {
+                    if let id = await services.createEmptyParcours() {
+                        await window.listVM.reload()
+                        window.navigation.selectedStageId = nil
+                        window.navigation.sidebarSelection = .stagedRoute(id)
+                    }
+                }
+            }
+            .keyboardShortcut("n", modifiers: [.command, .option])
+
             Divider()
             Button("Importer des fichiers GPX/FIT…") {
                 services.importFilesViaPanel()

@@ -376,6 +376,28 @@ extension AppServices {
     /// Crée un parcours en étapes à partir d'une trace : **duplique** la trace (l'originale reste intacte),
     /// passe la copie en mode étapes et l'initialise avec une étape couvrant tout le tracé.
     @discardableResult
+    /// Crée un parcours **vide** (modifiable, sans trace) — l'utilisateur posera les points dans l'éditeur d'itinéraire.
+    func createEmptyParcours() async -> UUID? {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return nil }
+        let id = UUID()
+        let now = Date()
+        let payload = ActivityCreationPayload(
+            id: id, title: "Nouveau parcours", activityType: .hiking, origin: .manualImport,
+            sourceFileName: "", sourceFileFormat: .gpx, startDate: now, endDate: now,
+            stats: .zero, trackData: (try? TrackPointCodec.encode([])) ?? Data(),
+            fileSHA256: "", isCourse: true, isEditableRoute: true
+        )
+        do {
+            try await repo.createActivity(payload)
+            try await repo.setStagedRoute(activityId: id, true)
+            libraryRevision += 1
+            return id
+        } catch {
+            importError = "Échec de la création du parcours : \(error.localizedDescription)"
+            return nil
+        }
+    }
+
     /// Passe une activité en parcours en étapes **en place** (pas de copie) : un seul objet édité côté itinéraire ET étapes.
     func convertToStagedRoute(activity: ActivitySummary) async -> UUID? {
         guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return nil }

@@ -2933,8 +2933,15 @@ struct ParcoursDetailView: View {
 
     private func load() async {
         defer { isLoading = false }
-        guard let data = try? await repository.fetchTrackData(id: activity.id),
-              let pts = try? TrackPointCodec.decode(data), pts.count > 1 else { return }
+        let raw = try? await repository.fetchTrackData(id: activity.id)
+        let decoded = raw.flatMap { try? TrackPointCodec.decode($0) } ?? []
+        // Parcours vide (créé de zéro) : on ouvre directement l'outil itinéraire pour poser les points.
+        guard decoded.count > 1 else {
+            points = decoded
+            if activity.isEditableRoute { tool = .route }
+            return
+        }
+        let pts = decoded
         var d = [Double](repeating: 0, count: pts.count)
         for i in 1..<pts.count { d[i] = d[i - 1] + GeoDistance.haversine(pts[i - 1], pts[i]) }
         var a = [Double](repeating: 0, count: pts.count)
