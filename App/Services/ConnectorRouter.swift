@@ -5,25 +5,27 @@ import MapKit
 enum ConnectorRouter {
     enum Engine: String, CaseIterable { case mapkit, trail, car, line }
 
-    static func route(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, engine: Engine) async -> [CLLocationCoordinate2D] {
+    /// `fellBack` : le moteur principal a échoué et on a utilisé un repli (route potentiellement de moins bonne qualité).
+    static func route(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, engine: Engine) async -> (coords: [CLLocationCoordinate2D], fellBack: Bool) {
         switch engine {
         case .line:
-            return [from, to]
+            return ([from, to], false)
         case .mapkit:
             // MapKit refuse les segments très longs / transfrontaliers : repli BRouter avant la ligne droite.
-            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
+            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return (m, false) }
             print("⚠️ [ConnectorRouter] MapKit (à pied) indisponible → repli BRouter trekking")
-            if let b = await trailRoute(from: from, to: to, profile: "trekking") { return b }
-            return [from, to]
+            if let b = await trailRoute(from: from, to: to, profile: "trekking") { return (b, true) }
+            return ([from, to], true)
         case .car:
-            if let m = await mapkitRoute(from: from, to: to, transportType: .automobile) { return m }
+            if let m = await mapkitRoute(from: from, to: to, transportType: .automobile) { return (m, false) }
             print("⚠️ [ConnectorRouter] MapKit (auto) indisponible → repli BRouter car-fast (peut emprunter de petites routes)")
-            if let b = await trailRoute(from: from, to: to, profile: "car-fast") { return b }
-            return [from, to]
+            if let b = await trailRoute(from: from, to: to, profile: "car-fast") { return (b, true) }
+            return ([from, to], true)
         case .trail:
-            if let t = await trailRoute(from: from, to: to, profile: "hiking-mountain") { return t }
-            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return m }
-            return [from, to]
+            // BRouter est le moteur principal pour les sentiers : pas un repli s'il réussit.
+            if let t = await trailRoute(from: from, to: to, profile: "hiking-mountain") { return (t, false) }
+            if let m = await mapkitRoute(from: from, to: to, transportType: .walking) { return (m, true) }
+            return ([from, to], true)
         }
     }
 

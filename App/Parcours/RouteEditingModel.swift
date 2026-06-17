@@ -18,6 +18,8 @@ final class RouteEditingModel {
     var dirty = false
     var routeDone = 0
     var routeTotal = 0
+    /// Au moins un segment routé via le repli (MapKit saturé) → itinéraire potentiellement de moindre qualité.
+    var routedWithFallback = false
     var engineRaw = UserDefaults.standard.string(forKey: "connectorEngine") ?? "mapkit"
     let proxy = MapViewProxy()
 
@@ -148,11 +150,14 @@ final class RouteEditingModel {
         guard !pending.isEmpty else { return }
         routeTotal = pending.count
         routeDone = 0
+        routedWithFallback = false
         for (n, i) in pending.enumerated() {
             guard i >= 0, i + 1 < waypoints.count else { continue }
             if n > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 350_000_000) }
-            var seg = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), engine: engine)
+            let r = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), engine: engine)
+            var seg = r.coords
             if seg.count < 2 { seg = [coord(waypoints[i]), coord(waypoints[i + 1])] }
+            if r.fellBack { routedWithFallback = true }
             if i < segments.count { segments[i] = seg }
             routeDone = n + 1
         }

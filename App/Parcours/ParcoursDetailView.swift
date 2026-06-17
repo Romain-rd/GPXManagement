@@ -467,6 +467,14 @@ struct ParcoursDetailView: View {
                 } else if routeModel.isSaving {
                     HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Calcul de l'altitude…").font(.caption) }
                         .padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
+                } else if routeModel.routedWithFallback {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                        Text("MapKit saturé : un segment a été routé en repli (route approximative).").font(.caption)
+                        Button("Recalculer") { routeModel.invalidateAll(); routeModel.reroute() }
+                            .controlSize(.small).disabled(routeModel.busy)
+                    }
+                    .padding(10).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
                 }
             }
     }
