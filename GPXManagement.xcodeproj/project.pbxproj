@@ -41,14 +41,12 @@
 		B419406642916722D1F817A7 /* CoreDataActivityRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataActivityRepositoryTests.swift; sourceTree = "<group>"; };
 		BE197F6F1C2770F672064498 /* GPXMapKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GPXMapKit; path = Packages/GPXMapKit; sourceTree = SOURCE_ROOT; };
 		CA3E1DE11C88585F887011B9 /* AppNavigationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModelTests.swift; sourceTree = "<group>"; };
-		TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		34403255D9D44C79ED156356 /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = App;
 			sourceTree = "<group>";
 		};
@@ -97,7 +95,7 @@
 		7AACCEF12FDFE50F00F79540 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
-				TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */,
+				"TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -205,11 +203,11 @@
 			mainGroup = 31D3505FC14BFFCB687B0352;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "GPXCore" */,
-				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "GPXMapKit" */,
-				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "GPXStrava" */,
-				BEEF00000000000000000003 /* XCLocalSwiftPackageReference "GPXRender" */,
-				FACE00000000000000000003 /* XCLocalSwiftPackageReference "GPXVideo" */,
+				3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */,
+				FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */,
+				EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */,
+				BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */,
+				FACE00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXVideo" */,
 				7AACCEF22FE06C5100F79540 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -285,7 +283,7 @@
 		};
 		572343C4EE949BDFB2554D26 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -373,7 +371,7 @@
 		};
 		73CD864D563E9C24C070CF2E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9 /* Secrets.xcconfig */;
+			baseConfigurationReference = "TEMP_15F026C6-17EB-40BE-89B4-FC7B275020E9" /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -504,23 +502,23 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "GPXCore" */ = {
+		3D2F0F947DCD8CAA25BF532D /* XCLocalSwiftPackageReference "Packages/GPXCore" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXCore;
 		};
-		BEEF00000000000000000003 /* XCLocalSwiftPackageReference "GPXRender" */ = {
+		BEEF00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXRender" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXRender;
 		};
-		EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "GPXStrava" */ = {
+		EC7E610EC6EA34ECE5D85447 /* XCLocalSwiftPackageReference "Packages/GPXStrava" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXStrava;
 		};
-		FACE00000000000000000003 /* XCLocalSwiftPackageReference "GPXVideo" */ = {
+		FACE00000000000000000003 /* XCLocalSwiftPackageReference "Packages/GPXVideo" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXVideo;
 		};
-		FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "GPXMapKit" */ = {
+		FC1D1EEA3795EB01DDE898F0 /* XCLocalSwiftPackageReference "Packages/GPXMapKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/GPXMapKit;
 		};
