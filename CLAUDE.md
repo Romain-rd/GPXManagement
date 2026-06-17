@@ -91,14 +91,24 @@ GPXManagement/
 │   ├── 08-statistics.md
 │   ├── 09-track-editing.md
 │   └── 10-export-share.md
-├── GPXManagement.xcodeproj    # (créé en P0)
-├── App/                       # Cible macOS SwiftUI
-├── Packages/
-│   ├── GPXCore/
-│   ├── GPXMapKit/
-│   └── GPXStrava/
+├── GPXManagement.xcodeproj    # App/ = groupe SYNCHRONISÉ (créer un .swift dans App/ suffit, ne pas éditer le pbxproj)
+├── App/                       # Cible macOS SwiftUI, organisée par domaine :
+│   ├── Core/                  # entrée app, config, navigation, fenêtre, menus (GPXManagementApp, ContentView, AppNavigationModel, WindowModel…)
+│   ├── Services/              # services non-UI (AppServices+ext, Strava, export, iCloud, dossier surveillé…)
+│   ├── Library/               # sidebar + liste d'activités + filtres (SidebarView, ActivityListView(+VM), ActivityFilters, SmartFilterEditor)
+│   ├── ActivityDetail/        # détail d'activité + sections + opérations de trace (ActivityDetailView(+VM), MapCard, Photos, profil, TrackOperationSheets)
+│   ├── Media/                 # éditeurs photo/vidéo (MediaEditor, VideoLayoutEditor)
+│   ├── Parcours/              # parcours + étapes + éditeur d'itinéraire (ParcoursDetailView, StageDetailView, RouteEditorView)
+│   ├── Raids/                 # raids (RaidDetailView+RaidsListView, RaidDetailViewModel, participants)
+│   ├── Map/                   # vue d'ensemble + composants carte partagés (StageColoredMap, SlideOverInspector, GeoDistance…)
+│   ├── Import/ Statistics/ Preferences/ Shared/   # une vue par dossier
+│   ├── Assets.xcassets · GPXManagement.xcdatamodeld · Info.plist · GPXManagement.entitlements   # restent à la racine de App/
+├── Packages/                  # logique métier en SwiftPM local (référencés explicitement, eux)
+│   ├── GPXCore/  GPXMapKit/  GPXStrava/  (+ GPXRender, GPXVideo)
 └── Tests/
 ```
+
+> **Ajouter un fichier à l'app** : le créer dans le bon sous-dossier de `App/` — il est auto-inclus (groupe synchronisé Xcode 16). Préférer **une vue/un type par fichier** plutôt que d'agrandir un fichier existant.
 
 ---
 
