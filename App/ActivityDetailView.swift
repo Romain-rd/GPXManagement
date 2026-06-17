@@ -2635,7 +2635,7 @@ struct ParcoursDetailView: View {
 
     private func tapMarker(_ id: UUID) {
         if extraWaypoints.contains(where: { $0.id == id }) { selectedPoiId = (id == selectedPoiId ? nil : id) }
-        else { navigation.selectedStageId = id }
+        else { navigation.selectedStageId = id; navigation.showStageInspector = true }
     }
 
     /// Pose une fin d'étape au point de tracé cliqué : coupe en deux l'étape qui le contient.
@@ -2787,7 +2787,7 @@ struct ParcoursDetailView: View {
                 }
                 .padding(.vertical, 7)
                 .contentShape(Rectangle())
-                .onTapGesture { navigation.selectedStageId = stage.id }
+                .onTapGesture { navigation.selectedStageId = stage.id; navigation.showStageInspector = true }
                 .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
                 .contextMenu {
                     Button("Renommer l'étape…") {

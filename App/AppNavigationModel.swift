@@ -47,6 +47,8 @@ final class AppNavigationModel {
     var editingSmartFilter: SmartFilter?
     /// Étape dont la fiche est affichée dans le volet de droite (mode parcours).
     var selectedStageId: UUID?
+    /// Visibilité de l'inspecteur d'étape (colonne de droite escamotable, pilotée par le bouton de la barre de titre).
+    var showStageInspector: Bool = true
 
     var selectedRaidId: UUID? {
         if case .raid(let id) = sidebarSelection { return id }

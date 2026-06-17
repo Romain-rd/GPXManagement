@@ -69,7 +69,7 @@ struct ContentView: View {
             // Largeur 0 tant qu'aucune étape n'est sélectionnée (la carte du milieu prend toute la place).
             if navigation.selectedStagedRouteId != nil, navigation.visualizationMode == .activities {
                 modeContent
-                    .navigationSplitViewColumnWidth(navigation.selectedStageId != nil ? 380 : 0)
+                    .navigationSplitViewColumnWidth(navigation.selectedStageId != nil && navigation.showStageInspector ? 380 : 0)
             } else {
                 modeContent
             }
@@ -96,6 +96,14 @@ struct ContentView: View {
                     }
                     .help("Quitter le plein écran (Échap)")
                     .keyboardShortcut(.cancelAction)
+                }
+            }
+            if !window.isMapImmersive, navigation.selectedStagedRouteId != nil, navigation.selectedStageId != nil {
+                ToolbarItem(placement: .automatic) {
+                    Button { navigation.showStageInspector.toggle() } label: {
+                        Image(systemName: "sidebar.right")
+                    }
+                    .help(navigation.showStageInspector ? "Masquer la fiche d'étape" : "Afficher la fiche d'étape")
                 }
             }
             if window.isExportingMap {
@@ -245,12 +253,6 @@ struct ContentView: View {
            let repository {
             if let stageId = navigation.selectedStageId {
                 StageDetailView(activity: route, stageId: stageId, repository: repository).id(stageId)
-                    .overlay(alignment: .topTrailing) {
-                        Button { navigation.selectedStageId = nil } label: {
-                            Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain).padding(10).help("Fermer la fiche d'étape")
-                    }
             } else {
                 // Aucune étape sélectionnée : l'inspecteur reste vide (la carte du milieu occupe l'espace).
                 Color.clear
