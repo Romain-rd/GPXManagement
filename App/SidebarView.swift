@@ -85,6 +85,7 @@ struct SidebarView: View {
                     .badge(entry.count)
                     .padding(.leading, 18)
                     .tag(SidebarDestination.activityType(entry.type))
+                    .id(SidebarDestination.activityType(entry.type))
                 }
             }
 
@@ -101,6 +102,7 @@ struct SidebarView: View {
                         .badge(entry.count)
                         .padding(.leading, 18)
                         .tag(SidebarDestination.courseType(entry.type))
+                        .id(SidebarDestination.courseType(entry.type))
                     }
                 }
             }
@@ -140,6 +142,7 @@ struct SidebarView: View {
                         .badge(entry.count)
                         .padding(.leading, 18)
                         .tag(SidebarDestination.raidType(entry.type))
+                        .id(SidebarDestination.raidType(entry.type))
                     }
                 }
             }
@@ -159,6 +162,7 @@ struct SidebarView: View {
                                 .badge(sub.count)
                                 .padding(.leading, 18)
                                 .tag(SidebarDestination.yearType(entry.year, sub.type))
+                                .id(SidebarDestination.yearType(entry.year, sub.type))
                             }
                         }
                     }

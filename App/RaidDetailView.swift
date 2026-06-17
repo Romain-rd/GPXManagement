@@ -13,6 +13,7 @@ import GPXMapKit
 struct RaidsListView: View {
     @Bindable var listVM: ActivityListViewModel
     @Bindable var navigation: AppNavigationModel
+    @Environment(\.openWindow) private var openWindow
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
 
@@ -29,14 +30,20 @@ struct RaidsListView: View {
             ForEach(visibleRaids, id: \.raid.id) { entry in
                 row(entry.raid, count: entry.count)
                     .tag(entry.raid.id)
-                    .contextMenu {
-                        Button("Renommer…") { renameText = entry.raid.name; renamingRaid = entry.raid }
-                        Button("Supprimer le raid", role: .destructive) {
-                            Task { await listVM.deleteRaid(entry.raid.id) }
-                            if navigation.selectedRaidInListId == entry.raid.id { navigation.selectedRaidInListId = nil }
-                        }
-                    }
             }
+        }
+        .contextMenu(forSelectionType: UUID.self) { ids in
+            if let id = ids.first, let raid = listVM.raids.first(where: { $0.id == id }) {
+                Button("Ouvrir dans une nouvelle fenêtre") { openWindow(value: id) }
+                Divider()
+                Button("Renommer…") { renameText = raid.name; renamingRaid = raid }
+                Button("Supprimer le raid", role: .destructive) {
+                    Task { await listVM.deleteRaid(id) }
+                    if navigation.selectedRaidInListId == id { navigation.selectedRaidInListId = nil }
+                }
+            }
+        } primaryAction: { ids in
+            if let id = ids.first { openWindow(value: id) }
         }
         .navigationTitle("Tous les raids")
         .alert("Renommer le raid", isPresented: Binding(get: { renamingRaid != nil }, set: { if !$0 { renamingRaid = nil } })) {

@@ -128,6 +128,10 @@ struct ActivityDetailWindowView: View {
                     ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, windowModel: model, isStandaloneWindow: true, fullscreenMap: $detailFullscreen)
                         .navigationTitle(detailFullscreen ? "" : activity.title)
                 }
+            } else if let raid = model.listVM.raids.first(where: { $0.id == activityId }),
+                      let repo = AppServices.shared.repository as? CoreDataActivityRepository {
+                RaidDetailView(raid: raid, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model)
+                    .navigationTitle(raid.name)
             } else if model.listVM.allActivities.isEmpty {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
