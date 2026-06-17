@@ -490,12 +490,12 @@ extension AppServices {
         do {
             var coords = routedCoords
             if coords.count < 2 {
-                let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
+                let profile = RouteProfile(rawValue: UserDefaults.standard.string(forKey: "routeProfile") ?? "") ?? .car
                 for i in 0..<(waypoints.count - 1) {
-                    if i > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 150_000_000) }
+                    if i > 0, ConnectorRouter.needsPacing { try? await Task.sleep(nanoseconds: 350_000_000) }
                     let a = CLLocationCoordinate2D(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
                     let b = CLLocationCoordinate2D(latitude: waypoints[i + 1].latitude, longitude: waypoints[i + 1].longitude)
-                    var seg = await ConnectorRouter.route(from: a, to: b, engine: engine).coords
+                    var seg = await ConnectorRouter.route(from: a, to: b, profile: profile).coords
                     if seg.count < 2 { seg = [a, b] }
                     if !coords.isEmpty { seg.removeFirst() }
                     coords.append(contentsOf: seg)
@@ -534,8 +534,8 @@ extension AppServices {
 
     /// Raccord (route + altitude IGN) du point `from` (sur le tracé) vers `to` (hors-trace), renvoyé en `[TrackPoint]`.
     func buildConnector(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) async -> [TrackPoint] {
-        let engine = ConnectorRouter.Engine(rawValue: UserDefaults.standard.string(forKey: "connectorEngine") ?? "") ?? .mapkit
-        var coords = await ConnectorRouter.route(from: from, to: to, engine: engine).coords
+        let profile = RouteProfile(rawValue: UserDefaults.standard.string(forKey: "routeProfile") ?? "") ?? .car
+        var coords = await ConnectorRouter.route(from: from, to: to, profile: profile).coords
         if coords.count < 2 { coords = [from, to] }
         let raw = coords.map { TrackPoint(latitude: $0.latitude, longitude: $0.longitude) }
         return await ElevationEnricher.shared.enrich(points: raw).points

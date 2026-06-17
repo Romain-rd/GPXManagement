@@ -36,7 +36,7 @@ struct StageDetailView: View {
     @State private var placingOnMap = false
     @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
-    @AppStorage("connectorEngine") private var engineRaw = "mapkit"
+    @AppStorage("routeProfile") private var engineRaw = "car"
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
@@ -378,10 +378,7 @@ struct StageDetailView: View {
             HStack(spacing: 8) {
                 Text("Itinéraire").font(.caption).foregroundStyle(.secondary)
                 Picker("", selection: $engineRaw) {
-                    Text("À pied (MapKit)").tag("mapkit")
-                    Text("Sentiers (BRouter)").tag("trail")
-                    Text("Route (auto/moto)").tag("car")
-                    Text("Ligne directe").tag("line")
+                    ForEach(RouteProfile.allCases) { Text($0.label).tag($0.rawValue) }
                 }
                 .labelsHidden().pickerStyle(.menu).fixedSize()
                 Spacer()

@@ -355,16 +355,14 @@ struct ParcoursDetailView: View {
     }
 
     private var enginePicker: some View {
-        Picker("Moteur", selection: Binding(
-            get: { routeModel.engineRaw },
-            set: { routeModel.engineRaw = $0; UserDefaults.standard.set($0, forKey: "connectorEngine"); routeModel.invalidateAll() }
+        Picker("Profil", selection: Binding(
+            get: { routeModel.profileRaw },
+            set: { routeModel.profileRaw = $0; UserDefaults.standard.set($0, forKey: "routeProfile"); routeModel.invalidateAll() }
         )) {
-            Text("À pied").tag("mapkit")
-            Text("Sentiers").tag("trail")
-            Text("Route (auto/moto)").tag("car")
-            Text("Ligne").tag("line")
+            ForEach(RouteProfile.allCases) { Text($0.label).tag($0.rawValue) }
         }
         .labelsHidden().pickerStyle(.menu).fixedSize()
+        .help("Profil de déplacement. Le fournisseur de routage se choisit dans Réglages › Itinéraire.")
     }
 
     private var recalcButton: some View {

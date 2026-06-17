@@ -10,6 +10,8 @@ struct PreferencesView: View {
                 .tabItem { Label("Général", systemImage: "gearshape") }
             OrganizationPreferencesView()
                 .tabItem { Label("Organisation iCloud", systemImage: "folder") }
+            RoutingPreferencesView()
+                .tabItem { Label("Itinéraire", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
             MaintenanceView()
                 .tabItem { Label("Maintenance", systemImage: "wrench.and.screwdriver") }
             StravaPreferencesView()

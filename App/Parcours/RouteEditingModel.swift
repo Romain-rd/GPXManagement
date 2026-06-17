@@ -20,7 +20,7 @@ final class RouteEditingModel {
     var routeTotal = 0
     /// Au moins un segment routé via le repli (MapKit saturé) → itinéraire potentiellement de moindre qualité.
     var routedWithFallback = false
-    var engineRaw = UserDefaults.standard.string(forKey: "connectorEngine") ?? "mapkit"
+    var profileRaw = UserDefaults.standard.string(forKey: "routeProfile") ?? "car"
     let proxy = MapViewProxy()
 
     private let repository: CoreDataActivityRepository
@@ -145,7 +145,7 @@ final class RouteEditingModel {
 
     /// Route uniquement les segments à nil (les bornes modifiées) ; les autres restent en cache.
     private func routeMissing() async {
-        let engine = ConnectorRouter.Engine(rawValue: engineRaw) ?? .mapkit
+        let profile = RouteProfile(rawValue: profileRaw) ?? .car
         let pending = segments.indices.filter { segments[$0] == nil }
         guard !pending.isEmpty else { return }
         routeTotal = pending.count
@@ -153,8 +153,8 @@ final class RouteEditingModel {
         routedWithFallback = false
         for (n, i) in pending.enumerated() {
             guard i >= 0, i + 1 < waypoints.count else { continue }
-            if n > 0, engine == .mapkit || engine == .car { try? await Task.sleep(nanoseconds: 350_000_000) }
-            let r = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), engine: engine)
+            if n > 0, ConnectorRouter.needsPacing { try? await Task.sleep(nanoseconds: 350_000_000) }
+            let r = await ConnectorRouter.route(from: coord(waypoints[i]), to: coord(waypoints[i + 1]), profile: profile)
             var seg = r.coords
             if seg.count < 2 { seg = [coord(waypoints[i]), coord(waypoints[i + 1])] }
             if r.fellBack { routedWithFallback = true }
