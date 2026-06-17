@@ -187,7 +187,17 @@ struct RaidDetailView: View {
             }
         }
         .navigationTitle(raid.name)
-        .toolbar { ToolbarItemGroup { raidActions } }
+        .toolbar {
+            if selectedMember != nil {
+                ToolbarItem(placement: .automatic) {
+                    Button { navigation.showStageInspector.toggle() } label: {
+                        Image(systemName: "sidebar.right")
+                    }
+                    .help(navigation.showStageInspector ? "Masquer l'activité" : "Afficher l'activité")
+                }
+            }
+            ToolbarItemGroup { raidActions }
+        }
         .task(id: "\(raid.id.uuidString)|\(trackColorModeRaw)") { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await model.loadPublishState(raidId: raid.id) }
@@ -688,6 +698,7 @@ struct RaidDetailView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .simultaneousGesture(TapGesture(count: 2).onEnded { openWindow(value: activity.id) })
 
             Button {
                 editLayout(for: activity)

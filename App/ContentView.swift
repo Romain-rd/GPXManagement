@@ -30,10 +30,9 @@ struct ContentView: View {
         return activity
     }
 
-    /// Vrai quand un panneau glissant (fiche d'étape de parcours OU activité membre de raid) peut être basculé.
+    /// Vrai quand la fiche d'étape de parcours peut être basculée (le toggle raid vit dans la toolbar de RaidDetailView).
     private var inspectorToggleAvailable: Bool {
-        (selectedCourse != nil && navigation.selectedStageId != nil)
-            || (navigation.selectedRaidInListId != nil && !navigation.listSelection.isEmpty)
+        selectedCourse != nil && navigation.selectedStageId != nil
     }
 
     private var raidMembers: [ActivitySummary] {
