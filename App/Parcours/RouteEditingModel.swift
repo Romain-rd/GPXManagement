@@ -25,7 +25,7 @@ final class RouteEditingModel {
     init(repository: CoreDataActivityRepository) { self.repository = repository }
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
-    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: $1.role == .shaping ? nil : "\($0 + 1)") } }
+    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)") } }
     var hasPending: Bool { segments.contains(where: { $0 == nil }) }
     var busy: Bool { isRouting || isSaving }
 
@@ -76,22 +76,12 @@ final class RouteEditingModel {
         dirty = true
     }
 
-    /// `append` : ajoute en bout de tracé (ordre = ordre d'ajout). Sinon, insère à la position de détour minimal
-    /// (pour poser un POI/arrêt le long d'un tracé existant).
-    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping, append: Bool = false) {
+    /// Insère le point à sa place le long du tracé : juste après le segment routé qui passe le plus près de `c`
+    /// (au-delà de la fin → ajout en bout ; au-delà du début → en tête). Cohérent pour le clic ET la recherche.
+    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
         guard !busy else { return }
         let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
-        var p = waypoints.count
-        if !append, waypoints.count >= 2 {
-            // Meilleure position : extension à une extrémité OU insertion sur le segment au détour minimal.
-            var bestCost = planar(waypoints[waypoints.count - 1], c)
-            let startCost = planar(waypoints[0], c)
-            if startCost < bestCost { bestCost = startCost; p = 0 }
-            for i in 0..<(waypoints.count - 1) {
-                let cost = planar(waypoints[i], c) + planar(waypoints[i + 1], c) - planarWW(waypoints[i], waypoints[i + 1])
-                if cost < bestCost { bestCost = cost; p = i + 1 }
-            }
-        }
+        let p = bestInsertionIndex(for: c)
         waypoints.insert(wp, at: p)
         if waypoints.count == 2 { segments = [nil] }
         else if p == 0 { segments.insert(nil, at: 0) }
@@ -99,6 +89,35 @@ final class RouteEditingModel {
         else { segments.replaceSubrange((p - 1)...(p - 1), with: [nil, nil]) }
         selectedWaypointId = wp.id
         dirty = true
+    }
+
+    /// Réordonne les points (glisser dans la liste) ; l'ordre change → on recalcule tout le tracé.
+    func moveWaypoints(fromOffsets: IndexSet, toOffset: Int) {
+        guard !busy else { return }
+        waypoints.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        invalidateAll()
+    }
+
+    /// Position d'insertion d'un point = juste après le segment routé le plus proche de `c`.
+    private func bestInsertionIndex(for c: CLLocationCoordinate2D) -> Int {
+        guard waypoints.count >= 2 else { return waypoints.count }
+        let kx = cos(c.latitude * .pi / 180)
+        func d2(_ p: CLLocationCoordinate2D) -> Double {
+            let dx = (p.longitude - c.longitude) * kx, dy = p.latitude - c.latitude
+            return dx * dx + dy * dy
+        }
+        var bestD = Double.greatestFiniteMagnitude
+        var bestSeg = 0, atStart = false, atEnd = false
+        for i in 0..<(waypoints.count - 1) {
+            let seg = (i < segments.count ? segments[i] : nil) ?? [coord(waypoints[i]), coord(waypoints[i + 1])]
+            for (j, p) in seg.enumerated() {
+                let d = d2(p)
+                if d < bestD { bestD = d; bestSeg = i; atStart = (j == 0); atEnd = (j == seg.count - 1) }
+            }
+        }
+        if bestSeg == waypoints.count - 2, atEnd { return waypoints.count }   // au-delà de la fin → en bout
+        if bestSeg == 0, atStart { return 0 }                                 // au-delà du début → en tête
+        return bestSeg + 1
     }
 
     func delete(_ id: UUID) {
@@ -109,15 +128,6 @@ final class RouteEditingModel {
         waypoints.remove(at: k)
         if selectedWaypointId == id { selectedWaypointId = nil }
         dirty = true
-    }
-
-    private func planar(_ w: RouteWaypoint, _ c: CLLocationCoordinate2D) -> Double {
-        let dx = w.longitude - c.longitude, dy = w.latitude - c.latitude
-        return (dx * dx + dy * dy).squareRoot()
-    }
-    private func planarWW(_ a: RouteWaypoint, _ b: RouteWaypoint) -> Double {
-        let dx = a.longitude - b.longitude, dy = a.latitude - b.latitude
-        return (dx * dx + dy * dy).squareRoot()
     }
 
     func reroute() {

@@ -572,8 +572,8 @@ public struct TrackMapView: NSViewRepresentable {
                 return view
             }
             if let wp = annotation as? WaypointAnnotation {
-                // Point de routage muet : petit point discret, pas de bulle.
-                if wp.role == .shaping {
+                // Point de routage muet SANS numéro : petit point discret, pas de bulle.
+                if wp.role == .shaping && wp.label == nil {
                     let identifier = "waypoint.shaping"
                     let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
                         ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
@@ -585,12 +585,12 @@ public struct TrackMapView: NSViewRepresentable {
                     view.displayPriority = .defaultLow
                     return view
                 }
-                // POI / arrêt d'étape : épingle nommée distincte par rôle.
+                // Épingle numérotée, couleur par rôle (gris = tracé, orange = POI, vert = arrêt d'étape).
                 let identifier = "waypoint.marker"
                 let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 marker.annotation = annotation
-                marker.markerTintColor = wp.role == .stageStop ? .systemGreen : .systemOrange
+                marker.markerTintColor = wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray)
                 if let label = wp.label {
                     marker.glyphText = label
                     marker.glyphImage = nil

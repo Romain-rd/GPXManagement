@@ -159,6 +159,7 @@ struct ParcoursDetailView: View {
                         if activity.isEditableRoute {
                             routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 200, max: 900)
+                            if !routeModel.waypoints.isEmpty { pointsList }
                         } else {
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 140, max: 700)
@@ -346,7 +347,7 @@ struct ParcoursDetailView: View {
     /// Ajoute le lieu trouvé comme point de passage (rôle selon l'outil actif, POI par défaut).
     private func addSearchResult() {
         guard let r = searchResult else { return }
-        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi, append: true)
+        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi)
         searchResult = nil
         placeSearch.clear()
     }
@@ -424,7 +425,7 @@ struct ParcoursDetailView: View {
                         coords: routeModel.displayCoords, highlight: searchResult?.coordinate, waypoints: routeModel.markers,
                         onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
                         onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
-                        onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role, append: role == .shaping) } },
+                        onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
                 if let r = searchResult {
@@ -642,6 +643,48 @@ struct ParcoursDetailView: View {
                 Button("Tous les 1000 m D+") { recalcByGain(1_000) }
             } label: { Label("Recalculer", systemImage: "wand.and.stars") }
             Spacer()
+        }
+    }
+
+    // MARK: Liste des points (mode modifiable : ordre éditable)
+
+    /// Tous les points dans l'ordre : numéro, rôle (cliquer pour changer), nom, suppression, glisser pour réordonner.
+    private var pointsList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Points · glisser pour réordonner, cliquer la pastille pour changer le rôle")
+                .font(.caption).foregroundStyle(.secondary)
+            List {
+                ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
+                    HStack(spacing: 8) {
+                        Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : pointColor(wp.role)))
+                        Button { routeModel.cycleRole(wp.id) } label: { pointRoleIcon(wp.role) }
+                            .buttonStyle(.borderless).help("Rôle : point de tracé · POI · arrêt d'étape")
+                        TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
+                                  text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
+                            .textFieldStyle(.plain).font(.caption)
+                        Spacer(minLength: 4)
+                        Button { routeModel.delete(wp.id) } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless).disabled(routeModel.waypoints.count <= 2)
+                    }
+                    .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+                }
+                .onMove { routeModel.moveWaypoints(fromOffsets: $0, toOffset: $1) }
+            }
+            .listStyle(.plain)
+            .frame(height: min(Double(routeModel.waypoints.count) * 30 + 8, 220))
+        }
+    }
+
+    private func pointColor(_ role: RouteWaypoint.Role) -> Color {
+        switch role { case .shaping: return .gray; case .poi: return .orange; case .stageStop: return .green }
+    }
+    @ViewBuilder private func pointRoleIcon(_ role: RouteWaypoint.Role) -> some View {
+        switch role {
+        case .shaping: Image(systemName: "smallcircle.filled.circle").foregroundStyle(.secondary)
+        case .poi: Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
+        case .stageStop: Image(systemName: "flag.circle.fill").foregroundStyle(.green)
         }
     }
 
