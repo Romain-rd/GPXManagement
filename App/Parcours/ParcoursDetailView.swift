@@ -167,9 +167,14 @@ struct ParcoursDetailView: View {
                             zoomBar
                             profileChart.frame(height: profileHeight)
                             resizeHandle($profileHeight, min: 90, max: 500)
-                            stagesList
-                            actions
-                            poiList
+                            if activity.isEditableRoute {
+                                stagesList
+                                actions
+                                poiList
+                            } else {
+                                parcoursOutline
+                                actions
+                            }
                         }
                     }
                     .padding()
@@ -691,6 +696,120 @@ struct ParcoursDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: Liste unique « Le long du parcours »
+
+    private struct OutlineItem: Identifiable {
+        enum Kind { case departure, poi, stageHeader, stop, arrival }
+        let id: String
+        let kind: Kind
+        var number = 0
+        var stats: String?
+        var date: String?
+        var offTrack: String?
+        var stageId: UUID?
+        var poiId: UUID?
+    }
+
+    /// Une seule liste ordonnée le long du tracé : départ, [POI], en-tête d'étape (stats + date), arrêt, … arrivée.
+    /// Fusionne étapes (`stages`) et points d'intérêt (`extraWaypoints`) — remplace les listes étapes + POI séparées.
+    private var outlineItems: [OutlineItem] {
+        guard !stages.isEmpty, !points.isEmpty else { return [] }
+        let pois = extraWaypoints.filter { $0.role == .poi }
+        func idx(_ w: RouteWaypoint) -> Int { RouteWaypoint.nearestIndex(latitude: w.latitude, longitude: w.longitude, in: points) }
+        var items: [OutlineItem] = [OutlineItem(id: "start", kind: .departure)]
+        for (k, s) in stages.enumerated() {
+            for w in pois where idx(w) > s.startIndex && idx(w) <= s.endIndex {
+                items.append(OutlineItem(id: "poi-\(w.id)", kind: .poi, poiId: w.id))
+            }
+            items.append(OutlineItem(id: "stage-\(s.id)", kind: .stageHeader, number: k + 1,
+                                     stats: String(format: "%.1f km · +%d m", stageKm(s), stageGain(s)),
+                                     date: s.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
+                                     offTrack: offTrackExtra(s), stageId: s.id))
+            items.append(OutlineItem(id: "stop-\(s.id)", kind: k == stages.count - 1 ? .arrival : .stop, stageId: s.id))
+        }
+        return items
+    }
+
+    private var parcoursOutline: some View {
+        VStack(spacing: 0) {
+            ForEach(outlineItems) { item in
+                outlineRow(item)
+                if item.kind == .stageHeader || item.kind == .arrival { Divider() }
+            }
+        }
+    }
+
+    @ViewBuilder private func outlineRow(_ item: OutlineItem) -> some View {
+        switch item.kind {
+        case .departure:
+            HStack(spacing: 8) {
+                Image(systemName: "flag.fill").foregroundStyle(.green)
+                Text("Départ").fontWeight(.semibold)
+                Spacer()
+            }
+            .padding(.vertical, 6)
+        case .poi:
+            if let id = item.poiId {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
+                    TextField("Point d'intérêt", text: poiNameBinding(id), onCommit: { persist() })
+                        .textFieldStyle(.plain).font(.caption)
+                    Spacer(minLength: 4)
+                    Button { deletePOI(id) } label: { Image(systemName: "trash") }.buttonStyle(.borderless)
+                }
+                .padding(.vertical, 3).padding(.leading, 30).padding(.trailing, 6)
+                .background(selectedPoiId == id ? Color.accentColor.opacity(0.12) : .clear)
+            }
+        case .stageHeader:
+            HStack(spacing: 8) {
+                Image(systemName: "\(min(item.number, 50)).circle.fill").foregroundStyle(.secondary)
+                Text("Étape \(item.number)").fontWeight(.medium)
+                if let stats = item.stats { Text(stats).font(.caption).foregroundStyle(.secondary) }
+                if let off = item.offTrack { Text(off).font(.caption).foregroundStyle(.orange) }
+                Spacer()
+                if let date = item.date { Text(date).font(.caption).foregroundStyle(.blue) }
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture { openStage(item.stageId) }
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                if let id = item.stageId { openWindow(value: StageWindowRef(activityId: activity.id, stageId: id)) }
+            })
+            .background(navigation.selectedStageId == item.stageId ? Color.accentColor.opacity(0.12) : .clear)
+            .contextMenu {
+                Button("Renommer l'étape…") {
+                    if let id = item.stageId, let k = stages.firstIndex(where: { $0.id == id }) {
+                        renameText = stages[k].name; renamingStageId = id
+                    }
+                }
+                Button("Supprimer l'étape", role: .destructive) {
+                    if let id = item.stageId, let k = stages.firstIndex(where: { $0.id == id }) { deleteStage(at: k) }
+                }
+                .disabled(stages.count <= 1)
+            }
+        case .stop, .arrival:
+            if let id = item.stageId, let k = stages.firstIndex(where: { $0.id == id }) {
+                HStack(spacing: 8) {
+                    Image(systemName: item.kind == .arrival ? "flag.checkered" : "flag.fill").foregroundStyle(.green)
+                    TextField(item.kind == .arrival ? "Arrivée" : "Arrêt",
+                              text: Binding(get: { stages[k].name }, set: { stages[k].name = $0 }), onCommit: { persist() })
+                        .textFieldStyle(.plain).fontWeight(.semibold)
+                    Spacer()
+                }
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .onTapGesture { openStage(id) }
+            }
+        }
+    }
+
+    private func openStage(_ id: UUID?) {
+        guard let id else { return }
+        navigation.selectedStageId = id
+        navigation.showStageInspector = true
     }
 
     // MARK: Édition
