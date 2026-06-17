@@ -31,8 +31,8 @@ final class ActivityListViewModel {
 
     /// Traces réellement effectuées (alimente Années / Types / Raids / Filtres et les stats).
     var realActivities: [ActivitySummary] { allActivities.filter { !$0.isCourse } }
-    /// Parcours de préparation (flux « Tous les parcours »).
-    var courseActivities: [ActivitySummary] { allActivities.filter { $0.isCourse } }
+    /// Parcours de préparation (flux « Tous les parcours ») — hors parcours en étapes, qui vivent dans la section Parcours.
+    var courseActivities: [ActivitySummary] { allActivities.filter { $0.isCourse && !$0.isStagedRoute } }
 
     /// Ensemble visible selon le flux courant.
     private var scopedActivities: [ActivitySummary] {

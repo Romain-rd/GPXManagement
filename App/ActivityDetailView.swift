@@ -2637,11 +2637,15 @@ struct StagePlannerSheet: View {
 
 /// Aperçu d'un parcours en étapes (volet central, façon Raid) : carte, profil avec jonctions déplaçables,
 /// liste des étapes. Sélectionner une étape ouvre sa fiche dans le volet de droite.
+enum ParcoursEditMode: Hashable { case route, stages }
+
 struct ParcoursDetailView: View {
     let activity: ActivitySummary
     let listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     @Bindable var navigation: AppNavigationModel
+
+    @State private var editorMode: ParcoursEditMode = .stages
 
     @State private var points: [TrackPoint] = []
     @State private var dists: [Double] = []
@@ -2748,15 +2752,22 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
-                        dateBar
-                        overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
-                        resizeHandle($mapHeight, min: 140, max: 700)
-                        zoomBar
-                        profileChart.frame(height: profileHeight)
-                        resizeHandle($profileHeight, min: 90, max: 500)
-                        stagesList
-                        actions
-                        poiList
+                        if activity.isEditableRoute { modePicker }
+                        if editorMode == .route && activity.isEditableRoute {
+                            RouteEditorView(activity: activity, repository: repository, layer: layerBinding, mapHeight: mapHeight) {
+                                Task { await load() }
+                            }
+                        } else {
+                            dateBar
+                            overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                            resizeHandle($mapHeight, min: 140, max: 700)
+                            zoomBar
+                            profileChart.frame(height: profileHeight)
+                            resizeHandle($profileHeight, min: 90, max: 500)
+                            stagesList
+                            actions
+                            poiList
+                        }
                     }
                     .padding()
                 }
@@ -2798,6 +2809,14 @@ struct ParcoursDetailView: View {
                         totalGainWithConnectors, stages.count))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var modePicker: some View {
+        Picker("Mode", selection: $editorMode) {
+            Text("Itinéraire").tag(ParcoursEditMode.route)
+            Text("Étapes").tag(ParcoursEditMode.stages)
+        }
+        .pickerStyle(.segmented)
     }
 
     private var overviewMap: some View {

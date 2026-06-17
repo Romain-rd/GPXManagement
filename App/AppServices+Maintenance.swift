@@ -339,18 +339,21 @@ extension AppServices {
     /// Crée un parcours en étapes à partir d'une trace : **duplique** la trace (l'originale reste intacte),
     /// passe la copie en mode étapes et l'initialise avec une étape couvrant tout le tracé.
     @discardableResult
-    func createStagedRouteCopy(parent: ActivitySummary) async -> UUID? {
+    /// Passe une activité en parcours en étapes **en place** (pas de copie) : un seul objet édité côté itinéraire ET étapes.
+    func convertToStagedRoute(activity: ActivitySummary) async -> UUID? {
         guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return nil }
         do {
-            guard let data = try await repo.fetchTrackData(id: parent.id) else { importError = "Trace introuvable."; return nil }
+            guard let data = try await repo.fetchTrackData(id: activity.id) else { importError = "Trace introuvable."; return nil }
             let points = try TrackPointCodec.decode(data)
             guard points.count > 1 else { importError = "Trace trop courte."; return nil }
-            let newId = try await createDerivedActivity(parent: parent, title: "\(parent.title) (parcours)", points: points, repo: repo, linkToParent: false)
-            try await repo.setStagedRoute(activityId: newId, true)
-            let stage = Stage(activityId: newId, order: 0, name: "Étape 1", startIndex: 0, endIndex: points.count - 1)
-            try await repo.replaceStages(activityId: newId, with: [stage])
+            try await repo.setStagedRoute(activityId: activity.id, true)
+            let existing = (try? await repo.fetchStages(activityId: activity.id)) ?? []
+            if existing.isEmpty {
+                let stage = Stage(activityId: activity.id, order: 0, name: "Étape 1", startIndex: 0, endIndex: points.count - 1)
+                try await repo.replaceStages(activityId: activity.id, with: [stage])
+            }
             libraryRevision += 1
-            return newId
+            return activity.id
         } catch {
             importError = "Échec de la création du parcours : \(error.localizedDescription)"
             return nil

@@ -54,7 +54,7 @@ struct ActivityListView: View {
             guard let id = navigation.listSelection.first,
                   let summary = listVM.allActivities.first(where: { $0.id == id }) else { return }
             Task {
-                if let routeId = await services.createStagedRouteCopy(parent: summary) {
+                if let routeId = await services.convertToStagedRoute(activity: summary) {
                     await listVM.reload()
                     navigation.listSelection = []
                     navigation.selectedStageId = nil
@@ -278,9 +278,9 @@ struct ActivityListView: View {
                         navigation.sidebarSelection = .stagedRoute(id)
                     }
                 } else {
-                    Button("Créer un parcours en étapes") {
+                    Button("Passer en parcours en étapes") {
                         Task {
-                            if let routeId = await services.createStagedRouteCopy(parent: summary) {
+                            if let routeId = await services.convertToStagedRoute(activity: summary) {
                                 await listVM.reload()
                                 navigation.listSelection = []
                                 navigation.selectedStageId = nil
