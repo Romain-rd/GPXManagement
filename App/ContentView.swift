@@ -42,13 +42,7 @@ struct ContentView: View {
     private var splitView: some View {
         // En plein écran carte on force le repli sidebar + liste (la carte occupe tout) ; sinon visibilité normale.
         NavigationSplitView(columnVisibility: Binding(
-            get: {
-                if window.mapFullscreen { return .detailOnly }
-                // Parcours : l'éditeur (carte) occupe la grande colonne de détail ; l'inspecteur d'étape
-                // est un panneau escamotable PAR-DESSUS la carte (overlay dans ParcoursDetailView).
-                if navigation.selectedStagedRouteId != nil { return .all }
-                return columnVisibility
-            },
+            get: { window.mapFullscreen ? .detailOnly : columnVisibility },
             set: { columnVisibility = $0 }
         )) {
             SidebarView(navigation: navigation, listVM: listVM)
@@ -60,12 +54,25 @@ struct ContentView: View {
                 RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window)
                     .id(raid.id)
                     .navigationSplitViewColumnWidth(min: 340, ideal: 400)
+            } else if let routeId = navigation.selectedStagedRouteId,
+                      let route = listVM.allActivities.first(where: { $0.id == routeId }),
+                      let repository {
+                ParcoursDetailView(activity: route, listVM: listVM, repository: repository, navigation: navigation)
+                    .id(route.id)
+                    .navigationSplitViewColumnWidth(min: 480, ideal: 960)
             } else {
                 ActivityListView(listVM: listVM, navigation: navigation, services: services, searchDisabled: window.mapFullscreen)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 340)
             }
         } detail: {
-            modeContent
+            // Parcours (mode activités) : la colonne de détail = inspecteur d'étape escamotable.
+            // Largeur 0 tant qu'aucune étape n'est sélectionnée (la carte du milieu prend toute la place).
+            if navigation.selectedStagedRouteId != nil, navigation.visualizationMode == .activities {
+                modeContent
+                    .navigationSplitViewColumnWidth(navigation.selectedStageId != nil ? 380 : 0)
+            } else {
+                modeContent
+            }
         }
         .toolbar {
             if !window.isMapImmersive {
@@ -236,7 +243,18 @@ struct ContentView: View {
         if let routeId = navigation.selectedStagedRouteId,
            let route = listVM.allActivities.first(where: { $0.id == routeId }),
            let repository {
-            ParcoursDetailView(activity: route, listVM: listVM, repository: repository, navigation: navigation).id(route.id)
+            if let stageId = navigation.selectedStageId {
+                StageDetailView(activity: route, stageId: stageId, repository: repository).id(stageId)
+                    .overlay(alignment: .topTrailing) {
+                        Button { navigation.selectedStageId = nil } label: {
+                            Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain).padding(10).help("Fermer la fiche d'étape")
+                    }
+            } else {
+                // Aucune étape sélectionnée : l'inspecteur reste vide (la carte du milieu occupe l'espace).
+                Color.clear
+            }
         } else if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {

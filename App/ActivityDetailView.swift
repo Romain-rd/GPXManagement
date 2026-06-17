@@ -2530,8 +2530,6 @@ struct ParcoursDetailView: View {
                 }
             }
         }
-        .overlay(alignment: .trailing) { stageInspector }
-        .animation(.easeInOut(duration: 0.2), value: navigation.selectedStageId)
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
         .task(id: AppServices.shared.libraryRevision) {
@@ -2567,24 +2565,6 @@ struct ParcoursDetailView: View {
             Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
                         totalGainWithConnectors, stages.count))
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Inspecteur d'étape escamotable : glisse depuis la droite par-dessus la carte quand une étape est sélectionnée.
-    @ViewBuilder private var stageInspector: some View {
-        if let stageId = navigation.selectedStageId {
-            StageDetailView(activity: activity, stageId: stageId, repository: repository)
-                .frame(width: 360)
-                .background(.regularMaterial)
-                .overlay(alignment: .topTrailing) {
-                    Button { navigation.selectedStageId = nil } label: {
-                        Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain).padding(10).help("Fermer la fiche d'étape")
-                }
-                .overlay(alignment: .leading) { Divider() }
-                .shadow(color: .black.opacity(0.15), radius: 8, x: -2)
-                .transition(.move(edge: .trailing))
         }
     }
 
