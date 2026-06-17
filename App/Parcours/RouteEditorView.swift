@@ -60,7 +60,7 @@ struct RouteEditorView: View {
             if isLoading {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, minHeight: mapHeight)
             } else {
-                placeSearchBar
+                mapToolbar
                 StageColoredMap(
                     activityId: activity.id, activityType: activity.activityType,
                     coords: displayCoords, waypoints: markers,
@@ -73,8 +73,11 @@ struct RouteEditorView: View {
                 .frame(height: mapHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(alignment: .top) {
-                    Text("Clic = ajouter · glisser = déplacer · sélectionne un point dans la liste pour le supprimer")
-                        .font(.caption).padding(6).background(.thinMaterial, in: Capsule()).padding(8)
+                    if waypoints.isEmpty {
+                        Label("Cliquez sur la carte pour poser le premier point", systemImage: "hand.tap")
+                            .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(.thinMaterial, in: Capsule()).padding(8)
+                    }
                 }
                 .overlay(alignment: .bottom) {
                     if isRouting {
@@ -94,7 +97,6 @@ struct RouteEditorView: View {
                     }
                 }
                 DragResizeHandle { d in mapHeight = Swift.min(900, Swift.max(200, mapHeight + Double(d))) }
-                controls
                 waypointList
             }
         }
@@ -102,13 +104,58 @@ struct RouteEditorView: View {
         .onDisappear { saveIfNeeded() }
     }
 
-    private var placeSearchBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Rechercher un lieu (ville, col, refuge…)", text: $placeQuery)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { Task { await searchPlace() } }
-            if searching { ProgressView().controlSize(.small) }
+    /// Barre d'outils unifiée de l'éditeur d'itinéraire (recherche · moteur · recalculer · cadrer · enregistrer),
+    /// groupée et espacée sur matériau système (reco HIG : contrôles regroupés, posés sur un matériau).
+    private var mapToolbar: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Rechercher un lieu…", text: $placeQuery)
+                    .textFieldStyle(.plain).frame(minWidth: 150)
+                    .onSubmit { Task { await searchPlace() } }
+                if searching { ProgressView().controlSize(.mini) }
+                else if !placeQuery.isEmpty {
+                    Button { placeQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.borderless).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(.quaternary.opacity(0.5), in: Capsule())
+
+            Divider().frame(height: 18)
+
+            Picker("Moteur", selection: $engineRaw) {
+                Text("À pied").tag("mapkit")
+                Text("Sentiers").tag("trail")
+                Text("Route (auto/moto)").tag("car")
+                Text("Ligne").tag("line")
+            }
+            .labelsHidden().pickerStyle(.menu).fixedSize()
+            .onChange(of: engineRaw) { _, _ in invalidateAll() }
+            Button { reroute() } label: { Image(systemName: "arrow.triangle.turn.up.right.diamond") }
+                .help("Recalculer l'itinéraire").disabled(busy || waypoints.count < 2 || !hasPending)
+            Button { fitRoute() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                .help("Cadrer le parcours").disabled(waypoints.isEmpty)
+
+            Spacer()
+
+            Text("\(waypoints.count) pt").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Button { saveNow() } label: { Label("Enregistrer", systemImage: "checkmark") }
+                .buttonStyle(.borderedProminent).controlSize(.small).disabled(waypoints.count < 2 || busy)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Cadre la carte sur l'ensemble du parcours (reco HIG : offrir un retour à une vue d'ensemble).
+    private func fitRoute() {
+        guard let mv = mapProxy.mapView, !displayCoords.isEmpty else { return }
+        if displayCoords.count == 1 {
+            mv.setRegion(MKCoordinateRegion(center: displayCoords[0], latitudinalMeters: 4000, longitudinalMeters: 4000), animated: true)
+        } else {
+            var rect = MKMapRect.null
+            for c in displayCoords { let p = MKMapPoint(c); rect = rect.union(MKMapRect(origin: p, size: MKMapSize(width: 0, height: 0))) }
+            mv.setVisibleMapRect(rect, edgePadding: NSEdgeInsets(top: 48, left: 48, bottom: 48, right: 48), animated: true)
         }
     }
 
@@ -125,25 +172,6 @@ struct RouteEditorView: View {
               let item = response.mapItems.first else { return }
         let c = item.placemark.coordinate
         mapProxy.mapView?.setRegion(MKCoordinateRegion(center: c, latitudinalMeters: 9000, longitudinalMeters: 9000), animated: true)
-    }
-
-    private var controls: some View {
-        HStack(spacing: 10) {
-            Text("\(waypoints.count) pt").font(.caption).foregroundStyle(.secondary)
-            Picker("", selection: $engineRaw) {
-                Text("À pied").tag("mapkit")
-                Text("Sentiers").tag("trail")
-                Text("Route (auto/moto)").tag("car")
-                Text("Ligne").tag("line")
-            }
-            .labelsHidden().pickerStyle(.menu).fixedSize()
-            .onChange(of: engineRaw) { _, _ in invalidateAll() } // changer de moteur recalcule tout.
-            Button { reroute() } label: { Label("Recalculer l'itinéraire", systemImage: "arrow.triangle.turn.up.right.diamond") }
-                .controlSize(.small).disabled(busy || waypoints.count < 2 || !hasPending)
-            Spacer()
-            Button { saveNow() } label: { Label("Enregistrer", systemImage: "checkmark") }
-                .controlSize(.small).disabled(waypoints.count < 2 || busy)
-        }
     }
 
     private var waypointList: some View {
