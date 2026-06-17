@@ -508,6 +508,10 @@ extension AppServices {
             let trackData = try TrackPointCodec.encode(enriched)
             try await repo.updateTrackData(id: activityId, trackData: trackData, stats: stats)
             try await repo.updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(waypoints))
+            // Les arrêts .stageStop deviennent de vraies étapes (métadonnées conservées par stopWaypointId).
+            let existing = (try? await repo.fetchStages(activityId: activityId)) ?? []
+            let derived = Stage.derive(activityId: activityId, from: waypoints, points: enriched, existing: existing)
+            try await repo.replaceStages(activityId: activityId, with: derived)
             libraryRevision += 1
             return true
         } catch {

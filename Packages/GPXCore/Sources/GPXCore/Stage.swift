@@ -99,6 +99,40 @@ public struct Stage: Identifiable, Sendable, Hashable {
         return result
     }
 
+    /// Crée les étapes à partir des arrêts `.stageStop` des waypoints (source de vérité en mode itinéraire) :
+    /// une étape par intervalle entre deux arrêts consécutifs (extrémités du tracé incluses). L'étape se termine
+    /// au stop référencé par `stopWaypointId` (la dernière n'en a pas). Conserve les métadonnées des étapes
+    /// existantes retrouvées par `stopWaypointId`.
+    public static func derive(activityId: UUID, from waypoints: [RouteWaypoint], points: [TrackPoint], existing: [Stage]) -> [Stage] {
+        guard points.count >= 2 else { return existing }
+        let lastIndex = points.count - 1
+        let stops = RouteWaypoint.stageBoundaries(waypoints, on: points)
+            .filter { $0.index > 0 && $0.index < lastIndex }
+            .sorted { $0.index < $1.index }
+        let byStopId = Dictionary(existing.compactMap { s in s.stopWaypointId.map { ($0, s) } }, uniquingKeysWith: { a, _ in a })
+        let lastExisting = existing.first { $0.stopWaypointId == nil } ?? existing.last
+        var result: [Stage] = []
+        var start = 0
+        let count = stops.count + 1
+        for k in 0..<count {
+            let isLast = k == count - 1
+            let stopId: UUID? = isLast ? nil : stops[k].stopId
+            let end = isLast ? lastIndex : stops[k].index
+            let prev = stopId.flatMap { byStopId[$0] } ?? (isLast ? lastExisting : nil)
+            result.append(Stage(id: prev?.id ?? UUID(), activityId: activityId, order: k,
+                                name: prev?.name ?? "", notes: prev?.notes,
+                                startIndex: start, endIndex: Swift.max(start + 1, end),
+                                stopWaypointId: stopId, coverImageData: prev?.coverImageData,
+                                endOffTrackLatitude: prev?.endOffTrackLatitude,
+                                endOffTrackLongitude: prev?.endOffTrackLongitude,
+                                endConnectorData: prev?.endConnectorData,
+                                startConnectorData: prev?.startConnectorData,
+                                plannedDate: prev?.plannedDate))
+            start = end
+        }
+        return result
+    }
+
     /// Reconstruit les waypoints `.stageStop` à partir des bornes (en mémoire) des étapes : un stop par frontière
     /// interne, posé sur `points[endIndex]`, en réutilisant l'id/nom existant. Préserve les autres waypoints
     /// (`.shaping`/`.poi`) et renvoie les étapes avec leur `stopWaypointId` à jour. Tout est ordonné par le tracé.
