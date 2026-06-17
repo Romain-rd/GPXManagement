@@ -61,8 +61,6 @@ struct ActivityDetailView: View {
     @State private var customSegmentKm = ""
     @State private var showCustomGainSegment = false
     @State private var customSegmentGain = ""
-    @State private var routeEditMode = false
-    @State private var showEditableRouteDialog = false
     @State private var isExportingVideo = false
     @State private var videoProgress: Double = 0
     @State private var showVideoOptions = false
@@ -202,18 +200,6 @@ struct ActivityDetailView: View {
         .onChange(of: windowModel.duplicateToken) { _, _ in
             Task { await AppServices.shared.duplicateActivity(parent: activity) }
         }
-        .onChange(of: windowModel.editRouteToken) { _, _ in
-            if activity.isEditableRoute, model.hasTrack { secMapExpanded = true; routeEditMode = true }
-            else { AppServices.shared.importError = "« Modifier l'itinéraire » est réservé aux parcours modifiables (un GR importé reste fidèle — voir le menu pour le rendre modifiable)." }
-        }
-        .alert(editableRouteAlertTitle, isPresented: $showEditableRouteDialog) {
-            Button(editableRouteConfirmLabel) {
-                Task { await listVM.setEditableRoute(id: activity.id, !activity.isEditableRoute) }
-            }
-            Button("Annuler", role: .cancel) {}
-        } message: {
-            Text(editableRouteAlertMessage)
-        }
         .onChange(of: windowModel.webExportToken) { _, _ in
             if model.hasTrack { showWebExportOptions = true }
         }
@@ -225,17 +211,6 @@ struct ActivityDetailView: View {
         }
     }
 
-    private var editableRouteAlertTitle: String {
-        activity.isEditableRoute ? "Verrouiller le tracé ?" : "Rendre le tracé modifiable ?"
-    }
-    private var editableRouteConfirmLabel: String {
-        activity.isEditableRoute ? "Verrouiller" : "Rendre modifiable"
-    }
-    private var editableRouteAlertMessage: String {
-        activity.isEditableRoute
-            ? "Le re-routage entre points de passage sera désactivé : le tracé restera fidèle (recommandé pour un GR importé). Les stops et POI restent éditables."
-            : "Tu pourras re-router l'itinéraire entre les points de passage. ⚠️ Sur un tracé précis (GR importé), le re-routage peut le dégrader — à n'activer que pour un parcours dessiné."
-    }
 
     var body: some View {
         contentWithEvents
@@ -434,25 +409,16 @@ struct ActivityDetailView: View {
                 } label: {
                     Label("Parcours (préparation)", systemImage: activity.isCourse ? "checkmark" : "circle")
                 }
-                if activity.isCourse {
-                    Divider()
+                if let navigation, !activity.isCourse {
                     Button {
-                        showEditableRouteDialog = true
-                    } label: {
-                        Label(activity.isEditableRoute ? "Verrouiller le tracé (fidèle)…" : "Rendre le tracé modifiable…",
-                              systemImage: activity.isEditableRoute ? "lock" : "lock.open")
-                    }
-                    if let navigation, !activity.isCourse {
-                        Button {
-                            Task {
-                                if let id = await AppServices.shared.convertToStagedRoute(activity: activity) {
-                                    await listVM.reload()
-                                    navigation.openCourse(id)
-                                }
+                        Task {
+                            if let id = await AppServices.shared.convertToStagedRoute(activity: activity) {
+                                await listVM.reload()
+                                navigation.openCourse(id)
                             }
-                        } label: {
-                            Label("Faire un parcours de cette trace", systemImage: "flag.checkered")
                         }
+                    } label: {
+                        Label("Faire un parcours de cette trace", systemImage: "flag.checkered")
                     }
                 }
             } label: {
@@ -964,46 +930,33 @@ struct ActivityDetailView: View {
                     .font(.headline)
                 Spacer()
                 if secMapExpanded {
-                    if activity.isEditableRoute {
-                        Button(routeEditMode ? "Terminer" : "Modifier l'itinéraire") { routeEditMode.toggle() }
+                    TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
+                        .controlSize(.small)
+                    if mapLayerBinding.wrappedValue.isIGN {
+                        SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
                             .controlSize(.small)
-                    }
-                    if !routeEditMode {
-                        TrackColorControl(mode: Binding(get: { trackColorMode }, set: { trackColorModeRaw = $0.rawValue }))
-                            .controlSize(.small)
-                        if mapLayerBinding.wrappedValue.isIGN {
-                            SlopeOverlayControl(enabled: $slopeOverlayEnabled, opacity: $slopeOverlayOpacity)
-                                .controlSize(.small)
-                        }
                     }
                     LayerPicker(layer: mapLayerBinding)
                         .controlSize(.small)
                 }
             }
             if secMapExpanded {
-                if routeEditMode {
-                    RouteEditorView(activity: activity, repository: repository, layer: mapLayerBinding, mapHeight: $mapHeight) {
-                        Task { await listVM.reload() }
-                    }
-                    mapResizeHandle
-                } else {
-                    ActivityMapCard(
-                        activityId: activity.id,
-                        activityType: activity.activityType,
-                        repository: repository,
-                        layer: mapLayerBinding,
-                        highlight: highlightedCoordinate,
-                        highlightRange: selectedSegmentCoords,
-                        photos: mapPhotos,
-                        slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
-                        trackColorMode: trackColorMode,
-                        onFullscreen: { fullscreenMap = true },
-                        onSelectPhoto: openPhoto
-                    )
-                    .frame(height: mapHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    mapResizeHandle
-                }
+                ActivityMapCard(
+                    activityId: activity.id,
+                    activityType: activity.activityType,
+                    repository: repository,
+                    layer: mapLayerBinding,
+                    highlight: highlightedCoordinate,
+                    highlightRange: selectedSegmentCoords,
+                    photos: mapPhotos,
+                    slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0,
+                    trackColorMode: trackColorMode,
+                    onFullscreen: { fullscreenMap = true },
+                    onSelectPhoto: openPhoto
+                )
+                .frame(height: mapHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                mapResizeHandle
             }
         }
     }

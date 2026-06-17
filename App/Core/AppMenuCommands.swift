@@ -169,11 +169,6 @@ struct AppMenuCommands: Commands {
             }
             .disabled(!(window?.hasSelection ?? false))
 
-            Button("Modifier l'itinéraire… (parcours)") {
-                window?.requestEditRoute()
-            }
-            .disabled(!(window?.hasSelection ?? false))
-
             Button("Fusionner les traces…") {
                 window?.requestMerge()
             }

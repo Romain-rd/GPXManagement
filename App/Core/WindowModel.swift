@@ -106,10 +106,8 @@ final class WindowModel {
     var mergeToken: Int = 0
     var reverseToken: Int = 0
     var duplicateToken: Int = 0
-    var editRouteToken: Int = 0
 
     func requestRepair() { guard hasSelection else { return }; repairToken += 1 }
-    func requestEditRoute() { guard hasSelection else { return }; editRouteToken += 1 }
     func requestGenerateElevation() { guard hasSelection else { return }; elevationToken += 1 }
     func requestSplit() { guard hasSelection else { return }; splitToken += 1 }
     func requestReverse() { guard hasSelection else { return }; reverseToken += 1 }
