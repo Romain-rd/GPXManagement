@@ -134,52 +134,6 @@ final class WaypointAnnotation: MKPointAnnotation {
     }
 }
 
-/// Croix de visée affichée pendant le glissement d'un point, pour voir l'emplacement exact (le sommet de l'épingle le masque).
-final class CrosshairView: NSView {
-    override var isFlipped: Bool { false }
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }   // transparente aux clics/glissements
-    override func draw(_ dirtyRect: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        let c = CGPoint(x: bounds.midX, y: bounds.midY)
-        let len = bounds.width / 2, gap: CGFloat = 4
-        ctx.setStrokeColor(NSColor.systemRed.cgColor); ctx.setLineWidth(1.5)
-        ctx.move(to: CGPoint(x: c.x - len, y: c.y)); ctx.addLine(to: CGPoint(x: c.x - gap, y: c.y))
-        ctx.move(to: CGPoint(x: c.x + gap, y: c.y)); ctx.addLine(to: CGPoint(x: c.x + len, y: c.y))
-        ctx.move(to: CGPoint(x: c.x, y: c.y - len)); ctx.addLine(to: CGPoint(x: c.x, y: c.y - gap))
-        ctx.move(to: CGPoint(x: c.x, y: c.y + gap)); ctx.addLine(to: CGPoint(x: c.x, y: c.y + len))
-        ctx.strokePath()
-        ctx.setFillColor(NSColor.systemRed.cgColor)
-        ctx.fillEllipse(in: CGRect(x: c.x - 2, y: c.y - 2, width: 4, height: 4))
-    }
-}
-
-/// Reconnaisseur unique des interactions sur un point de passage : revendique le clic dès le `mouseDown` si l'on
-/// est sur/près d'un marqueur (sinon échoue → la carte défile / le clic d'ajout opère). Tap = sélection, glissement = déplacement.
-final class WaypointInteractionRecognizer: NSGestureRecognizer {
-    weak var map: MKMapView?
-    var pick: ((NSPoint) -> WaypointAnnotation?)?
-    private(set) var dragging: WaypointAnnotation?
-    private(set) var moved = false
-    private var downPoint: NSPoint = .zero
-
-    override func mouseDown(with event: NSEvent) {
-        guard let map else { state = .failed; return }
-        downPoint = map.convert(event.locationInWindow, from: nil)
-        moved = false
-        dragging = pick?(downPoint)
-        state = dragging != nil ? .began : .failed
-    }
-    override func mouseDragged(with event: NSEvent) {
-        guard dragging != nil, let map else { return }
-        let p = map.convert(event.locationInWindow, from: nil)
-        if !moved, hypot(p.x - downPoint.x, p.y - downPoint.y) > 3 { moved = true }
-        state = .changed
-    }
-    override func mouseUp(with event: NSEvent) {
-        state = dragging != nil ? .ended : .failed
-    }
-}
-
 public struct TrackMapView: NSViewRepresentable {
     public let tracks: [TrackOverlayInput]
     @Binding public var layer: MapLayer
@@ -233,20 +187,11 @@ public struct TrackMapView: NSViewRepresentable {
         proxy?.mapView = mapView
         context.coordinator.mapView = mapView
         configure(mapView: mapView, layer: layer)
+        // Clic « poser un point » / sélection de trace. Le délégué l'empêche de s'activer sur une annotation,
+        // pour laisser MapKit gérer NATIVEMENT la sélection et le déplacement des points (approche Apple).
         let tap = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
         tap.delegate = context.coordinator
         mapView.addGestureRecognizer(tap)
-        // Interactions sur un point (sélection + déplacement) via un reconnaisseur dédié : il revendique le clic
-        // dès le mouseDown sur un marqueur (le clic d'ajout, lui, attend l'échec de ce reconnaisseur).
-        let wp = WaypointInteractionRecognizer(target: context.coordinator, action: #selector(Coordinator.handleWaypointInteraction(_:)))
-        wp.delegate = context.coordinator
-        wp.map = mapView
-        let coord = context.coordinator
-        wp.pick = { [weak coord] p in
-            guard let coord, let m = coord.mapView else { return nil }
-            return coord.waypointAnnotation(atScreenPoint: p, in: m) ?? coord.nearestWaypointAnnotation(toPoint: p, in: m)
-        }
-        mapView.addGestureRecognizer(wp)
         return mapView
     }
 
@@ -639,7 +584,7 @@ public struct TrackMapView: NSViewRepresentable {
                     view.annotation = annotation
                     view.image = Self.shapingImage
                     view.centerOffset = .zero
-                    view.isDraggable = false   // déplacement géré par handlePan (pan personnalisé)
+                    view.isDraggable = true
                     view.canShowCallout = false
                     view.displayPriority = .defaultLow
                     return view
@@ -663,7 +608,7 @@ public struct TrackMapView: NSViewRepresentable {
                         marker.glyphImage = NSImage(systemSymbolName: wp.role == .stageStop ? "flag.fill" : "mappin", accessibilityDescription: nil)
                     }
                 }
-                marker.isDraggable = false  // déplacement géré par handlePan (pan personnalisé)
+                marker.isDraggable = true
                 marker.canShowCallout = (wp.title?.isEmpty == false)
                 marker.animatesWhenAdded = false
                 marker.displayPriority = .required   // ne pas masquer/agréger les pins voisins
@@ -677,98 +622,29 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
-            } else if view.annotation is WaypointAnnotation {
-                // Sélection gérée par handleClick (hitTest). On annule la sélection native pour éviter un double effet.
+            } else if let wp = view.annotation as? WaypointAnnotation {
+                // Sélection native d'un point ; on désélectionne aussitôt (pas de callout permanent), le modèle bascule la sélection.
                 mapView.deselectAnnotation(view.annotation, animated: false)
+                onWaypointTapped?(wp.waypointId)
             }
         }
 
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
             guard let mapView = gestureRecognizer.view as? MKMapView, let superview = mapView.superview else { return true }
-            let superPoint = superview.convert(event.locationInWindow, from: nil)
-            if let hit = mapView.hitTest(superPoint) {
-                var view: NSView? = hit
-                while let current = view, current !== mapView {
-                    if current is NSControl { return false }   // ne pas voler les clics des boutons
-                    view = current.superview
-                }
-            }
-            return true
-        }
-
-        /// Le clic d'ajout/sélection-de-trace n'opère que si l'interaction sur un point a échoué (clic hors point).
-        public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldRequireFailureOf other: NSGestureRecognizer) -> Bool {
-            gestureRecognizer is NSClickGestureRecognizer && other is WaypointInteractionRecognizer
-        }
-
-        /// Marqueur de point de passage situé exactement sous un point écran (via hitTest de la vue d'annotation).
-        func waypointAnnotation(atScreenPoint point: CGPoint, in mapView: MKMapView) -> WaypointAnnotation? {
-            guard let superview = mapView.superview else { return nil }
-            var view = mapView.hitTest(mapView.convert(point, to: superview))
+            var view = mapView.hitTest(superview.convert(event.locationInWindow, from: nil))
             while let current = view, current !== mapView {
-                if let av = current as? MKAnnotationView, let wp = av.annotation as? WaypointAnnotation { return wp }
+                // Laisser MapKit gérer NATIVEMENT la sélection et le déplacement des annotations (et les clics des contrôles).
+                if current is NSControl || current is MKAnnotationView { return false }
                 view = current.superview
             }
-            return nil
-        }
-
-        private var grabOffset: CGPoint = .zero   // écart curseur → ancre du marqueur, conservé pendant le drag
-        private var crosshair: CrosshairView?
-
-        private func showCrosshair(at point: CGPoint, in mapView: MKMapView) {
-            if crosshair == nil {
-                let v = CrosshairView(frame: NSRect(x: 0, y: 0, width: 48, height: 48))
-                mapView.addSubview(v)
-                crosshair = v
-            }
-            crosshair?.frame.origin = CGPoint(x: point.x - 24, y: point.y - 24)
-            crosshair?.isHidden = false
-        }
-        private func hideCrosshair() { crosshair?.isHidden = true }
-
-        func nearestWaypointAnnotation(toPoint point: CGPoint, in mapView: MKMapView, threshold: CGFloat = 28) -> WaypointAnnotation? {
-            var best: (ann: WaypointAnnotation, d: CGFloat)?
-            for wp in waypointAnnotations {
-                let p = mapView.convert(wp.coordinate, toPointTo: mapView)
-                let d = hypot(p.x - point.x, p.y - point.y)
-                if d < threshold, best == nil || d < best!.d { best = (wp, d) }
-            }
-            return best?.ann
-        }
-
-        @objc func handleWaypointInteraction(_ g: WaypointInteractionRecognizer) {
-            guard let mapView = g.map, let ann = g.dragging else { return }
-            let point = g.location(in: mapView)
-            switch g.state {
-            case .began:
-                let annPoint = mapView.convert(ann.coordinate, toPointTo: mapView)
-                grabOffset = CGPoint(x: annPoint.x - point.x, y: annPoint.y - point.y)
-                mapView.isScrollEnabled = false
-            case .changed where g.moved:
-                let target = CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y)
-                ann.coordinate = mapView.convert(target, toCoordinateFrom: mapView)
-                showCrosshair(at: target, in: mapView)
-            case .ended, .cancelled, .failed:
-                if g.moved {
-                    let target = CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y)
-                    let coord = mapView.convert(target, toCoordinateFrom: mapView)
-                    ann.coordinate = coord
-                    onWaypointMoved?(ann.waypointId, coord)
-                } else {
-                    onWaypointTapped?(ann.waypointId)   // simple clic = sélection
-                }
-                mapView.isScrollEnabled = true
-                hideCrosshair()
-            default: break
-            }
+            return true
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
-            // Sélection/déplacement d'un point : gérés par WaypointInteractionRecognizer (ce clic n'opère
-            // que s'il a échoué, donc hors point). Reste : poser un point, ou sélectionner une trace.
+            // Le clic sur une annotation est géré nativement (didSelect / drag). Ici : poser un point, ou sélectionner une trace.
             if let place = onMapClick { place(coord); return } // mode « poser un point »
             guard let callback = onSelectActivity else { return }
             let mapPoint = MKMapPoint(coord)
