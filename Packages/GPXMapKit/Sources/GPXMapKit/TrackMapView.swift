@@ -134,6 +134,25 @@ final class WaypointAnnotation: MKPointAnnotation {
     }
 }
 
+/// Croix de visée affichée pendant le glissement d'un point, pour voir l'emplacement exact (le sommet de l'épingle le masque).
+final class CrosshairView: NSView {
+    override var isFlipped: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }   // transparente aux clics/glissements
+    override func draw(_ dirtyRect: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        let c = CGPoint(x: bounds.midX, y: bounds.midY)
+        let len = bounds.width / 2, gap: CGFloat = 4
+        ctx.setStrokeColor(NSColor.systemRed.cgColor); ctx.setLineWidth(1.5)
+        ctx.move(to: CGPoint(x: c.x - len, y: c.y)); ctx.addLine(to: CGPoint(x: c.x - gap, y: c.y))
+        ctx.move(to: CGPoint(x: c.x + gap, y: c.y)); ctx.addLine(to: CGPoint(x: c.x + len, y: c.y))
+        ctx.move(to: CGPoint(x: c.x, y: c.y - len)); ctx.addLine(to: CGPoint(x: c.x, y: c.y - gap))
+        ctx.move(to: CGPoint(x: c.x, y: c.y + gap)); ctx.addLine(to: CGPoint(x: c.x, y: c.y + len))
+        ctx.strokePath()
+        ctx.setFillColor(NSColor.systemRed.cgColor)
+        ctx.fillEllipse(in: CGRect(x: c.x - 2, y: c.y - 2, width: 4, height: 4))
+    }
+}
+
 public struct TrackMapView: NSViewRepresentable {
     public let tracks: [TrackOverlayInput]
     @Binding public var layer: MapLayer
@@ -625,9 +644,10 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
-            } else if view.annotation is WaypointAnnotation {
-                // Sélection gérée par handleClick ; déplacement par handlePan. On annule la sélection native.
+            } else if let wp = view.annotation as? WaypointAnnotation {
+                // Clic sur la pastille : sélectionner (le drag passe par handlePan, plus de conflit avec la sélection).
                 mapView.deselectAnnotation(view.annotation, animated: false)
+                onWaypointTapped?(wp.waypointId)
             }
         }
 
@@ -650,6 +670,18 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         var draggingAnnotation: WaypointAnnotation?
+        private var crosshair: CrosshairView?
+
+        private func showCrosshair(at point: CGPoint, in mapView: MKMapView) {
+            if crosshair == nil {
+                let v = CrosshairView(frame: NSRect(x: 0, y: 0, width: 48, height: 48))
+                mapView.addSubview(v)
+                crosshair = v
+            }
+            crosshair?.frame.origin = CGPoint(x: point.x - 24, y: point.y - 24)
+            crosshair?.isHidden = false
+        }
+        private func hideCrosshair() { crosshair?.isHidden = true }
 
         private func nearestWaypointAnnotation(toPoint point: CGPoint, in mapView: MKMapView, threshold: CGFloat = 28) -> WaypointAnnotation? {
             var best: (ann: WaypointAnnotation, d: CGFloat)?
@@ -667,9 +699,11 @@ public struct TrackMapView: NSViewRepresentable {
             switch g.state {
             case .began:
                 draggingAnnotation = nearestWaypointAnnotation(toPoint: point, in: mapView)
-                if draggingAnnotation != nil { mapView.isScrollEnabled = false }
+                if draggingAnnotation != nil { mapView.isScrollEnabled = false; showCrosshair(at: point, in: mapView) }
             case .changed:
+                guard draggingAnnotation != nil else { return }
                 draggingAnnotation?.coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+                showCrosshair(at: point, in: mapView)
             case .ended, .cancelled, .failed:
                 if let ann = draggingAnnotation {
                     let coord = mapView.convert(point, toCoordinateFrom: mapView)
@@ -678,6 +712,7 @@ public struct TrackMapView: NSViewRepresentable {
                 }
                 draggingAnnotation = nil
                 mapView.isScrollEnabled = true
+                hideCrosshair()
             default: break
             }
         }
