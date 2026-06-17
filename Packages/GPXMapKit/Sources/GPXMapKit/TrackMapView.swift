@@ -632,7 +632,9 @@ public struct TrackMapView: NSViewRepresentable {
             guard let hit = mapView.hitTest(superPoint) else { return true }
             var view: NSView? = hit
             while let current = view, current !== mapView {
-                if current is NSControl { return false }
+                // Laisser MKMapView gérer nativement les contrôles ET les marqueurs (sélection + déplacement).
+                // Sans ça, le geste de clic intercepte le clic sur une épingle → pas de sélection ni de drag.
+                if current is NSControl || current is MKAnnotationView { return false }
                 view = current.superview
             }
             return true
@@ -642,12 +644,15 @@ public struct TrackMapView: NSViewRepresentable {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
-            // Clic à proximité d'un point de passage : ne PAS ajouter (la sélection est gérée par didSelect).
+            // Clic à proximité d'un point de passage (mais pas dessus) : sélectionner le plus proche, ne pas ajouter.
             if onWaypointTapped != nil {
+                var nearest: (id: UUID, d: CGFloat)?
                 for wp in waypointAnnotations {
                     let p = mapView.convert(wp.coordinate, toPointTo: mapView)
-                    if hypot(p.x - point.x, p.y - point.y) < 24 { return }
+                    let d = hypot(p.x - point.x, p.y - point.y)
+                    if d < 24, nearest == nil || d < nearest!.d { nearest = (wp.waypointId, d) }
                 }
+                if let nearest { onWaypointTapped?(nearest.id); return }
             }
             if let place = onMapClick { place(coord); return } // mode « poser un point »
             guard let callback = onSelectActivity else { return }
