@@ -113,8 +113,9 @@ public struct WaypointMarker: Sendable, Identifiable {
     public let index: Int
     public let role: RouteWaypoint.Role
     public let name: String?
-    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil) {
-        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name
+    public let label: String?     // numéro d'ordre affiché dans l'épingle (nil = icône par rôle)
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil) {
+        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label
     }
 }
 
@@ -122,8 +123,9 @@ final class WaypointAnnotation: MKPointAnnotation {
     let waypointId: UUID
     let index: Int
     let role: RouteWaypoint.Role
-    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?) {
-        self.waypointId = id; self.index = index; self.role = role
+    let label: String?
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?) {
+        self.waypointId = id; self.index = index; self.role = role; self.label = label
         super.init()
         self.coordinate = coordinate
         self.title = name
@@ -358,7 +360,7 @@ public struct TrackMapView: NSViewRepresentable {
             if sig == waypointSignature { return }
             waypointSignature = sig
             mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name) }
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label) }
             mapView.addAnnotations(waypointAnnotations)
         }
         private var waypointSignature = ""
@@ -588,12 +590,13 @@ public struct TrackMapView: NSViewRepresentable {
                 let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 marker.annotation = annotation
-                if wp.role == .stageStop {
-                    marker.markerTintColor = .systemGreen
-                    marker.glyphImage = NSImage(systemSymbolName: "flag.fill", accessibilityDescription: nil)
+                marker.markerTintColor = wp.role == .stageStop ? .systemGreen : .systemOrange
+                if let label = wp.label {
+                    marker.glyphText = label
+                    marker.glyphImage = nil
                 } else {
-                    marker.markerTintColor = .systemOrange
-                    marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
+                    marker.glyphText = nil
+                    marker.glyphImage = NSImage(systemSymbolName: wp.role == .stageStop ? "flag.fill" : "mappin", accessibilityDescription: nil)
                 }
                 marker.isDraggable = true
                 marker.canShowCallout = (wp.title?.isEmpty == false)

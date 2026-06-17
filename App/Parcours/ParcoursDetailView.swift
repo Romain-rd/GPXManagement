@@ -33,6 +33,7 @@ struct ParcoursDetailView: View {
     @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
+    @State private var hasStoredWaypoints = false
     @State private var placeSearch = PlaceSearchModel()
     @State private var searchResult: (name: String, coordinate: CLLocationCoordinate2D)?
     @FocusState private var searchFocused: Bool
@@ -282,7 +283,8 @@ struct ParcoursDetailView: View {
             Button { showEditableRouteDialog = true } label: { Image(systemName: "lock.open").frame(width: 30, height: 24) }
                 .buttonStyle(.borderless).help("Verrouiller le tracé (fidèle)")
         } else {
-            let tooDense = points.count > Self.maxRouteEditablePoints
+            // Bloqué seulement si tracé dense ET aucun point de passage stocké (sinon pas de Douglas-Peucker → OK).
+            let tooDense = points.count > Self.maxRouteEditablePoints && !hasStoredWaypoints
             Button { showEditableRouteDialog = true } label: { Label("Rendre modifiable", systemImage: "lock").font(.callout) }
                 .buttonStyle(.borderless).disabled(tooDense)
                 .help(tooDense
@@ -344,7 +346,7 @@ struct ParcoursDetailView: View {
     /// Ajoute le lieu trouvé comme point de passage (rôle selon l'outil actif, POI par défaut).
     private func addSearchResult() {
         guard let r = searchResult else { return }
-        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi)
+        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi, append: true)
         searchResult = nil
         placeSearch.clear()
     }
@@ -422,7 +424,7 @@ struct ParcoursDetailView: View {
                         coords: routeModel.displayCoords, highlight: searchResult?.coordinate, waypoints: routeModel.markers,
                         onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
                         onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
-                        onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
+                        onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role, append: role == .shaping) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
                 if let r = searchResult {
@@ -945,6 +947,7 @@ struct ParcoursDetailView: View {
         }
         if loaded.isEmpty { loaded = [Stage(activityId: activity.id, order: 0, name: "Étape 1", startIndex: 0, endIndex: pts.count - 1)] }
         let wps = RouteWaypointCodec.decode((try? await repository.fetchRouteWaypointsData(id: activity.id)) ?? nil)
+        hasStoredWaypoints = !wps.isEmpty
         extraWaypoints = wps.filter { $0.role != .stageStop }
         points = pts; dists = d; alts = a; cumGain = g; stages = loaded
     }

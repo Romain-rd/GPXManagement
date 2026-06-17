@@ -25,7 +25,7 @@ final class RouteEditingModel {
     init(repository: CoreDataActivityRepository) { self.repository = repository }
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
-    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name) } }
+    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: $1.role == .shaping ? nil : "\($0 + 1)") } }
     var hasPending: Bool { segments.contains(where: { $0 == nil }) }
     var busy: Bool { isRouting || isSaving }
 
@@ -76,11 +76,13 @@ final class RouteEditingModel {
         dirty = true
     }
 
-    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
+    /// `append` : ajoute en bout de tracé (ordre = ordre d'ajout). Sinon, insère à la position de détour minimal
+    /// (pour poser un POI/arrêt le long d'un tracé existant).
+    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping, append: Bool = false) {
         guard !busy else { return }
         let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
         var p = waypoints.count
-        if waypoints.count >= 2 {
+        if !append, waypoints.count >= 2 {
             // Meilleure position : extension à une extrémité OU insertion sur le segment au détour minimal.
             var bestCost = planar(waypoints[waypoints.count - 1], c)
             let startCost = planar(waypoints[0], c)
