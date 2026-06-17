@@ -238,9 +238,12 @@ struct ContentView: View {
            let repository {
             if let stageId = navigation.selectedStageId {
                 StageDetailView(activity: route, stageId: stageId, repository: repository).id(stageId)
-            } else {
+            } else if listVM.stageCount(routeId) > 1 {
                 ContentUnavailableView("Sélectionnez une étape", systemImage: "flag.checkered",
                                        description: Text("Choisissez une étape à gauche pour voir sa fiche."))
+            } else {
+                // Pas d'étapes réelles : pas de panneau à droite (l'inspecteur escamotable viendra à l'incrément 4).
+                Color.clear
             }
         } else if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
