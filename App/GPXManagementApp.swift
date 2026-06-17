@@ -53,6 +53,16 @@ struct GPXManagementApp: App {
             }
         }
 
+        WindowGroup(for: StageWindowRef.self) { $ref in
+            if AppConfig.isAlphaExpired {
+                AlphaExpiredView()
+            } else if updateGate.mustUpdate {
+                UpdateRequiredView()
+            } else if let ref {
+                StageWindowView(ref: ref).alphaRibbon()
+            }
+        }
+
         Settings {
             if AppConfig.isAlphaExpired {
                 AlphaExpiredView()
@@ -144,6 +154,41 @@ struct ActivityDetailWindowView: View {
         // et son activité est marquée « sélectionnée » pour activer ces commandes.
         .focusedSceneValue(\.windowModel, model)
         .onAppear { model.navigation.listSelection = [activityId] }
+        .task { await model.listVM.reload() }
+    }
+}
+
+/// Référence d'une étape de parcours pour l'ouvrir en fenêtre autonome (étape = tranche d'un parcours, pas une activité).
+struct StageWindowRef: Codable, Hashable {
+    let activityId: UUID
+    let stageId: UUID
+}
+
+/// Fenêtre autonome affichant la fiche d'une étape de parcours (double-clic sur une étape).
+struct StageWindowView: View {
+    let ref: StageWindowRef
+    @State private var model: WindowModel
+
+    init(ref: StageWindowRef) {
+        self.ref = ref
+        let repo = (AppServices.shared.repository as? CoreDataActivityRepository) ?? CoreDataActivityRepository(persistence: AppServices.shared.persistence)
+        _model = State(initialValue: WindowModel(repository: repo))
+    }
+
+    var body: some View {
+        Group {
+            if let activity = model.listVM.allActivities.first(where: { $0.id == ref.activityId }),
+               let repo = AppServices.shared.repository as? CoreDataActivityRepository {
+                StageDetailView(activity: activity, stageId: ref.stageId, repository: repo)
+                    .navigationTitle(activity.title)
+            } else if model.listVM.allActivities.isEmpty {
+                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ContentUnavailableView("Étape introuvable", systemImage: "exclamationmark.triangle")
+            }
+        }
+        .frame(minWidth: 460, minHeight: 560)
+        .environment(\.managedObjectContext, AppServices.shared.persistence.container.viewContext)
         .task { await model.listVM.reload() }
     }
 }

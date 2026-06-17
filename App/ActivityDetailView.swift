@@ -2445,6 +2445,7 @@ struct ParcoursDetailView: View {
     @Bindable var navigation: AppNavigationModel
     /// En fenêtre autonome (pas de 3ᵉ colonne) : l'inspecteur d'étape s'affiche en panneau flottant interne.
     var showsInlineInspector: Bool = false
+    @Environment(\.openWindow) private var openWindow
 
     @State private var tool: ParcoursTool = .select
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
@@ -2838,6 +2839,7 @@ struct ParcoursDetailView: View {
                 .padding(.vertical, 7)
                 .contentShape(Rectangle())
                 .onTapGesture { navigation.selectedStageId = stage.id; navigation.showStageInspector = true }
+                .simultaneousGesture(TapGesture(count: 2).onEnded { openWindow(value: StageWindowRef(activityId: activity.id, stageId: stage.id)) })
                 .background(navigation.selectedStageId == stage.id ? Color.accentColor.opacity(0.12) : .clear)
                 .contextMenu {
                     Button("Renommer l'étape…") {
