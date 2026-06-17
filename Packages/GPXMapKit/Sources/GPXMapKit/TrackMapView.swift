@@ -644,10 +644,9 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
-            } else if let wp = view.annotation as? WaypointAnnotation {
-                // Clic sur la pastille : sélectionner (le drag passe par handlePan, plus de conflit avec la sélection).
+            } else if view.annotation is WaypointAnnotation {
+                // Sélection gérée par handleClick (hitTest). On annule la sélection native pour éviter un double effet.
                 mapView.deselectAnnotation(view.annotation, animated: false)
-                onWaypointTapped?(wp.waypointId)
             }
         }
 
@@ -669,8 +668,18 @@ public struct TrackMapView: NSViewRepresentable {
                 // Déplacement : sur un marqueur OU près d'un point (sinon la carte défile normalement).
                 return onAnnotation || nearestWaypointAnnotation(toPoint: local, in: mapView) != nil
             }
-            // Clic : sur un marqueur, laisser la sélection native (didSelect) ; sinon, handleClick (ajout/sélection à côté).
-            return !onAnnotation
+            return true   // clic : handleClick gère sélection (hitTest) + ajout
+        }
+
+        /// Marqueur de point de passage situé exactement sous un point écran (via hitTest de la vue d'annotation).
+        private func waypointAnnotation(atScreenPoint point: CGPoint, in mapView: MKMapView) -> WaypointAnnotation? {
+            guard let superview = mapView.superview else { return nil }
+            var view = mapView.hitTest(mapView.convert(point, to: superview))
+            while let current = view, current !== mapView {
+                if let av = current as? MKAnnotationView, let wp = av.annotation as? WaypointAnnotation { return wp }
+                view = current.superview
+            }
+            return nil
         }
 
         var draggingAnnotation: WaypointAnnotation?
@@ -733,8 +742,9 @@ public struct TrackMapView: NSViewRepresentable {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
-            // Clic à proximité d'un point de passage (mais pas dessus) : sélectionner le plus proche, ne pas ajouter.
+            // Clic sur un marqueur (hitTest précis) → sélection. Sinon, à proximité (mais pas dessus) → sélection du plus proche.
             if onWaypointTapped != nil {
+                if let wp = waypointAnnotation(atScreenPoint: point, in: mapView) { onWaypointTapped?(wp.waypointId); return }
                 var nearest: (id: UUID, d: CGFloat)?
                 for wp in waypointAnnotations {
                     let p = mapView.convert(wp.coordinate, toPointTo: mapView)
