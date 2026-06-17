@@ -370,6 +370,7 @@ public struct TrackMapView: NSViewRepresentable {
         private var waypointSignature = ""
 
         public func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
+            NSLog("🟦MAP didChange dragState \(newState.rawValue)")
             guard newState == .ending || newState == .canceling,
                   let wp = view.annotation as? WaypointAnnotation else { return }
             view.setDragState(.none, animated: false)
@@ -619,11 +620,12 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         public func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            NSLog("🟦MAP didSelect annotation=\(type(of: view.annotation as Any)) view=\(type(of: view))")
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
             } else if let wp = view.annotation as? WaypointAnnotation {
-                // Sélection native d'un point ; on désélectionne aussitôt (pas de callout permanent), le modèle bascule la sélection.
+                NSLog("🟦MAP didSelect → onWaypointTapped \(wp.index + 1)")
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onWaypointTapped?(wp.waypointId)
             }
@@ -632,18 +634,22 @@ public struct TrackMapView: NSViewRepresentable {
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
             guard let mapView = gestureRecognizer.view as? MKMapView, let superview = mapView.superview else { return true }
             var view = mapView.hitTest(superview.convert(event.locationInWindow, from: nil))
+            var onAnnotation = false, onControl = false
             while let current = view, current !== mapView {
-                // Laisser MapKit gérer NATIVEMENT la sélection et le déplacement des annotations (et les clics des contrôles).
-                if current is NSControl || current is MKAnnotationView { return false }
+                if current is NSControl { onControl = true }
+                if current is MKAnnotationView { onAnnotation = true }
                 view = current.superview
             }
-            return true
+            let result = !(onControl || onAnnotation)
+            NSLog("🟦MAP shouldAttempt clic: onAnnotation=\(onAnnotation) onControl=\(onControl) hit=\(type(of: mapView.hitTest(superview.convert(event.locationInWindow, from: nil)) as Any)) → \(result)")
+            return result
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
             guard let mapView = gesture.view as? MKMapView else { return }
             let point = gesture.location(in: mapView)
             let coord = mapView.convert(point, toCoordinateFrom: mapView)
+            NSLog("🟦MAP handleClick (clic hors annotation)")
             // Le clic sur une annotation est géré nativement (didSelect / drag). Ici : poser un point, ou sélectionner une trace.
             if let place = onMapClick { place(coord); return } // mode « poser un point »
             guard let callback = onSelectActivity else { return }
