@@ -56,9 +56,7 @@ struct ActivityListView: View {
             Task {
                 if let routeId = await services.convertToStagedRoute(activity: summary) {
                     await listVM.reload()
-                    navigation.listSelection = []
-                    navigation.selectedStageId = nil
-                    navigation.sidebarSelection = .stagedRoute(routeId)
+                    navigation.openCourse(routeId)
                 }
             }
         }
@@ -113,6 +111,7 @@ struct ActivityListView: View {
         case .allActivities:           return "Toutes les activités"
         case .allCourses:              return "Tous les parcours"
         case .activityType(let t):     return t.displayName
+        case .courseType(let t):       return "\(t.displayName) (parcours)"
         case .year(let y):             return String(y)
         case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
         case .smartFilter(let id):     return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
@@ -122,7 +121,7 @@ struct ActivityListView: View {
     }
 
     private var headerSubtitle: String {
-        let isCourses = navigation.sidebarSelection == .allCourses
+        let isCourses = navigation.isCoursesScope
         let visible = listVM.visibleActivities.count
         let total = isCourses ? listVM.coursesCount : listVM.activitiesCount
         let noun = isCourses ? "parcours" : "activité(s)"
@@ -272,19 +271,14 @@ struct ActivityListView: View {
                 }
             }
             if ids.count == 1, let id = ids.first, let summary = listVM.allActivities.first(where: { $0.id == id }) {
-                if summary.isStagedRoute {
-                    Button("Ouvrir le parcours en étapes") {
-                        navigation.selectedStageId = nil
-                        navigation.sidebarSelection = .stagedRoute(id)
-                    }
+                if summary.isCourse {
+                    Button("Ouvrir le parcours") { navigation.openCourse(id) }
                 } else {
-                    Button("Passer en parcours en étapes") {
+                    Button("Faire un parcours de cette trace") {
                         Task {
                             if let routeId = await services.convertToStagedRoute(activity: summary) {
                                 await listVM.reload()
-                                navigation.listSelection = []
-                                navigation.selectedStageId = nil
-                                navigation.sidebarSelection = .stagedRoute(routeId)
+                                navigation.openCourse(routeId)
                             }
                         }
                     }

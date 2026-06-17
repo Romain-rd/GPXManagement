@@ -31,8 +31,10 @@ final class ActivityListViewModel {
 
     /// Traces réellement effectuées (alimente Années / Types / Raids / Filtres et les stats).
     var realActivities: [ActivitySummary] { allActivities.filter { !$0.isCourse } }
-    /// Parcours de préparation (flux « Tous les parcours ») — hors parcours en étapes, qui vivent dans la section Parcours.
-    var courseActivities: [ActivitySummary] { allActivities.filter { $0.isCourse && !$0.isStagedRoute } }
+    /// Parcours de préparation (flux « Tous les parcours »).
+    var courseActivities: [ActivitySummary] { allActivities.filter { $0.isCourse } }
+    /// Types de sport présents parmi les parcours (alimente la liste de types sous « Tous les parcours »).
+    var courseActivityTypes: [(type: ActivityType, count: Int)] { activityTypes(in: courseActivities) }
 
     /// Ensemble visible selon le flux courant.
     private var scopedActivities: [ActivitySummary] {
@@ -119,36 +121,8 @@ final class ActivityListViewModel {
             allActivities = try await repository.fetchAllSummaries()
             raids = try await repository.fetchRaids()
             smartFilters = try await repository.fetchSmartFilters()
-            var counts: [UUID: Int] = [:]
-            for course in allActivities where course.isCourse {
-                counts[course.id] = (try? await repository.fetchStages(activityId: course.id))?.count ?? 0
-            }
-            stageCounts = counts
         } catch {
             self.error = "Échec du chargement : \(error.localizedDescription)"
-        }
-    }
-
-    var availableStagedRoutes: [ActivitySummary] {
-        allActivities.filter { $0.isStagedRoute }.sorted { $0.startDate > $1.startDate }
-    }
-
-    /// Liste unique des parcours (tout `isCourse`) : certains ont plusieurs étapes, d'autres une seule.
-    var parcours: [ActivitySummary] {
-        allActivities.filter { $0.isCourse }.sorted { $0.startDate > $1.startDate }
-    }
-    /// Nombre d'étapes persistées par parcours (≥1 : une étape implicite couvre toute la trace).
-    private(set) var stageCounts: [UUID: Int] = [:]
-    func stageCount(_ id: UUID) -> Int { max(1, stageCounts[id] ?? 1) }
-
-    /// Supprime un parcours (la route elle-même) : étapes + activité.
-    func deleteStagedRoute(_ activityId: UUID) async {
-        do {
-            try await repository.deleteStages(activityId: activityId)
-            try await repository.deleteActivity(id: activityId)
-            await reload()
-        } catch {
-            self.error = "Échec de la suppression du parcours : \(error.localizedDescription)"
         }
     }
 

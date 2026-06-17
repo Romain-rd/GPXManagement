@@ -6,7 +6,6 @@ import GPXMapKit
 struct SidebarView: View {
     @Bindable var navigation: AppNavigationModel
     @Bindable var listVM: ActivityListViewModel
-    @Environment(\.openWindow) private var openWindow
 
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
@@ -108,21 +107,21 @@ struct SidebarView: View {
                 }
             }
 
-            if !listVM.parcours.isEmpty {
+            if !listVM.courseActivities.isEmpty {
                 Section(isExpanded: $parcoursExpanded) {
-                    ForEach(listVM.parcours) { route in
-                        Label(route.title, systemImage: "flag.checkered")
-                            .badge("\(listVM.stageCount(route.id)) ét.")
-                            .tag(SidebarDestination.stagedRoute(route.id))
-                            .simultaneousGesture(TapGesture(count: 2).onEnded { openWindow(value: route.id) })
-                            .contextMenu {
-                                Button("Ouvrir dans une nouvelle fenêtre") { openWindow(value: route.id) }
-                                Divider()
-                                Button("Supprimer le parcours", role: .destructive) {
-                                    Task { await listVM.deleteStagedRoute(route.id) }
-                                    if navigation.selectedStagedRouteId == route.id { navigation.sidebarSelection = .allActivities }
-                                }
-                            }
+                    Label("Tous les parcours", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                        .badge(listVM.coursesCount)
+                        .tag(SidebarDestination.allCourses)
+                    ForEach(listVM.courseActivityTypes, id: \.type) { entry in
+                        Label {
+                            Text(entry.type.displayName)
+                        } icon: {
+                            Image(systemName: entry.type.symbolName)
+                                .foregroundStyle(Color(nsColor: entry.type.trackColor))
+                        }
+                        .badge(entry.count)
+                        .padding(.leading, 18)
+                        .tag(SidebarDestination.courseType(entry.type))
                     }
                 } header: {
                     Text("Parcours")

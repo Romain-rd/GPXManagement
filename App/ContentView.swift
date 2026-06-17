@@ -23,6 +23,13 @@ struct ContentView: View {
         services.repository as? CoreDataActivityRepository
     }
 
+    /// Parcours actuellement sélectionné dans la liste (le détail s'affiche alors dans la 3ᵉ colonne, comme une activité).
+    private var selectedCourse: ActivitySummary? {
+        guard let id = navigation.listSelection.first,
+              let activity = listVM.allActivities.first(where: { $0.id == id }), activity.isCourse else { return nil }
+        return activity
+    }
+
     private var raidMembers: [ActivitySummary] {
         guard let id = navigation.selectedRaidId else { return [] }
         return listVM.allActivities.filter { $0.raidId == id }.sorted { $0.startDate < $1.startDate }
@@ -54,28 +61,12 @@ struct ContentView: View {
                 RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window)
                     .id(raid.id)
                     .navigationSplitViewColumnWidth(min: 340, ideal: 400)
-            } else if let routeId = navigation.selectedStagedRouteId,
-                      let route = listVM.allActivities.first(where: { $0.id == routeId }),
-                      let repository {
-                ParcoursDetailView(activity: route, listVM: listVM, repository: repository, navigation: navigation)
-                    .id(route.id)
-                    .navigationSplitViewColumnWidth(min: 480, ideal: 960)
             } else {
                 ActivityListView(listVM: listVM, navigation: navigation, services: services, searchDisabled: window.mapFullscreen)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 340)
             }
         } detail: {
-            // Parcours (mode activités) : la colonne de détail = inspecteur d'étape escamotable.
-            // Largeur 0 tant qu'aucune étape n'est sélectionnée (la carte du milieu prend toute la place).
-            if navigation.selectedStagedRouteId != nil, navigation.visualizationMode == .activities {
-                if navigation.selectedStageId != nil, navigation.showStageInspector {
-                    modeContent.navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 680)
-                } else {
-                    modeContent.navigationSplitViewColumnWidth(0)
-                }
-            } else {
-                modeContent
-            }
+            modeContent
         }
         .toolbar {
             if !window.isMapImmersive {
@@ -101,7 +92,7 @@ struct ContentView: View {
                     .keyboardShortcut(.cancelAction)
                 }
             }
-            if !window.isMapImmersive, navigation.selectedStagedRouteId != nil, navigation.selectedStageId != nil {
+            if !window.isMapImmersive, selectedCourse != nil, navigation.selectedStageId != nil {
                 ToolbarItem(placement: .automatic) {
                     Button { navigation.showStageInspector.toggle() } label: {
                         Image(systemName: "sidebar.right")
@@ -140,7 +131,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: navigation.sidebarSelection) { _, _ in
-            navigation.listSelection = []
+            if let pending = navigation.pendingCourseSelection {
+                navigation.listSelection = [pending]
+                navigation.pendingCourseSelection = nil
+            } else {
+                navigation.listSelection = []
+            }
             navigation.selectedStageId = nil // sinon la fiche d'étape de l'ancien parcours resterait affichée
             syncActiveSmartFilter()
         }
@@ -228,10 +224,8 @@ struct ContentView: View {
                 }
             )
         case .mapOverview:
-            if let routeId = navigation.selectedStagedRouteId,
-               let route = listVM.allActivities.first(where: { $0.id == routeId }),
-               let repository {
-                StagedRouteOverviewMap(activity: route, repository: repository)
+            if let course = selectedCourse, let repository {
+                StagedRouteOverviewMap(activity: course, repository: repository)
             } else if let repository {
                 MapOverviewView(
                     activities: targetActivities,
@@ -251,15 +245,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var activitiesDetail: some View {
-        if let routeId = navigation.selectedStagedRouteId,
-           let route = listVM.allActivities.first(where: { $0.id == routeId }),
-           let repository {
-            if let stageId = navigation.selectedStageId {
-                StageDetailView(activity: route, stageId: stageId, repository: repository).id(stageId)
-            } else {
-                // Aucune étape sélectionnée : l'inspecteur reste vide (la carte du milieu occupe l'espace).
-                Color.clear
-            }
+        if let course = selectedCourse, let repository {
+            // Parcours : même emplacement qu'un détail d'activité (3ᵉ colonne), avec inspecteur d'étape glissant.
+            ParcoursDetailView(activity: course, listVM: listVM, repository: repository, navigation: navigation, showsInlineInspector: true)
+                .id(course.id)
         } else if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
@@ -285,7 +274,7 @@ struct ContentView: View {
         }
         listVM.activeType = navigation.selectedActivityType
         listVM.activeYear = navigation.selectedYear
-        listVM.scope = navigation.sidebarSelection == .allCourses ? .courses : .activities
+        listVM.scope = navigation.isCoursesScope ? .courses : .activities
     }
 
     private var editingSmartFilterBinding: Binding<SmartFilter?> {

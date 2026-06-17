@@ -442,17 +442,16 @@ struct ActivityDetailView: View {
                         Label(activity.isEditableRoute ? "Verrouiller le tracé (fidèle)…" : "Rendre le tracé modifiable…",
                               systemImage: activity.isEditableRoute ? "lock" : "lock.open")
                     }
-                    if let navigation, !activity.isStagedRoute {
+                    if let navigation, !activity.isCourse {
                         Button {
                             Task {
                                 if let id = await AppServices.shared.convertToStagedRoute(activity: activity) {
                                     await listVM.reload()
-                                    navigation.selectedStageId = nil
-                                    navigation.sidebarSelection = .stagedRoute(id)
+                                    navigation.openCourse(id)
                                 }
                             }
                         } label: {
-                            Label("Passer en parcours en étapes", systemImage: "flag.checkered")
+                            Label("Faire un parcours de cette trace", systemImage: "flag.checkered")
                         }
                     }
                 }

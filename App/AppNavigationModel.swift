@@ -29,6 +29,7 @@ enum SidebarDestination: Hashable {
     case allActivities
     case allCourses
     case activityType(ActivityType)
+    case courseType(ActivityType)
     case year(Int)
     case yearType(Int, ActivityType)
     case raid(UUID)
@@ -49,6 +50,19 @@ final class AppNavigationModel {
     var selectedStageId: UUID?
     /// Visibilité de l'inspecteur d'étape (colonne de droite escamotable, pilotée par le bouton de la barre de titre).
     var showStageInspector: Bool = true
+    /// Parcours à sélectionner une fois le flux « Tous les parcours » activé (l'onChange de sidebarSelection vide listSelection).
+    var pendingCourseSelection: UUID?
+
+    /// Ouvre un parcours comme une activité : flux « Tous les parcours » + sélection (détail dans la 3ᵉ colonne).
+    func openCourse(_ id: UUID) {
+        selectedStageId = nil
+        if sidebarSelection == .allCourses {
+            listSelection = [id]
+        } else {
+            pendingCourseSelection = id
+            sidebarSelection = .allCourses
+        }
+    }
 
     var selectedRaidId: UUID? {
         if case .raid(let id) = sidebarSelection { return id }
@@ -69,7 +83,16 @@ final class AppNavigationModel {
         switch sidebarSelection {
         case .activityType(let type):  return type
         case .yearType(_, let type):   return type
+        case .courseType(let type):    return type
         default:                       return nil
+        }
+    }
+
+    /// Vrai quand le flux courant porte sur les parcours (« Tous les parcours » ou un type de parcours).
+    var isCoursesScope: Bool {
+        switch sidebarSelection {
+        case .allCourses, .courseType:  return true
+        default:                        return false
         }
     }
 

@@ -22,8 +22,7 @@ struct AppMenuCommands: Commands {
                 Task {
                     if let id = await services.createEmptyParcours() {
                         await window.listVM.reload()
-                        window.navigation.selectedStageId = nil
-                        window.navigation.sidebarSelection = .stagedRoute(id)
+                        window.navigation.openCourse(id)
                     }
                 }
             }
