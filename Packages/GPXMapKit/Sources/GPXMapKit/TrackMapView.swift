@@ -654,22 +654,27 @@ public struct TrackMapView: NSViewRepresentable {
         public func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldAttemptToRecognizeWith event: NSEvent) -> Bool {
             guard let mapView = gestureRecognizer.view as? MKMapView, let superview = mapView.superview else { return true }
             let superPoint = superview.convert(event.locationInWindow, from: nil)
+            var onControl = false, onAnnotation = false
             if let hit = mapView.hitTest(superPoint) {
                 var view: NSView? = hit
                 while let current = view, current !== mapView {
-                    if current is NSControl { return false }   // ne pas voler les clics des boutons
+                    if current is NSControl { onControl = true }
+                    if current is MKAnnotationView { onAnnotation = true }
                     view = current.superview
                 }
             }
-            // Le pan de déplacement ne s'active QUE près d'un point de passage (sinon la carte défile normalement).
+            if onControl { return false }   // ne pas voler les clics des boutons
+            let local = mapView.convert(event.locationInWindow, from: nil)
             if gestureRecognizer is NSPanGestureRecognizer {
-                let local = mapView.convert(event.locationInWindow, from: nil)
-                return nearestWaypointAnnotation(toPoint: local, in: mapView) != nil
+                // Déplacement : sur un marqueur OU près d'un point (sinon la carte défile normalement).
+                return onAnnotation || nearestWaypointAnnotation(toPoint: local, in: mapView) != nil
             }
-            return true
+            // Clic : sur un marqueur, laisser la sélection native (didSelect) ; sinon, handleClick (ajout/sélection à côté).
+            return !onAnnotation
         }
 
         var draggingAnnotation: WaypointAnnotation?
+        private var grabOffset: CGPoint = .zero   // écart curseur → ancre du marqueur, conservé pendant le drag
         private var crosshair: CrosshairView?
 
         private func showCrosshair(at point: CGPoint, in mapView: MKMapView) {
@@ -698,15 +703,22 @@ public struct TrackMapView: NSViewRepresentable {
             let point = g.location(in: mapView)
             switch g.state {
             case .began:
-                draggingAnnotation = nearestWaypointAnnotation(toPoint: point, in: mapView)
-                if draggingAnnotation != nil { mapView.isScrollEnabled = false; showCrosshair(at: point, in: mapView) }
+                if let ann = nearestWaypointAnnotation(toPoint: point, in: mapView) {
+                    draggingAnnotation = ann
+                    let annPoint = mapView.convert(ann.coordinate, toPointTo: mapView)
+                    grabOffset = CGPoint(x: annPoint.x - point.x, y: annPoint.y - point.y)
+                    mapView.isScrollEnabled = false
+                    showCrosshair(at: CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y), in: mapView)
+                }
             case .changed:
                 guard draggingAnnotation != nil else { return }
-                draggingAnnotation?.coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-                showCrosshair(at: point, in: mapView)
+                let target = CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y)
+                draggingAnnotation?.coordinate = mapView.convert(target, toCoordinateFrom: mapView)
+                showCrosshair(at: target, in: mapView)
             case .ended, .cancelled, .failed:
                 if let ann = draggingAnnotation {
-                    let coord = mapView.convert(point, toCoordinateFrom: mapView)
+                    let target = CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y)
+                    let coord = mapView.convert(target, toCoordinateFrom: mapView)
                     ann.coordinate = coord
                     onWaypointMoved?(ann.waypointId, coord)
                 }
