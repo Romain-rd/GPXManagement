@@ -115,8 +115,9 @@ public struct WaypointMarker: Sendable, Identifiable {
     public let name: String?
     public let label: String?     // numéro d'ordre affiché dans l'épingle (nil = icône par rôle)
     public let isPreview: Bool    // repère d'aperçu (recherche) déplaçable, pas encore dans le tracé
-    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil, isPreview: Bool = false) {
-        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label; self.isPreview = isPreview
+    public let isSelected: Bool   // pastille sélectionnée (mise en évidence sur la carte)
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil, isPreview: Bool = false, isSelected: Bool = false) {
+        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected
     }
 }
 
@@ -126,8 +127,9 @@ final class WaypointAnnotation: MKPointAnnotation {
     let role: RouteWaypoint.Role
     let label: String?
     let isPreview: Bool
-    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool) {
-        self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview
+    let isSelected: Bool
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool, isSelected: Bool) {
+        self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected
         super.init()
         self.coordinate = coordinate
         self.title = name
@@ -360,11 +362,11 @@ public struct TrackMapView: NSViewRepresentable {
 
         func applyWaypoints(_ markers: [WaypointMarker], to mapView: MKMapView) {
             // Pas de reconstruction pendant un drag (sinon le pin saute) : on diffe sur (id, index, coord).
-            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.role.rawValue)|\($0.coordinate.latitude),\($0.coordinate.longitude)" }.joined(separator: ";")
+            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.role.rawValue)|\($0.coordinate.latitude),\($0.coordinate.longitude)|\($0.isSelected)" }.joined(separator: ";")
             if sig == waypointSignature { return }
             waypointSignature = sig
             mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview) }
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview, isSelected: $0.isSelected) }
             mapView.addAnnotations(waypointAnnotations)
         }
         private var waypointSignature = ""
@@ -600,7 +602,8 @@ public struct TrackMapView: NSViewRepresentable {
                     marker.glyphText = nil
                     marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
                 } else {
-                    marker.markerTintColor = wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray)
+                    // Sélectionné → bleu accent (mis en avant) ; sinon couleur par rôle.
+                    marker.markerTintColor = wp.isSelected ? .controlAccentColor : (wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray))
                     if let label = wp.label {
                         marker.glyphText = label
                         marker.glyphImage = nil
