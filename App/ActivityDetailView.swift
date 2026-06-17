@@ -983,7 +983,7 @@ struct ActivityDetailView: View {
             }
             if secMapExpanded {
                 if routeEditMode {
-                    RouteEditorView(activity: activity, repository: repository, layer: mapLayerBinding, mapHeight: mapHeight) {
+                    RouteEditorView(activity: activity, repository: repository, layer: mapLayerBinding, mapHeight: $mapHeight) {
                         Task { await listVM.reload() }
                     }
                     mapResizeHandle
@@ -2511,7 +2511,7 @@ struct ParcoursDetailView: View {
                         header
                         toolPalette
                         if tool == .route && activity.isEditableRoute {
-                            RouteEditorView(activity: activity, repository: repository, layer: layerBinding, mapHeight: mapHeight) {
+                            RouteEditorView(activity: activity, repository: repository, layer: layerBinding, mapHeight: $mapHeight) {
                                 Task { await load() }
                             }
                         } else {
@@ -2530,6 +2530,8 @@ struct ParcoursDetailView: View {
                 }
             }
         }
+        .overlay(alignment: .trailing) { stageInspector }
+        .animation(.easeInOut(duration: 0.2), value: navigation.selectedStageId)
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
         .task(id: AppServices.shared.libraryRevision) {
@@ -2565,6 +2567,24 @@ struct ParcoursDetailView: View {
             Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
                         totalGainWithConnectors, stages.count))
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Inspecteur d'étape escamotable : glisse depuis la droite par-dessus la carte quand une étape est sélectionnée.
+    @ViewBuilder private var stageInspector: some View {
+        if let stageId = navigation.selectedStageId {
+            StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                .frame(width: 360)
+                .background(.regularMaterial)
+                .overlay(alignment: .topTrailing) {
+                    Button { navigation.selectedStageId = nil } label: {
+                        Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain).padding(10).help("Fermer la fiche d'étape")
+                }
+                .overlay(alignment: .leading) { Divider() }
+                .shadow(color: .black.opacity(0.15), radius: 8, x: -2)
+                .transition(.move(edge: .trailing))
         }
     }
 
@@ -3573,6 +3593,7 @@ struct StageColoredMap: View {
     var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil
     var onWaypointTapped: ((UUID) -> Void)? = nil
     var onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil
+    var proxy: MapViewProxy? = nil
     @Binding var layer: MapLayer
 
     private static let connectorIds = [
@@ -3604,7 +3625,7 @@ struct StageColoredMap: View {
     }
 
     var body: some View {
-        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, highlight: highlight, fitsOnce: true,
+        TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, proxy: proxy, highlight: highlight, fitsOnce: true,
                      waypoints: waypoints, onWaypointMoved: onWaypointMoved, onWaypointTapped: onWaypointTapped, onMapClick: onMapClick)
             .overlay(alignment: .topTrailing) {
                 LayerPicker(layer: $layer).padding(8)
@@ -3654,7 +3675,7 @@ struct RouteEditorView: View {
     let activity: ActivitySummary
     let repository: CoreDataActivityRepository
     @Binding var layer: MapLayer
-    let mapHeight: Double
+    @Binding var mapHeight: Double
     var onSaved: () -> Void
 
     @State private var waypoints: [RouteWaypoint] = []
@@ -3668,6 +3689,9 @@ struct RouteEditorView: View {
     @State private var dirty = false
     @State private var routeDone = 0
     @State private var routeTotal = 0
+    @State private var mapProxy = MapViewProxy()
+    @State private var placeQuery = ""
+    @State private var searching = false
     @AppStorage("connectorEngine") private var engineRaw = "mapkit"
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
@@ -3693,12 +3717,14 @@ struct RouteEditorView: View {
             if isLoading {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, minHeight: mapHeight)
             } else {
+                placeSearchBar
                 StageColoredMap(
                     activityId: activity.id, activityType: activity.activityType,
                     coords: displayCoords, waypoints: markers,
                     onWaypointMoved: { id, c in moveWaypoint(id: id, to: c) },
                     onWaypointTapped: { selectedWaypointId = ($0 == selectedWaypointId ? nil : $0) },
                     onMapClick: { addWaypoint(at: $0) },
+                    proxy: mapProxy,
                     layer: $layer
                 )
                 .frame(height: mapHeight)
@@ -3724,12 +3750,38 @@ struct RouteEditorView: View {
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10)).padding(10)
                     }
                 }
+                DragResizeHandle { d in mapHeight = Swift.min(900, Swift.max(200, mapHeight + Double(d))) }
                 controls
                 waypointList
             }
         }
         .task { await load() }
         .onDisappear { saveIfNeeded() }
+    }
+
+    private var placeSearchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Rechercher un lieu (ville, col, refuge…)", text: $placeQuery)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { Task { await searchPlace() } }
+            if searching { ProgressView().controlSize(.small) }
+        }
+    }
+
+    /// Recentre la carte sur le lieu recherché (sans rien ajouter au tracé).
+    private func searchPlace() async {
+        let q = placeQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return }
+        searching = true
+        defer { searching = false }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = q
+        if let region = mapProxy.mapView?.region { request.region = region }
+        guard let response = try? await MKLocalSearch(request: request).start(),
+              let item = response.mapItems.first else { return }
+        let c = item.placemark.coordinate
+        mapProxy.mapView?.setRegion(MKCoordinateRegion(center: c, latitudinalMeters: 9000, longitudinalMeters: 9000), animated: true)
     }
 
     private var controls: some View {

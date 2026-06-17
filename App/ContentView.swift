@@ -42,7 +42,13 @@ struct ContentView: View {
     private var splitView: some View {
         // En plein écran carte on force le repli sidebar + liste (la carte occupe tout) ; sinon visibilité normale.
         NavigationSplitView(columnVisibility: Binding(
-            get: { window.mapFullscreen ? .detailOnly : columnVisibility },
+            get: {
+                if window.mapFullscreen { return .detailOnly }
+                // Parcours : l'éditeur (carte) occupe la grande colonne de détail ; l'inspecteur d'étape
+                // est un panneau escamotable PAR-DESSUS la carte (overlay dans ParcoursDetailView).
+                if navigation.selectedStagedRouteId != nil { return .all }
+                return columnVisibility
+            },
             set: { columnVisibility = $0 }
         )) {
             SidebarView(navigation: navigation, listVM: listVM)
@@ -54,12 +60,6 @@ struct ContentView: View {
                 RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window)
                     .id(raid.id)
                     .navigationSplitViewColumnWidth(min: 340, ideal: 400)
-            } else if let routeId = navigation.selectedStagedRouteId,
-                      let route = listVM.allActivities.first(where: { $0.id == routeId }),
-                      let repository {
-                ParcoursDetailView(activity: route, listVM: listVM, repository: repository, navigation: navigation)
-                    .id(route.id)
-                    .navigationSplitViewColumnWidth(min: 360, ideal: 440)
             } else {
                 ActivityListView(listVM: listVM, navigation: navigation, services: services, searchDisabled: window.mapFullscreen)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 340)
@@ -236,15 +236,7 @@ struct ContentView: View {
         if let routeId = navigation.selectedStagedRouteId,
            let route = listVM.allActivities.first(where: { $0.id == routeId }),
            let repository {
-            if let stageId = navigation.selectedStageId {
-                StageDetailView(activity: route, stageId: stageId, repository: repository).id(stageId)
-            } else if listVM.stageCount(routeId) > 1 {
-                ContentUnavailableView("Sélectionnez une étape", systemImage: "flag.checkered",
-                                       description: Text("Choisissez une étape à gauche pour voir sa fiche."))
-            } else {
-                // Pas d'étapes réelles : pas de panneau à droite (l'inspecteur escamotable viendra à l'incrément 4).
-                Color.clear
-            }
+            ParcoursDetailView(activity: route, listVM: listVM, repository: repository, navigation: navigation).id(route.id)
         } else if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
