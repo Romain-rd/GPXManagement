@@ -7,8 +7,6 @@ struct SidebarView: View {
     @Bindable var navigation: AppNavigationModel
     @Bindable var listVM: ActivityListViewModel
 
-    @State private var renamingRaid: Raid?
-    @State private var renameText = ""
     @AppStorage("sidebarTypesExpanded") private var typesExpanded = false
     @AppStorage("sidebarYearsExpanded") private var yearsExpanded = true
     @AppStorage("sidebarRaidsExpanded") private var raidsExpanded = true
@@ -211,17 +209,6 @@ struct SidebarView: View {
         }
         .navigationTitle("Bibliothèque")
         .listStyle(.sidebar)
-        .alert("Renommer le raid", isPresented: Binding(get: { renamingRaid != nil }, set: { if !$0 { renamingRaid = nil } })) {
-            TextField("Nom du raid", text: $renameText)
-            Button("Annuler", role: .cancel) { renamingRaid = nil }
-            Button("Renommer") {
-                if let raid = renamingRaid {
-                    let name = renameText.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty { Task { await listVM.renameRaid(raid.id, name: name) } }
-                }
-                renamingRaid = nil
-            }
-        }
     }
 
     private func yearRow(_ year: Int, count: Int) -> some View {
@@ -247,21 +234,6 @@ struct SidebarView: View {
         }
         .badge(count)
         .tag(SidebarDestination.year(year))
-    }
-
-    @ViewBuilder
-    private func raidRow(_ raid: Raid, count: Int) -> some View {
-        Label {
-            Text(raid.name)
-        } icon: {
-            if let data = raid.coverImageData, let image = NSImage(data: data) {
-                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
-                    .frame(width: 20, height: 20).clipShape(RoundedRectangle(cornerRadius: 4))
-            } else {
-                Image(systemName: "flag.2.crossed").foregroundStyle(.orange)
-            }
-        }
-        .badge(count)
     }
 }
 

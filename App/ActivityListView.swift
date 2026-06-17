@@ -68,8 +68,7 @@ struct ActivityListView: View {
                     let name = newRaidName.trimmingCharacters(in: .whitespaces)
                     Task {
                         if let raidId = await listVM.createRaid(name: name.isEmpty ? "Nouveau raid" : name, activityIds: ids) {
-                            navigation.listSelection = []
-                            navigation.sidebarSelection = .raid(raidId)
+                            navigation.openRaid(raidId)
                         }
                     }
                 }
@@ -117,8 +116,6 @@ struct ActivityListView: View {
         case .year(let y):             return String(y)
         case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
         case .smartFilter(let id):     return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"
-        case .raid:                    return "Activités"
-        case .stagedRoute:             return "Parcours"
         }
     }
 

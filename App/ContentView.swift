@@ -140,7 +140,8 @@ struct ContentView: View {
                 navigation.listSelection = []
             }
             navigation.selectedStageId = nil // sinon la fiche d'étape de l'ancien parcours resterait affichée
-            navigation.selectedRaidInListId = nil
+            navigation.selectedRaidInListId = navigation.pendingRaidSelection
+            navigation.pendingRaidSelection = nil
             syncActiveSmartFilter()
         }
         .sheet(item: editingSmartFilterBinding) { filter in

@@ -34,8 +34,6 @@ enum SidebarDestination: Hashable {
     case raidType(ActivityType)
     case year(Int)
     case yearType(Int, ActivityType)
-    case raid(UUID)
-    case stagedRoute(UUID)
     case smartFilter(UUID)
 }
 
@@ -56,6 +54,8 @@ final class AppNavigationModel {
     var pendingCourseSelection: UUID?
     /// Raid sélectionné dans la liste centrale (« Tous les raids ») — son détail s'affiche dans la 3ᵉ colonne.
     var selectedRaidInListId: UUID?
+    /// Raid à sélectionner une fois le flux « Tous les raids » activé (même logique que pendingCourseSelection).
+    var pendingRaidSelection: UUID?
 
     /// Sélectionne un raid dans la liste (détail en 3ᵉ colonne) ; déselectionne activité/étape.
     func selectRaid(_ id: UUID) {
@@ -75,14 +75,14 @@ final class AppNavigationModel {
         }
     }
 
-    var selectedRaidId: UUID? {
-        if case .raid(let id) = sidebarSelection { return id }
-        return nil
-    }
-
-    var selectedStagedRouteId: UUID? {
-        if case .stagedRoute(let id) = sidebarSelection { return id }
-        return nil
+    /// Ouvre un raid : flux « Tous les raids » + sélection (détail dans la 3ᵉ colonne).
+    func openRaid(_ id: UUID) {
+        if sidebarSelection == .allRaids {
+            selectRaid(id)
+        } else {
+            pendingRaidSelection = id
+            sidebarSelection = .allRaids
+        }
     }
 
     var selectedSmartFilterId: UUID? {
