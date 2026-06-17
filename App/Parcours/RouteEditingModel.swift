@@ -76,9 +76,9 @@ final class RouteEditingModel {
         dirty = true
     }
 
-    func addWaypoint(at c: CLLocationCoordinate2D) {
+    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
         guard !busy else { return }
-        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude)
+        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
         var p = waypoints.count
         if waypoints.count >= 2 {
             // Meilleure position : extension à une extrémité OU insertion sur le segment au détour minimal.

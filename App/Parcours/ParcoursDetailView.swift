@@ -148,9 +148,10 @@ struct ParcoursDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         toolPalette
-                        // La carte s'adapte à l'outil ; la gestion d'étapes (profil, étapes, POI) reste
-                        // disponible dans TOUS les modes (y compris itinéraire).
-                        if tool == .route && activity.isEditableRoute {
+                        // Parcours modifiable : UNE carte d'itinéraire pour TOUS les outils (✚ ajoute un point de
+                        // route, 📍 un POI, 🚩 un arrêt d'étape, 🖐 sélectionne) — pas de bascule de carte.
+                        // Parcours fidèle : carte d'annotation (tracé verrouillé).
+                        if activity.isEditableRoute {
                             routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 200, max: 900)
                             routeWaypointList
@@ -170,13 +171,6 @@ struct ParcoursDetailView: View {
                     }
                     .padding()
                 }
-            }
-        }
-        .onChange(of: tool) { old, new in
-            if new == .route, old != .route {
-                Task { await routeModel.load(activityId: activity.id) }
-            } else if old == .route, new != .route {
-                routeModel.saveIfNeeded(activityId: activity.id) { Task { await load() } }
             }
         }
         .slideOverInspector(width: $inspectorWidth,
@@ -210,7 +204,13 @@ struct ParcoursDetailView: View {
                 let newValue = !activity.isEditableRoute
                 Task {
                     await listVM.setEditableRoute(id: activity.id, newValue)
-                    if newValue { tool = .route }   // on bascule directement en mode itinéraire
+                    if newValue {
+                        await routeModel.load(activityId: activity.id)
+                        tool = .route
+                    } else {
+                        tool = .select
+                        await load()
+                    }
                 }
             }
             Button("Annuler", role: .cancel) {}
@@ -239,7 +239,7 @@ struct ParcoursDetailView: View {
 
     private var toolPalette: some View {
         Group {
-            if tool == .route && activity.isEditableRoute {
+            if activity.isEditableRoute {
                 // Barre adaptative : une ligne si la largeur suffit, sinon deux lignes (écran étroit).
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
@@ -358,13 +358,23 @@ struct ParcoursDetailView: View {
                         layer: layerBinding)
     }
 
-    /// Carte unique en mode itinéraire : tracé routé + points de passage déplaçables, clic = ajouter.
+    /// Rôle du point ajouté au clic selon l'outil actif (sélection = pas d'ajout).
+    private var roleForTool: RouteWaypoint.Role? {
+        switch tool {
+        case .route: return .shaping
+        case .poi: return .poi
+        case .stageStop: return .stageStop
+        case .select: return nil
+        }
+    }
+
+    /// Carte unique d'un parcours modifiable : tracé routé + points de passage typés, clic = ajouter (selon l'outil).
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                         coords: routeModel.displayCoords, waypoints: routeModel.markers,
                         onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
                         onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
-                        onMapClick: { routeModel.addWaypoint(at: $0) },
+                        onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
                 if routeModel.waypoints.isEmpty {
@@ -747,15 +757,15 @@ struct ParcoursDetailView: View {
 
     private func load() async {
         defer { isLoading = false }
-        // À la PREMIÈRE ouverture du parcours : modifiable → mode itinéraire (outils d'édition visibles) ;
-        // fidèle → mode sélection. On ne le règle qu'une fois (sinon impossible de quitter le mode itinéraire,
-        // car load() est aussi rappelé après une sauvegarde).
-        if !initialToolSet {
-            initialToolSet = true
-            tool = activity.isEditableRoute ? .route : .select
-        }
         let raw = try? await repository.fetchTrackData(id: activity.id)
         let decoded = raw.flatMap { try? TrackPointCodec.decode($0) } ?? []
+        // À la PREMIÈRE ouverture : on charge le routage d'un parcours modifiable et on choisit l'outil
+        // (✚ pour un parcours vide à dessiner, sinon sélection). Une seule fois (load() est rappelé au save).
+        if !initialToolSet {
+            initialToolSet = true
+            tool = (activity.isEditableRoute && decoded.count < 2) ? .route : .select
+            if activity.isEditableRoute { await routeModel.load(activityId: activity.id) }
+        }
         guard decoded.count > 1 else {
             points = decoded
             return
