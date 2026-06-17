@@ -45,6 +45,31 @@ struct SidebarView: View {
         .tag(SidebarDestination.allActivities)
     }
 
+    private var allCoursesRow: some View {
+        HStack(spacing: 2) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { parcoursExpanded.toggle() }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(parcoursExpanded ? 90 : 0))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(listVM.courseActivityTypes.isEmpty ? 0 : 1)
+            .disabled(listVM.courseActivityTypes.isEmpty)
+            Label {
+                Text("Tous les parcours")
+            } icon: {
+                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").foregroundStyle(.tint)
+            }
+        }
+        .badge(listVM.coursesCount)
+        .tag(SidebarDestination.allCourses)
+    }
+
     var body: some View {
         List(selection: selectionBinding) {
             allActivitiesRow
@@ -60,6 +85,23 @@ struct SidebarView: View {
                     .badge(entry.count)
                     .padding(.leading, 18)
                     .tag(SidebarDestination.activityType(entry.type))
+                }
+            }
+
+            if !listVM.courseActivities.isEmpty {
+                allCoursesRow
+                if parcoursExpanded {
+                    ForEach(listVM.courseActivityTypes, id: \.type) { entry in
+                        Label {
+                            Text(entry.type.displayName)
+                        } icon: {
+                            Image(systemName: entry.type.symbolName)
+                                .foregroundStyle(Color(nsColor: entry.type.trackColor))
+                        }
+                        .badge(entry.count)
+                        .padding(.leading, 18)
+                        .tag(SidebarDestination.courseType(entry.type))
+                    }
                 }
             }
 
@@ -104,27 +146,6 @@ struct SidebarView: View {
                     }
                 } header: {
                     Text("Raids")
-                }
-            }
-
-            if !listVM.courseActivities.isEmpty {
-                Section(isExpanded: $parcoursExpanded) {
-                    Label("Tous les parcours", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                        .badge(listVM.coursesCount)
-                        .tag(SidebarDestination.allCourses)
-                    ForEach(listVM.courseActivityTypes, id: \.type) { entry in
-                        Label {
-                            Text(entry.type.displayName)
-                        } icon: {
-                            Image(systemName: entry.type.symbolName)
-                                .foregroundStyle(Color(nsColor: entry.type.trackColor))
-                        }
-                        .badge(entry.count)
-                        .padding(.leading, 18)
-                        .tag(SidebarDestination.courseType(entry.type))
-                    }
-                } header: {
-                    Text("Parcours")
                 }
             }
 
