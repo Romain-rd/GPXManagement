@@ -2402,8 +2402,12 @@ struct ParcoursDetailView: View {
     let listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     @Bindable var navigation: AppNavigationModel
+    /// En fenêtre autonome (pas de 3ᵉ colonne) : l'inspecteur d'étape s'affiche en panneau flottant interne.
+    var showsInlineInspector: Bool = false
 
     @State private var tool: ParcoursTool = .select
+    @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
+    @State private var inspectorAccum: CGFloat = 0
 
     @State private var points: [TrackPoint] = []
     @State private var dists: [Double] = []
@@ -2530,6 +2534,9 @@ struct ParcoursDetailView: View {
                 }
             }
         }
+        .overlay(alignment: .trailing) { if showsInlineInspector { inlineInspector } }
+        .animation(.easeInOut(duration: 0.2), value: navigation.selectedStageId)
+        .animation(.easeInOut(duration: 0.2), value: navigation.showStageInspector)
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
         .task(id: AppServices.shared.libraryRevision) {
@@ -2565,6 +2572,30 @@ struct ParcoursDetailView: View {
             Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
                         totalGainWithConnectors, stages.count))
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Panneau flottant d'inspecteur d'étape (fenêtre autonome) : redimensionnable par sa poignée gauche.
+    @ViewBuilder private var inlineInspector: some View {
+        if let stageId = navigation.selectedStageId, navigation.showStageInspector {
+            HStack(spacing: 0) {
+                Rectangle().fill(.clear).frame(width: 7).contentShape(Rectangle())
+                    .overlay(Divider(), alignment: .leading)
+                    .onHover { NSCursor.resizeLeftRight.set(); if !$0 { NSCursor.arrow.set() } }
+                    .gesture(
+                        DragGesture()
+                            .onChanged { v in
+                                inspectorWidth = Swift.min(680, Swift.max(280, inspectorWidth - Double(v.translation.width - inspectorAccum)))
+                                inspectorAccum = v.translation.width
+                            }
+                            .onEnded { _ in inspectorAccum = 0 }
+                    )
+                StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                    .frame(width: inspectorWidth)
+            }
+            .background(.regularMaterial)
+            .shadow(color: .black.opacity(0.15), radius: 8, x: -2)
+            .transition(.move(edge: .trailing))
         }
     }
 

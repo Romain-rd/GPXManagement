@@ -112,8 +112,18 @@ struct ActivityDetailWindowView: View {
             if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
                let repo = AppServices.shared.repository as? CoreDataActivityRepository {
                 if activity.isCourse || activity.isStagedRoute {
-                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation)
+                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation, showsInlineInspector: true)
                         .navigationTitle(activity.title)
+                        .toolbar {
+                            if model.navigation.selectedStageId != nil {
+                                ToolbarItem(placement: .automatic) {
+                                    Button { model.navigation.showStageInspector.toggle() } label: {
+                                        Image(systemName: "sidebar.right")
+                                    }
+                                    .help(model.navigation.showStageInspector ? "Masquer la fiche d'étape" : "Afficher la fiche d'étape")
+                                }
+                            }
+                        }
                 } else {
                     ActivityDetailView(activity: activity, listVM: model.listVM, repository: repo, windowModel: model, isStandaloneWindow: true, fullscreenMap: $detailFullscreen)
                         .navigationTitle(detailFullscreen ? "" : activity.title)
