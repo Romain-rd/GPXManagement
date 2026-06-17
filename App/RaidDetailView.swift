@@ -9,12 +9,71 @@ import GPXRender
 import GPXVideo
 import GPXMapKit
 
+/// Liste des raids (colonne centrale) — sélectionner un raid ouvre son détail dans la 3ᵉ colonne (comme une activité).
+struct RaidsListView: View {
+    @Bindable var listVM: ActivityListViewModel
+    @Bindable var navigation: AppNavigationModel
+    @State private var renamingRaid: Raid?
+    @State private var renameText = ""
+
+    var body: some View {
+        List(selection: Binding(
+            get: { navigation.selectedRaidInListId },
+            set: { if let id = $0 { navigation.selectRaid(id) } }
+        )) {
+            ForEach(listVM.availableRaids, id: \.raid.id) { entry in
+                row(entry.raid, count: entry.count)
+                    .tag(entry.raid.id)
+                    .contextMenu {
+                        Button("Renommer…") { renameText = entry.raid.name; renamingRaid = entry.raid }
+                        Button("Supprimer le raid", role: .destructive) {
+                            Task { await listVM.deleteRaid(entry.raid.id) }
+                            if navigation.selectedRaidInListId == entry.raid.id { navigation.selectedRaidInListId = nil }
+                        }
+                    }
+            }
+        }
+        .navigationTitle("Tous les raids")
+        .alert("Renommer le raid", isPresented: Binding(get: { renamingRaid != nil }, set: { if !$0 { renamingRaid = nil } })) {
+            TextField("Nom", text: $renameText)
+            Button("Renommer") {
+                if let raid = renamingRaid {
+                    let name = renameText.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty { Task { await listVM.renameRaid(raid.id, name: name) } }
+                }
+                renamingRaid = nil
+            }
+            Button("Annuler", role: .cancel) { renamingRaid = nil }
+        }
+    }
+
+    private func row(_ raid: Raid, count: Int) -> some View {
+        HStack(spacing: 12) {
+            if let data = raid.coverImageData, let image = NSImage(data: data) {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                    .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                    .overlay(Image(systemName: "flag.2.crossed").foregroundStyle(.orange))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(raid.name).fontWeight(.medium)
+                Text("\(count) activité(s)").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 struct RaidDetailView: View {
     let raid: Raid
     let listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     let navigation: AppNavigationModel
     @Bindable var window: WindowModel
+    @Environment(\.openWindow) private var openWindow
 
     @State private var draft: Raid
     @State private var model: RaidDetailViewModel
@@ -544,8 +603,7 @@ struct RaidDetailView: View {
                         .frame(minHeight: 320)
                 } else {
                     TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0, onSelectActivity: { id in
-                        navigation.visualizationMode = .activities
-                        navigation.listSelection = [id]
+                        openWindow(value: id)
                     })
                     .frame(height: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -586,8 +644,7 @@ struct RaidDetailView: View {
     private func stepRow(index: Int, activity: ActivitySummary) -> some View {
         HStack(spacing: 12) {
             Button {
-                navigation.visualizationMode = .activities
-                navigation.listSelection = [activity.id]
+                openWindow(value: activity.id)
             } label: {
                 HStack(spacing: 12) {
                     Text("J\(index)")
@@ -646,8 +703,7 @@ struct RaidDetailView: View {
         }
         .contextMenu {
             Button {
-                navigation.visualizationMode = .activities
-                navigation.listSelection = [activity.id]
+                openWindow(value: activity.id)
             } label: { Label("Ouvrir l'étape", systemImage: "arrow.up.right.square") }
             Divider()
             Button(role: .destructive) {

@@ -110,6 +110,7 @@ struct ActivityListView: View {
         switch navigation.sidebarSelection {
         case .allActivities:           return "Toutes les activités"
         case .allCourses:              return "Tous les parcours"
+        case .allRaids:                return "Tous les raids"
         case .activityType(let t):     return t.displayName
         case .courseType(let t):       return "\(t.displayName) (parcours)"
         case .year(let y):             return String(y)

@@ -31,14 +31,14 @@ struct ContentView: View {
     }
 
     private var raidMembers: [ActivitySummary] {
-        guard let id = navigation.selectedRaidId else { return [] }
+        guard let id = navigation.selectedRaidInListId else { return [] }
         return listVM.allActivities.filter { $0.raidId == id }.sorted { $0.startDate < $1.startDate }
     }
 
     /// Activités ciblées par le mode courant : la sélection si elle existe, sinon l'ensemble
     /// courant (étapes du raid sélectionné, sinon toutes les activités filtrées).
     private var baseActivities: [ActivitySummary] {
-        navigation.selectedRaidId != nil ? raidMembers : listVM.visibleActivities
+        navigation.selectedRaidInListId != nil ? raidMembers : listVM.visibleActivities
     }
 
     private var targetActivities: [ActivitySummary] {
@@ -55,12 +55,9 @@ struct ContentView: View {
             SidebarView(navigation: navigation, listVM: listVM)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } content: {
-            if let raidId = navigation.selectedRaidId,
-               let raid = listVM.raids.first(where: { $0.id == raidId }),
-               let repository {
-                RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window)
-                    .id(raid.id)
-                    .navigationSplitViewColumnWidth(min: 340, ideal: 400)
+            if navigation.sidebarSelection == .allRaids {
+                RaidsListView(listVM: listVM, navigation: navigation)
+                    .navigationSplitViewColumnWidth(min: 280, ideal: 360)
             } else {
                 ActivityListView(listVM: listVM, navigation: navigation, services: services, searchDisabled: window.mapFullscreen)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 340)
@@ -138,6 +135,7 @@ struct ContentView: View {
                 navigation.listSelection = []
             }
             navigation.selectedStageId = nil // sinon la fiche d'étape de l'ancien parcours resterait affichée
+            navigation.selectedRaidInListId = nil
             syncActiveSmartFilter()
         }
         .sheet(item: editingSmartFilterBinding) { filter in
@@ -253,12 +251,11 @@ struct ContentView: View {
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
             ActivityDetailView(activity: activity, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $window.mapFullscreen)
-        } else if navigation.selectedRaidId != nil {
-            ContentUnavailableView(
-                "Sélectionnez une étape",
-                systemImage: "flag.2.crossed",
-                description: Text("Choisissez une étape du raid à gauche pour voir son détail. L'aperçu du raid reste affiché.")
-            )
+        } else if let raidId = navigation.selectedRaidInListId,
+                  let raid = listVM.raids.first(where: { $0.id == raidId }),
+                  let repository {
+            // Raid : détail dans la 3ᵉ colonne (clic sur un membre → fenêtre autonome).
+            RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window).id(raid.id)
         } else {
             ContentUnavailableView(
                 "Aucune activité sélectionnée",

@@ -28,6 +28,7 @@ enum VisualizationMode: String, CaseIterable, Identifiable, Sendable {
 enum SidebarDestination: Hashable {
     case allActivities
     case allCourses
+    case allRaids
     case activityType(ActivityType)
     case courseType(ActivityType)
     case year(Int)
@@ -52,6 +53,15 @@ final class AppNavigationModel {
     var showStageInspector: Bool = true
     /// Parcours à sélectionner une fois le flux « Tous les parcours » activé (l'onChange de sidebarSelection vide listSelection).
     var pendingCourseSelection: UUID?
+    /// Raid sélectionné dans la liste centrale (« Tous les raids ») — son détail s'affiche dans la 3ᵉ colonne.
+    var selectedRaidInListId: UUID?
+
+    /// Sélectionne un raid dans la liste (détail en 3ᵉ colonne) ; déselectionne activité/étape.
+    func selectRaid(_ id: UUID) {
+        listSelection = []
+        selectedStageId = nil
+        selectedRaidInListId = id
+    }
 
     /// Ouvre un parcours comme une activité : flux « Tous les parcours » + sélection (détail dans la 3ᵉ colonne).
     func openCourse(_ id: UUID) {

@@ -105,6 +105,19 @@ struct SidebarView: View {
                 }
             }
 
+            if !listVM.availableRaids.isEmpty {
+                HStack(spacing: 2) {
+                    Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.clear).frame(width: 14, height: 14)
+                    Label {
+                        Text("Tous les raids")
+                    } icon: {
+                        Image(systemName: "flag.2.crossed").foregroundStyle(.orange)
+                    }
+                }
+                .badge(listVM.availableRaids.count)
+                .tag(SidebarDestination.allRaids)
+            }
+
             if !listVM.availableYears.isEmpty {
                 Section(isExpanded: $yearsExpanded) {
                     ForEach(listVM.availableYears, id: \.year) { entry in
@@ -125,27 +138,6 @@ struct SidebarView: View {
                     }
                 } header: {
                     Text("Années")
-                }
-            }
-
-            if !listVM.availableRaids.isEmpty {
-                Section(isExpanded: $raidsExpanded) {
-                    ForEach(listVM.availableRaids, id: \.raid.id) { entry in
-                        raidRow(entry.raid, count: entry.count)
-                            .tag(SidebarDestination.raid(entry.raid.id))
-                            .contextMenu {
-                                Button("Renommer…") {
-                                    renameText = entry.raid.name
-                                    renamingRaid = entry.raid
-                                }
-                                Button("Supprimer le raid", role: .destructive) {
-                                    Task { await listVM.deleteRaid(entry.raid.id) }
-                                    if navigation.selectedRaidId == entry.raid.id { navigation.sidebarSelection = .allActivities }
-                                }
-                            }
-                    }
-                } header: {
-                    Text("Raids")
                 }
             }
 
