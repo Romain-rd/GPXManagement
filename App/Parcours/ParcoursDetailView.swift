@@ -26,6 +26,7 @@ struct ParcoursDetailView: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var tool: ParcoursTool = .select
+    @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
 
     @State private var points: [TrackPoint] = []
@@ -179,6 +180,20 @@ struct ParcoursDetailView: View {
             Button("Renommer") { applyRename() }
             Button("Annuler", role: .cancel) { renamingStageId = nil }
         }
+        .alert(activity.isEditableRoute ? "Verrouiller le tracé ?" : "Rendre le tracé modifiable ?", isPresented: $showEditableRouteDialog) {
+            Button(activity.isEditableRoute ? "Verrouiller" : "Rendre modifiable") {
+                let newValue = !activity.isEditableRoute
+                Task {
+                    await listVM.setEditableRoute(id: activity.id, newValue)
+                    if newValue { tool = .route }   // on bascule directement en mode itinéraire
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text(activity.isEditableRoute
+                 ? "Le re-routage entre points de passage sera désactivé : le tracé restera fidèle (recommandé pour un GR importé). Les arrêts et POI restent éditables."
+                 : "Tu pourras re-router l'itinéraire entre les points de passage. ⚠️ Sur un tracé précis (GR importé), le re-routage peut le dégrader — à n'activer que pour un parcours dessiné.")
+        }
     }
 
     private func applyRename() {
@@ -202,9 +217,18 @@ struct ParcoursDetailView: View {
             toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
             toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
             toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+            Divider().frame(height: 18)
             if activity.isEditableRoute {
-                Divider().frame(height: 18)
                 toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
+                Button { showEditableRouteDialog = true } label: {
+                    Image(systemName: "lock.open").frame(width: 30, height: 24)
+                }
+                .buttonStyle(.borderless).help("Verrouiller le tracé (fidèle)")
+            } else {
+                Button { showEditableRouteDialog = true } label: {
+                    Label("Rendre modifiable", systemImage: "lock").font(.callout)
+                }
+                .buttonStyle(.borderless).help("Débloquer le re-tracé de l'itinéraire entre points de passage")
             }
             Spacer()
             Text(toolHint).font(.caption).foregroundStyle(.secondary)
