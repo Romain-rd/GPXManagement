@@ -2394,7 +2394,8 @@ enum GeoDistance {
 
 /// Aperçu d'un parcours en étapes (volet central, façon Raid) : carte, profil avec jonctions déplaçables,
 /// liste des étapes. Sélectionner une étape ouvre sa fiche dans le volet de droite.
-enum ParcoursEditMode: Hashable { case route, stages }
+/// Outil actif de l'éditeur de parcours unifié. `.route` (re-tracer) n'est disponible que pour un parcours modifiable.
+enum ParcoursTool: Hashable { case select, poi, stageStop, route }
 
 struct ParcoursDetailView: View {
     let activity: ActivitySummary
@@ -2402,7 +2403,7 @@ struct ParcoursDetailView: View {
     let repository: CoreDataActivityRepository
     @Bindable var navigation: AppNavigationModel
 
-    @State private var editorMode: ParcoursEditMode = .stages
+    @State private var tool: ParcoursTool = .select
 
     @State private var points: [TrackPoint] = []
     @State private var dists: [Double] = []
@@ -2411,7 +2412,6 @@ struct ParcoursDetailView: View {
     @State private var stages: [Stage] = []
     // Waypoints non-stop (POI + ancrages shaping) ; seuls les POI sont édités ici (mode fidèle : pas de re-routage).
     @State private var extraWaypoints: [RouteWaypoint] = []
-    @State private var addingPOI = false
     @State private var selectedPoiId: UUID?
     @State private var isLoading = true
     @State private var grabbed: Int?
@@ -2509,8 +2509,8 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
-                        if activity.isEditableRoute { modePicker }
-                        if editorMode == .route && activity.isEditableRoute {
+                        toolPalette
+                        if tool == .route && activity.isEditableRoute {
                             RouteEditorView(activity: activity, repository: repository, layer: layerBinding, mapHeight: mapHeight) {
                                 Task { await load() }
                             }
@@ -2568,28 +2568,96 @@ struct ParcoursDetailView: View {
         }
     }
 
-    private var modePicker: some View {
-        Picker("Mode", selection: $editorMode) {
-            Text("Itinéraire").tag(ParcoursEditMode.route)
-            Text("Étapes").tag(ParcoursEditMode.stages)
+    private var toolPalette: some View {
+        HStack(spacing: 6) {
+            toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
+            toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
+            toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+            if activity.isEditableRoute {
+                Divider().frame(height: 18)
+                toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
+            }
+            Spacer()
+            Text(toolHint).font(.caption).foregroundStyle(.secondary)
         }
-        .pickerStyle(.segmented)
+    }
+
+    private func toolButton(_ t: ParcoursTool, _ icon: String, _ help: String) -> some View {
+        Button { tool = t } label: {
+            Image(systemName: icon)
+                .frame(width: 30, height: 24)
+                .background(tool == t ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+    }
+
+    private var toolHint: String {
+        switch tool {
+        case .select: return "Glissez un POI, un drapeau d'étape ou une jonction."
+        case .poi: return "Cliquez sur la trace pour poser un point d'intérêt."
+        case .stageStop: return "Cliquez sur la trace pour couper une étape."
+        case .route: return "Re-tracé de l'itinéraire."
+        }
     }
 
     private var overviewMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages,
-                        highlight: dragCoord, waypoints: poiMarkers,
-                        onWaypointMoved: { id, c in movePOI(id: id, to: c) },
-                        onWaypointTapped: { selectedPoiId = ($0 == selectedPoiId ? nil : $0) },
-                        onMapClick: addingPOI ? { addPOI(at: $0) } : nil,
+                        highlight: dragCoord, waypoints: poiMarkers + boundaryMarkers,
+                        onWaypointMoved: { id, c in moveMarker(id: id, to: c) },
+                        onWaypointTapped: { tapMarker($0) },
+                        onMapClick: tool == .poi || tool == .stageStop ? { mapClick(at: $0) } : nil,
                         layer: layerBinding)
-            .overlay(alignment: .top) {
-                if addingPOI {
-                    Text("Cliquez sur la trace pour poser un point d'intérêt")
-                        .font(.caption).padding(6)
-                        .background(.orange, in: Capsule()).foregroundStyle(.white).padding(8)
-                }
-            }
+    }
+
+    /// Drapeaux des fins d'étape internes (déplaçables sur la carte avec l'outil sélection).
+    private var boundaryMarkers: [WaypointMarker] {
+        guard stages.count > 1, !points.isEmpty else { return [] }
+        return stages.dropLast().enumerated().map { i, s in
+            let idx = min(max(s.endIndex, 0), points.count - 1)
+            return WaypointMarker(id: s.id, coordinate: CLLocationCoordinate2D(latitude: points[idx].latitude, longitude: points[idx].longitude),
+                                  index: i, role: .stageStop, name: s.name)
+        }
+    }
+
+    private func mapClick(at c: CLLocationCoordinate2D) {
+        switch tool {
+        case .poi: addPOI(at: c)
+        case .stageStop: addStageStop(at: c)
+        default: break
+        }
+    }
+
+    private func moveMarker(id: UUID, to c: CLLocationCoordinate2D) {
+        if extraWaypoints.contains(where: { $0.id == id }) { movePOI(id: id, to: c) }
+        else { moveBoundary(stageId: id, to: c) }
+    }
+
+    private func tapMarker(_ id: UUID) {
+        if extraWaypoints.contains(where: { $0.id == id }) { selectedPoiId = (id == selectedPoiId ? nil : id) }
+        else { navigation.selectedStageId = id }
+    }
+
+    /// Pose une fin d'étape au point de tracé cliqué : coupe en deux l'étape qui le contient.
+    private func addStageStop(at c: CLLocationCoordinate2D) {
+        guard !points.isEmpty else { return }
+        let idx = RouteWaypoint.nearestIndex(latitude: c.latitude, longitude: c.longitude, in: points)
+        guard let k = stages.firstIndex(where: { idx > $0.startIndex && idx < $0.endIndex }) else { return }
+        let s = stages[k]
+        let first = Stage(id: s.id, activityId: activity.id, order: 0, name: s.name, notes: s.notes, startIndex: s.startIndex, endIndex: idx)
+        let second = Stage(activityId: activity.id, order: 0, name: "", startIndex: idx, endIndex: s.endIndex)
+        stages.replaceSubrange(k...k, with: [first, second])
+        persist()
+    }
+
+    /// Déplace une jonction d'étape (fin de l'étape k = début de k+1) au point de tracé le plus proche.
+    private func moveBoundary(stageId: UUID, to c: CLLocationCoordinate2D) {
+        guard let k = stages.firstIndex(where: { $0.id == stageId }), k < stages.count - 1, !points.isEmpty else { return }
+        let idx = RouteWaypoint.nearestIndex(latitude: c.latitude, longitude: c.longitude, in: points)
+        let clamped = min(max(idx, stages[k].startIndex + 1), stages[k + 1].endIndex - 1)
+        stages[k].endIndex = clamped
+        stages[k + 1].startIndex = clamped
+        persist()
     }
 
     private var profileChart: some View {
@@ -2768,10 +2836,6 @@ struct ParcoursDetailView: View {
                 Button("Tous les 500 m D+") { recalcByGain(500) }
                 Button("Tous les 1000 m D+") { recalcByGain(1_000) }
             } label: { Label("Recalculer", systemImage: "wand.and.stars") }
-            Button { addingPOI.toggle() } label: {
-                Label(addingPOI ? "Annuler le POI" : "Ajouter un POI", systemImage: addingPOI ? "xmark" : "mappin")
-            }
-            .help("Poser un point d'intérêt sur la trace (sans modifier le tracé)")
             Spacer()
         }
     }
@@ -2923,7 +2987,7 @@ struct ParcoursDetailView: View {
         let wp = RouteWaypoint(latitude: s.latitude, longitude: s.longitude, name: nil, role: .poi)
         extraWaypoints.append(wp)
         selectedPoiId = wp.id
-        addingPOI = false
+        tool = .select
         persist()
     }
 
