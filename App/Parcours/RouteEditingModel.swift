@@ -206,17 +206,6 @@ final class RouteEditingModel {
         }
     }
 
-    /// Recentre la carte sur un lieu recherché (sans rien ajouter au tracé).
-    func search(_ query: String) async {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return }
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = q
-        if let region = proxy.mapView?.region { request.region = region }
-        guard let response = try? await MKLocalSearch(request: request).start(), let item = response.mapItems.first else { return }
-        proxy.mapView?.setRegion(MKCoordinateRegion(center: item.placemark.coordinate, latitudinalMeters: 9000, longitudinalMeters: 9000), animated: true)
-    }
-
     /// Découpe un tracé continu en sous-tracés par paire de points (index le plus proche, monotone).
     static func splitTrack(_ track: [CLLocationCoordinate2D], waypoints: [RouteWaypoint]) -> [[CLLocationCoordinate2D]?] {
         guard waypoints.count >= 2, track.count >= 2 else { return Array(repeating: nil, count: max(0, waypoints.count - 1)) }

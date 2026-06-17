@@ -33,8 +33,9 @@ struct ParcoursDetailView: View {
     @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
-    @State private var placeQuery = ""
-    @State private var searching = false
+    @State private var placeSearch = PlaceSearchModel()
+    @State private var searchResult: (name: String, coordinate: CLLocationCoordinate2D)?
+    @FocusState private var searchFocused: Bool
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
          navigation: AppNavigationModel, showsInlineInspector: Bool = false) {
@@ -293,17 +294,59 @@ struct ParcoursDetailView: View {
     private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Rechercher un lieu…", text: $placeQuery)
+            TextField("Rechercher un lieu…", text: $placeSearch.query)
                 .textFieldStyle(.plain).frame(minWidth: 110)
-                .onSubmit { Task { searching = true; await routeModel.search(placeQuery); searching = false } }
-            if searching { ProgressView().controlSize(.mini) }
-            else if !placeQuery.isEmpty {
-                Button { placeQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
+                .focused($searchFocused)
+                .onChange(of: placeSearch.query) { placeSearch.bias(to: routeModel.proxy.mapView?.region) }
+                .onSubmit { if let first = placeSearch.suggestions.first { pick(first) } }
+            if !placeSearch.query.isEmpty {
+                Button { placeSearch.clear(); searchResult = nil } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.borderless).foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
         .background(.quaternary.opacity(0.5), in: Capsule())
+        .popover(isPresented: Binding(get: { searchFocused && !placeSearch.suggestions.isEmpty },
+                                      set: { if !$0 { searchFocused = false } }), arrowEdge: .bottom) {
+            suggestionsList
+        }
+    }
+
+    private var suggestionsList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(placeSearch.suggestions.prefix(8).enumerated()), id: \.offset) { _, s in
+                Button { pick(s) } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(s.title).fontWeight(.medium)
+                        if !s.subtitle.isEmpty { Text(s.subtitle).font(.caption).foregroundStyle(.secondary) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).padding(.horizontal, 10).padding(.vertical, 6)
+                Divider()
+            }
+        }
+        .frame(width: 280).padding(.vertical, 4)
+    }
+
+    /// Choix d'une suggestion : pose le résultat sur la carte (repère + recentrage) pour pouvoir y poser un point.
+    private func pick(_ completion: MKLocalSearchCompletion) {
+        Task {
+            guard let r = await placeSearch.resolve(completion) else { return }
+            searchResult = r
+            placeSearch.suggestions = []
+            placeSearch.query = r.name
+            searchFocused = false
+            routeModel.proxy.mapView?.setRegion(MKCoordinateRegion(center: r.coordinate, latitudinalMeters: 4000, longitudinalMeters: 4000), animated: true)
+        }
+    }
+
+    /// Ajoute le lieu trouvé comme point de passage (rôle selon l'outil actif, POI par défaut).
+    private func addSearchResult() {
+        guard let r = searchResult else { return }
+        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi)
+        searchResult = nil
+        placeSearch.clear()
     }
 
     private var enginePicker: some View {
@@ -376,13 +419,24 @@ struct ParcoursDetailView: View {
     /// Carte unique d'un parcours modifiable : tracé routé + points de passage typés, clic = ajouter (selon l'outil).
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
-                        coords: routeModel.displayCoords, waypoints: routeModel.markers,
+                        coords: routeModel.displayCoords, highlight: searchResult?.coordinate, waypoints: routeModel.markers,
                         onWaypointMoved: { id, c in routeModel.moveWaypoint(id: id, to: c) },
                         onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
-                if routeModel.waypoints.isEmpty {
+                if let r = searchResult {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.circle.fill").foregroundStyle(.red)
+                        Text(r.name).lineLimit(1)
+                        Button("Ajouter ce point") { addSearchResult() }
+                            .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.busy)
+                        Button { searchResult = nil } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.borderless).foregroundStyle(.tertiary)
+                    }
+                    .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule()).padding(8)
+                } else if routeModel.waypoints.isEmpty {
                     Label("Cliquez sur la carte pour poser le premier point", systemImage: "hand.tap")
                         .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
                         .background(.thinMaterial, in: Capsule()).padding(8)
