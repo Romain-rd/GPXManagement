@@ -119,6 +119,11 @@ final class ActivityListViewModel {
             allActivities = try await repository.fetchAllSummaries()
             raids = try await repository.fetchRaids()
             smartFilters = try await repository.fetchSmartFilters()
+            var counts: [UUID: Int] = [:]
+            for course in allActivities where course.isCourse {
+                counts[course.id] = (try? await repository.fetchStages(activityId: course.id))?.count ?? 0
+            }
+            stageCounts = counts
         } catch {
             self.error = "Échec du chargement : \(error.localizedDescription)"
         }
@@ -128,7 +133,15 @@ final class ActivityListViewModel {
         allActivities.filter { $0.isStagedRoute }.sorted { $0.startDate > $1.startDate }
     }
 
-    /// Supprime un parcours en étapes : comme c'est une copie dédiée de la trace, on supprime l'activité entière.
+    /// Liste unique des parcours (tout `isCourse`) : certains ont plusieurs étapes, d'autres une seule.
+    var parcours: [ActivitySummary] {
+        allActivities.filter { $0.isCourse }.sorted { $0.startDate > $1.startDate }
+    }
+    /// Nombre d'étapes persistées par parcours (≥1 : une étape implicite couvre toute la trace).
+    private(set) var stageCounts: [UUID: Int] = [:]
+    func stageCount(_ id: UUID) -> Int { max(1, stageCounts[id] ?? 1) }
+
+    /// Supprime un parcours (la route elle-même) : étapes + activité.
     func deleteStagedRoute(_ activityId: UUID) async {
         do {
             try await repository.deleteStages(activityId: activityId)

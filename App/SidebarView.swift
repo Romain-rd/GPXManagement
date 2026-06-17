@@ -45,16 +45,6 @@ struct SidebarView: View {
         .tag(SidebarDestination.allActivities)
     }
 
-    private var allCoursesRow: some View {
-        Label {
-            Text("Tous les parcours")
-        } icon: {
-            Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").foregroundStyle(.tint)
-        }
-        .badge(listVM.coursesCount)
-        .tag(SidebarDestination.allCourses)
-    }
-
     var body: some View {
         List(selection: selectionBinding) {
             allActivitiesRow
@@ -72,8 +62,6 @@ struct SidebarView: View {
                     .tag(SidebarDestination.activityType(entry.type))
                 }
             }
-
-            allCoursesRow
 
             if !listVM.availableYears.isEmpty {
                 Section(isExpanded: $yearsExpanded) {
@@ -119,10 +107,11 @@ struct SidebarView: View {
                 }
             }
 
-            if !listVM.availableStagedRoutes.isEmpty {
+            if !listVM.parcours.isEmpty {
                 Section(isExpanded: $parcoursExpanded) {
-                    ForEach(listVM.availableStagedRoutes) { route in
+                    ForEach(listVM.parcours) { route in
                         Label(route.title, systemImage: "flag.checkered")
+                            .badge("\(listVM.stageCount(route.id)) ét.")
                             .tag(SidebarDestination.stagedRoute(route.id))
                             .contextMenu {
                                 Button("Supprimer le parcours", role: .destructive) {

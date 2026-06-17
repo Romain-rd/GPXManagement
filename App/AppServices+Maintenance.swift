@@ -346,6 +346,7 @@ extension AppServices {
             guard let data = try await repo.fetchTrackData(id: activity.id) else { importError = "Trace introuvable."; return nil }
             let points = try TrackPointCodec.decode(data)
             guard points.count > 1 else { importError = "Trace trop courte."; return nil }
+            try await repo.setIsCourse(id: activity.id, isCourse: true)   // un parcours = une route classée « parcours »
             try await repo.setStagedRoute(activityId: activity.id, true)
             let existing = (try? await repo.fetchStages(activityId: activity.id)) ?? []
             if existing.isEmpty {
