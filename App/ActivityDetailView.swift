@@ -16,6 +16,8 @@ struct ActivityDetailView: View {
     @Bindable var listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     let windowModel: WindowModel
+    /// Présent dans la fenêtre principale (permet de naviguer vers le parcours en étapes). nil dans la fenêtre détail dédiée.
+    var navigation: AppNavigationModel? = nil
     /// Vrai dans la fenêtre détail dédiée (double-clic).
     var isStandaloneWindow: Bool = false
     /// État plein écran de la carte (partagé avec la fenêtre pour vider sa barre d'outils tout en gardant les pastilles).
@@ -59,7 +61,6 @@ struct ActivityDetailView: View {
     @State private var customSegmentKm = ""
     @State private var showCustomGainSegment = false
     @State private var customSegmentGain = ""
-    @State private var showStagePlanner = false
     @State private var routeEditMode = false
     @State private var showEditableRouteDialog = false
     @State private var isExportingVideo = false
@@ -104,11 +105,12 @@ struct ActivityDetailView: View {
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
-         windowModel: WindowModel, isStandaloneWindow: Bool = false, fullscreenMap: Binding<Bool>) {
+         windowModel: WindowModel, navigation: AppNavigationModel? = nil, isStandaloneWindow: Bool = false, fullscreenMap: Binding<Bool>) {
         self.activity = activity
         self.listVM = listVM
         self.repository = repository
         self.windowModel = windowModel
+        self.navigation = navigation
         self.isStandaloneWindow = isStandaloneWindow
         self._fullscreenMap = fullscreenMap
         self._model = State(initialValue: ActivityDetailViewModel(repository: repository))
@@ -439,6 +441,19 @@ struct ActivityDetailView: View {
                     } label: {
                         Label(activity.isEditableRoute ? "Verrouiller le tracé (fidèle)…" : "Rendre le tracé modifiable…",
                               systemImage: activity.isEditableRoute ? "lock" : "lock.open")
+                    }
+                    if let navigation, !activity.isStagedRoute {
+                        Button {
+                            Task {
+                                if let id = await AppServices.shared.convertToStagedRoute(activity: activity) {
+                                    await listVM.reload()
+                                    navigation.selectedStageId = nil
+                                    navigation.sidebarSelection = .stagedRoute(id)
+                                }
+                            }
+                        } label: {
+                            Label("Passer en parcours en étapes", systemImage: "flag.checkered")
+                        }
                     }
                 }
             } label: {
@@ -798,14 +813,6 @@ struct ActivityDetailView: View {
                     .fixedSize()
                     .controlSize(.small)
                     .help("Découpe la trace en segments réguliers (remplace les segments existants)")
-
-                    Button {
-                        showStagePlanner = true
-                    } label: {
-                        Label("Planifier des étapes…", systemImage: "flag.checkered")
-                    }
-                    .controlSize(.small)
-                    .help("Mode étapes : segments continus avec jonctions déplaçables, pour planifier un parcours en plusieurs jours")
                     }
                 }
                 if secSegmentsExpanded {
@@ -841,11 +848,6 @@ struct ActivityDetailView: View {
                 Button("Annuler", role: .cancel) {}
             } message: {
                 Text("Dénivelé positif cumulé par segment, en mètres.")
-            }
-            .sheet(isPresented: $showStagePlanner) {
-                StagePlannerSheet(activity: activity, repository: repository) {
-                    Task { await model.loadSegments(activityId: activity.id) }
-                }
             }
         }
     }
@@ -2377,252 +2379,7 @@ struct CleanTrackSheet: View {
     }
 }
 
-/// Planification d'étapes : partition continue de la trace en étapes, jonctions déplaçables sur le profil
-/// (aimant sur les points), ajout/fusion, stats par étape. Enregistre des segments « Étape k » contigus.
-struct StagePlannerSheet: View {
-    let activity: ActivitySummary
-    let repository: CoreDataActivityRepository
-    var onSaved: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var points: [TrackPoint] = []
-    @State private var dists: [Double] = []       // distance cumulée par point (m)
-    @State private var alts: [Double] = []        // altitude par point (report si absente)
-    @State private var cumGain: [Double] = []     // D+ cumulé par point (EMA + hystérésis, comme les stats)
-    @State private var junctions: [Int] = []      // indices de coupe intérieurs, triés
-    @State private var isLoading = true
-    @State private var isWorking = false
-    @State private var grabbed: Int?
-
-    private var boundaries: [Int] { points.isEmpty ? [] : [0] + junctions + [points.count - 1] }
-    private var stageCount: Int { max(0, boundaries.count - 1) }
-    private var totalDistance: Double { dists.last ?? 0 }
-    private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
-
-    private struct PlotPoint: Identifiable { let id: Int; let km: Double; let alt: Double }
-    private var plot: [PlotPoint] {
-        guard !points.isEmpty else { return [] }
-        let step = max(1, points.count / 800)
-        var result: [PlotPoint] = []
-        var i = 0
-        while i < points.count { result.append(PlotPoint(id: i, km: dists[i] / 1000, alt: alts[i])); i += step }
-        let last = points.count - 1
-        if result.last?.id != last { result.append(PlotPoint(id: last, km: dists[last] / 1000, alt: alts[last])) }
-        return result
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Planifier les étapes").font(.headline)
-                Spacer()
-                Text("\(stageCount) étape(s)").foregroundStyle(.secondary)
-            }
-            .padding()
-            Divider()
-            if isLoading {
-                ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if points.count < 3 {
-                ContentUnavailableView("Trace trop courte", systemImage: "flag.checkered",
-                                       description: Text("Pas assez de points pour planifier des étapes."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                mapView.frame(height: 240)
-                profileView.frame(height: 180).padding(.horizontal)
-                controls
-            }
-        }
-        .frame(width: 740, height: 760)
-        .task { await load() }
-    }
-
-    private var mapView: some View {
-        Map(initialPosition: .automatic) {
-            MapPolyline(coordinates: coords).stroke(.blue, lineWidth: 2)
-            if let s = coords.first { Annotation("", coordinate: s) { dot(.green) } }
-            if let e = coords.last { Annotation("", coordinate: e) { dot(.red) } }
-            ForEach(Array(junctions.enumerated()), id: \.element) { k, j in
-                if coords.indices.contains(j) {
-                    Annotation("", coordinate: coords[j]) {
-                        Text("\(k + 1)")
-                            .font(.caption2.bold()).foregroundStyle(.white)
-                            .frame(width: 18, height: 18).background(Circle().fill(.orange)).overlay(Circle().stroke(.white, lineWidth: 1.5))
-                    }
-                }
-            }
-        }
-    }
-
-    private func dot(_ color: Color) -> some View {
-        Circle().fill(color).frame(width: 11, height: 11).overlay(Circle().stroke(.white, lineWidth: 2))
-    }
-
-    private var profileView: some View {
-        Chart {
-            ForEach(plot) { p in
-                AreaMark(x: .value("km", p.km), y: .value("alt", p.alt))
-                    .foregroundStyle(.blue.opacity(0.15))
-            }
-            ForEach(plot) { p in
-                LineMark(x: .value("km", p.km), y: .value("alt", p.alt))
-                    .foregroundStyle(.blue)
-            }
-            ForEach(Array(junctions.enumerated()), id: \.element) { _, j in
-                RuleMark(x: .value("km", dists[j] / 1000))
-                    .foregroundStyle(.orange)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-            }
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
-                            .onEnded { _ in grabbed = nil }
-                    )
-            }
-        }
-    }
-
-    private func onDrag(start: CGPoint, current: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
-        guard !junctions.isEmpty, let plotFrame = proxy.plotFrame else { return }
-        let rect = geo[plotFrame]
-        func meters(atX x: CGFloat) -> Double? {
-            let xIn = min(max(x - rect.origin.x, 0), rect.width)
-            guard let km: Double = proxy.value(atX: xIn, as: Double.self) else { return nil }
-            return km * 1000
-        }
-        if grabbed == nil {
-            guard let startM = meters(atX: start.x) else { return }
-            var best = 0; var bestDiff = Double.greatestFiniteMagnitude
-            for (k, j) in junctions.enumerated() {
-                let diff = abs(dists[j] - startM)
-                if diff < bestDiff { bestDiff = diff; best = k }
-            }
-            guard bestDiff < totalDistance * 0.06 else { return }   // ne saisit que si proche d'une jonction
-            grabbed = best
-        }
-        guard let k = grabbed, let targetM = meters(atX: current.x) else { return }
-        var idx = nearestPointIndex(toMeters: targetM)
-        let lower = (k == 0 ? 0 : junctions[k - 1]) + 1
-        let upper = (k == junctions.count - 1 ? points.count - 1 : junctions[k + 1]) - 1
-        guard lower <= upper else { return }
-        idx = min(max(idx, lower), upper)
-        junctions[k] = idx
-    }
-
-    private var controls: some View {
-        VStack(spacing: 8) {
-            ScrollView {
-                VStack(spacing: 4) {
-                    ForEach(0..<stageCount, id: \.self) { k in
-                        let a = boundaries[k], b = boundaries[k + 1]
-                        HStack(spacing: 10) {
-                            Text("Étape \(k + 1)").frame(width: 70, alignment: .leading)
-                            Text(String(format: "%.1f km", (dists[b] - dists[a]) / 1000)).foregroundStyle(.secondary)
-                            Text(String(format: "+%d m", Int((cumGain[b] - cumGain[a]).rounded()))).foregroundStyle(.secondary)
-                            Spacer()
-                            if k > 0 {
-                                Button { junctions.remove(at: k - 1) } label: { Image(systemName: "arrow.triangle.merge") }
-                                    .buttonStyle(.borderless).help("Fusionner avec l'étape précédente")
-                            }
-                        }
-                        .font(.callout)
-                        Divider()
-                    }
-                }
-            }
-            .frame(maxHeight: 150)
-            HStack {
-                Button { addStage() } label: { Label("Ajouter une étape", systemImage: "plus") }
-                Button("Réinitialiser") { junctions = [] }
-                Spacer()
-                Button("Annuler") { dismiss() }
-                Button {
-                    Task {
-                        isWorking = true
-                        await save()
-                        isWorking = false
-                        onSaved()
-                        dismiss()
-                    }
-                } label: {
-                    if isWorking { ProgressView().controlSize(.small) } else { Label("Enregistrer", systemImage: "checkmark") }
-                }
-                .buttonStyle(.borderedProminent).disabled(isWorking)
-            }
-        }
-        .padding()
-    }
-
-    private func addStage() {
-        guard stageCount >= 1 else { return }
-        var bestLen = -1.0
-        var bestMid: Int?
-        for k in 0..<stageCount {
-            let a = boundaries[k], b = boundaries[k + 1]
-            let len = dists[b] - dists[a]
-            if len > bestLen {
-                bestLen = len
-                bestMid = nearestPointIndex(toMeters: (dists[a] + dists[b]) / 2)
-            }
-        }
-        if let m = bestMid, m > 0, m < points.count - 1, !junctions.contains(m) {
-            junctions.append(m); junctions.sort()
-        }
-    }
-
-    private func nearestPointIndex(toMeters meters: Double) -> Int {
-        guard !dists.isEmpty else { return 0 }
-        var lo = 0, hi = dists.count - 1
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if dists[mid] < meters { lo = mid + 1 } else { hi = mid }
-        }
-        if lo > 0, abs(dists[lo - 1] - meters) < abs(dists[lo] - meters) { return lo - 1 }
-        return lo
-    }
-
-    private func save() async {
-        let segments = (0..<stageCount).map { k in
-            TrackSegment(name: "Étape \(k + 1)", startIndex: boundaries[k], endIndex: boundaries[k + 1])
-        }
-        try? await repository.updateSegmentsData(id: activity.id, data: TrackSegment.encode(segments))
-    }
-
-    private func load() async {
-        defer { isLoading = false }
-        guard let data = try? await repository.fetchTrackData(id: activity.id),
-              let pts = try? TrackPointCodec.decode(data), pts.count > 1 else { return }
-        // Distances cumulées.
-        var d = [Double](repeating: 0, count: pts.count)
-        for i in 1..<pts.count { d[i] = d[i - 1] + Self.haversine(pts[i - 1], pts[i]) }
-        // Altitudes alignées (report de la dernière connue).
-        var a = [Double](repeating: 0, count: pts.count)
-        var last = pts.first(where: { $0.altitude != nil })?.altitude ?? 0
-        for i in pts.indices { last = pts[i].altitude ?? last; a[i] = last }
-        // D+ cumulé (EMA α=0,2 + hystérésis 3 m, comme les statistiques).
-        var sm = a
-        let alpha = 0.2
-        for i in 1..<sm.count { sm[i] = alpha * a[i] + (1 - alpha) * sm[i - 1] }
-        var g = [Double](repeating: 0, count: pts.count)
-        var anchor = sm[0]
-        for i in 1..<pts.count {
-            let delta = sm[i] - anchor
-            g[i] = g[i - 1]
-            if delta >= 3 { g[i] += delta; anchor = sm[i] } else if delta <= -3 { anchor = sm[i] }
-        }
-        // Étapes existantes (segments contigus) → jonctions de départ.
-        var seeded: [Int] = []
-        let existing = TrackSegment.decode((try? await repository.fetchSegmentsData(id: activity.id)) ?? nil)
-        let sorted = existing.sorted { $0.startIndex < $1.startIndex }
-        if sorted.count >= 2, zip(sorted, sorted.dropFirst()).allSatisfy({ $0.endIndex == $1.startIndex }) {
-            seeded = sorted.dropLast().map { $0.endIndex }.filter { $0 > 0 && $0 < pts.count - 1 }
-        }
-        points = pts; dists = d; alts = a; cumGain = g; junctions = seeded
-    }
-
+enum GeoDistance {
     static func haversine(_ a: TrackPoint, _ b: TrackPoint) -> Double {
         let earthRadius = 6_371_000.0
         let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180
@@ -3115,7 +2872,7 @@ struct ParcoursDetailView: View {
         guard let data = try? await repository.fetchTrackData(id: activity.id),
               let pts = try? TrackPointCodec.decode(data), pts.count > 1 else { return }
         var d = [Double](repeating: 0, count: pts.count)
-        for i in 1..<pts.count { d[i] = d[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
+        for i in 1..<pts.count { d[i] = d[i - 1] + GeoDistance.haversine(pts[i - 1], pts[i]) }
         var a = [Double](repeating: 0, count: pts.count)
         var last = pts.first(where: { $0.altitude != nil })?.altitude ?? 0
         for i in pts.indices { last = pts[i].altitude ?? last; a[i] = last }
@@ -3289,7 +3046,7 @@ struct StageDetailView: View {
     /// rejointe (startIndex) et déborde à gauche ; l'arrivée part de endIndex et déborde à droite.
     private func cumulativeDistances(_ pts: [TrackPoint]) -> [Double] {
         var c = [Double](repeating: 0, count: pts.count)
-        for i in 1..<Swift.max(pts.count, 1) { c[i] = c[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
+        for i in 1..<Swift.max(pts.count, 1) { c[i] = c[i - 1] + GeoDistance.haversine(pts[i - 1], pts[i]) }
         return c
     }
     private var connectorPlot: [PlotPoint] {
@@ -3685,7 +3442,7 @@ struct StageDetailView: View {
         if !pts.isEmpty {
             fullPoints = pts
             d = [Double](repeating: 0, count: pts.count)
-            for i in 1..<max(pts.count, 1) { d[i] = d[i - 1] + StagePlannerSheet.haversine(pts[i - 1], pts[i]) }
+            for i in 1..<max(pts.count, 1) { d[i] = d[i - 1] + GeoDistance.haversine(pts[i - 1], pts[i]) }
         }
         dists = d
         allStages = stages
