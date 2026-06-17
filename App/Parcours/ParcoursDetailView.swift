@@ -148,14 +148,18 @@ struct ParcoursDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         header
                         toolPalette
+                        // La carte s'adapte à l'outil ; la gestion d'étapes (profil, étapes, POI) reste
+                        // disponible dans TOUS les modes (y compris itinéraire).
                         if tool == .route && activity.isEditableRoute {
                             routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 200, max: 900)
                             routeWaypointList
                         } else {
-                            dateBar
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 140, max: 700)
+                        }
+                        if !points.isEmpty {
+                            dateBar
                             zoomBar
                             profileChart.frame(height: profileHeight)
                             resizeHandle($profileHeight, min: 90, max: 500)
