@@ -5,6 +5,43 @@ import MapKit
 // MARK: - Maintenance de la bibliothèque (suppression, renommage, recalculs, resync CloudKit)
 
 extension AppServices {
+    /// Reconstruit la bibliothèque depuis les fichiers GPX/FIT déjà présents dans le conteneur — sans copier ni
+    /// supprimer. Récupération après une perte des métadonnées Core Data (ex. reset du miroir CloudKit) ; les
+    /// classements/annotations manuels (tags, notes, raids, parcours) ne sont pas restaurés.
+    func rebuildLibraryFromStorage() async {
+        guard let _ = coreDataRepository, !isDeletingAll else { return }
+        isDeletingAll = true
+        lastMaintenanceSummary = nil
+        importError = nil
+        defer { isDeletingAll = false; watchedFolderProgress = nil }
+        do {
+            let files = try await storage.enumerateStoredFiles()
+            guard !files.isEmpty else { lastMaintenanceSummary = "Aucun fichier à reconstruire."; return }
+            var ok = 0, dup = 0, fail = 0
+            for (idx, entry) in files.enumerated() {
+                watchedFolderProgress = "Reconstruction \(idx + 1)/\(files.count)…"
+                do {
+                    let proposal = try await importer.prepareImport(from: entry.url)
+                    if proposal.duplicateOfActivityId != nil { dup += 1; continue }
+                    _ = try await importer.registerExisting(proposal, relativePath: entry.relativePath,
+                                                            activityType: proposal.suggestedActivityType ?? .other,
+                                                            title: proposal.suggestedTitle)
+                    ok += 1
+                } catch {
+                    fail += 1
+                    NSLog("GPXManagement: reconstruction échouée pour \(entry.url.lastPathComponent): \(error)")
+                }
+            }
+            libraryRevision += 1
+            var parts = ["\(ok) activité(s) reconstruite(s)"]
+            if dup > 0 { parts.append("\(dup) doublon(s) ignoré(s)") }
+            if fail > 0 { parts.append("\(fail) échec(s)") }
+            lastMaintenanceSummary = parts.joined(separator: " · ")
+        } catch {
+            importError = "Échec de la reconstruction : \(error.localizedDescription)"
+        }
+    }
+
     func deleteAllData() async {
         guard let repo = coreDataRepository else { return }
         isDeletingAll = true

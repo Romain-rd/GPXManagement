@@ -43,6 +43,21 @@ public actor FileStorageService {
         self.pattern = newPattern
     }
 
+    /// Énumère les fichiers GPX/FIT/TCX déjà stockés, avec leur chemin relatif — pour reconstruire la
+    /// bibliothèque depuis les fichiers en place (sans copier ni supprimer) après une perte des métadonnées.
+    public func enumerateStoredFiles() async throws -> [(url: URL, relativePath: String)] {
+        let root = try await container.rootURL()
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        let exts: Set<String> = ["gpx", "fit", "tcx"]
+        var out: [(URL, String)] = []
+        guard let en = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else { return [] }
+        for case let url as URL in en.allObjects where exts.contains(url.pathExtension.lowercased()) {
+            let rel = url.path.hasPrefix(rootPath) ? String(url.path.dropFirst(rootPath.count)) : url.lastPathComponent
+            out.append((url, rel))
+        }
+        return out
+    }
+
     public func removeAllStoredFiles() async throws {
         let root = try await container.rootURL()
         let contents = (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: [])) ?? []

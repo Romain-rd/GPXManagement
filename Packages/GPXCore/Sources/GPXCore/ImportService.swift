@@ -254,6 +254,31 @@ public actor ImportService {
         return Self.resolveSourceApp(parsedCreator: parsed.creator, origin: origin)
     }
 
+    /// Recrée un Activity à partir d'un fichier DÉJÀ stocké (chemin relatif fourni) — ne copie ni ne déplace rien.
+    /// Sert à reconstruire la bibliothèque après une perte des métadonnées Core Data (les fichiers, eux, sont intacts).
+    public func registerExisting(_ proposal: ImportProposal, relativePath: String, activityType: ActivityType, title: String) async throws -> UUID {
+        let id = UUID()
+        let startDate = Self.startDate(for: proposal.parsed)
+        let endDate = proposal.parsed.endDate
+            ?? proposal.parsed.summary?.duration.map { startDate.addingTimeInterval($0) }
+            ?? startDate
+        let trackData = try TrackPointCodec.encode(proposal.parsed.points)
+        let resolvedIsCourse = proposal.suggestedIsCourse
+        let isEditableRoute = resolvedIsCourse && proposal.parsed.points.count < Self.editableRoutePointThreshold
+        let routeWaypointsData: Data? = (resolvedIsCourse && !proposal.parsed.waypoints.isEmpty)
+            ? RouteWaypointCodec.encode(Self.routeWaypoints(from: proposal.parsed))
+            : nil
+        let payload = ActivityCreationPayload(
+            id: id, title: title, activityType: activityType, origin: proposal.origin,
+            sourceFileName: relativePath, sourceFileFormat: proposal.fileFormat, sourceApp: proposal.sourceApp,
+            startDate: startDate, endDate: endDate, stats: proposal.stats, trackData: trackData,
+            sensorData: Self.encodeSensors(proposal.parsed), fileSHA256: proposal.fileSHA256, stravaId: proposal.stravaId,
+            isCourse: resolvedIsCourse, isEditableRoute: isEditableRoute, routeWaypointsData: routeWaypointsData
+        )
+        try await repository.createActivity(payload)
+        return id
+    }
+
     public func confirmImport(_ proposal: ImportProposal, activityType: ActivityType, title: String, isCourse: Bool? = nil) async throws -> UUID {
         let id = UUID()
         let startDate = Self.startDate(for: proposal.parsed)

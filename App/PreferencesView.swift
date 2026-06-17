@@ -275,6 +275,32 @@ struct MaintenanceView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                GroupBox("Récupération") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Recrée les activités depuis les fichiers GPX/FIT déjà présents dans le conteneur, **sans rien copier ni supprimer**. À utiliser après une perte des métadonnées (ex. reset du miroir CloudKit). Les tags, notes, raids et parcours manuels ne sont pas restaurés.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            Button {
+                                Task { await services.rebuildLibraryFromStorage() }
+                            } label: {
+                                Label("Reconstruire depuis les fichiers", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(services.isDeletingAll)
+
+                            if services.isDeletingAll, let progress = services.watchedFolderProgress {
+                                ProgressView().controlSize(.small)
+                                Text(progress).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        if let summary = services.lastMaintenanceSummary {
+                            Text(summary).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 GroupBox("Zone de danger") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Supprime **toutes** les activités et leurs fichiers, localement et dans iCloud (la suppression se synchronise sur tous vos appareils). Action **irréversible**.")
