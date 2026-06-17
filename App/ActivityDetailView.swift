@@ -3686,14 +3686,13 @@ struct RouteEditorView: View {
             if isLoading {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, minHeight: mapHeight)
             } else {
-                TrackMapView(
-                    tracks: displayCoords.count >= 2
-                        ? [TrackOverlayInput(activityId: activity.id, activityType: activity.activityType, coordinates: displayCoords)]
-                        : [],
-                    layer: $layer, fitsOnce: true, waypoints: markers,
+                StageColoredMap(
+                    activityId: activity.id, activityType: activity.activityType,
+                    coords: displayCoords, waypoints: markers,
                     onWaypointMoved: { id, c in moveWaypoint(id: id, to: c) },
                     onWaypointTapped: { selectedWaypointId = ($0 == selectedWaypointId ? nil : $0) },
-                    onMapClick: { addWaypoint(at: $0) }
+                    onMapClick: { addWaypoint(at: $0) },
+                    layer: $layer
                 )
                 .frame(height: mapHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
