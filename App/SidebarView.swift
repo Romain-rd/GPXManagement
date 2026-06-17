@@ -107,7 +107,19 @@ struct SidebarView: View {
 
             if !listVM.availableRaids.isEmpty {
                 HStack(spacing: 2) {
-                    Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.clear).frame(width: 14, height: 14)
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) { raidsExpanded.toggle() }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(raidsExpanded ? 90 : 0))
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(listVM.raidActivityTypes.isEmpty ? 0 : 1)
+                    .disabled(listVM.raidActivityTypes.isEmpty)
                     Label {
                         Text("Tous les raids")
                     } icon: {
@@ -116,6 +128,20 @@ struct SidebarView: View {
                 }
                 .badge(listVM.availableRaids.count)
                 .tag(SidebarDestination.allRaids)
+
+                if raidsExpanded {
+                    ForEach(listVM.raidActivityTypes, id: \.type) { entry in
+                        Label {
+                            Text(entry.type.displayName)
+                        } icon: {
+                            Image(systemName: entry.type.symbolName)
+                                .foregroundStyle(Color(nsColor: entry.type.trackColor))
+                        }
+                        .badge(entry.count)
+                        .padding(.leading, 18)
+                        .tag(SidebarDestination.raidType(entry.type))
+                    }
+                }
             }
 
             if !listVM.availableYears.isEmpty {

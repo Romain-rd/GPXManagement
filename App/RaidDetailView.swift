@@ -16,12 +16,17 @@ struct RaidsListView: View {
     @State private var renamingRaid: Raid?
     @State private var renameText = ""
 
+    private var visibleRaids: [(raid: Raid, count: Int)] {
+        guard let type = navigation.selectedActivityType else { return listVM.availableRaids }
+        return listVM.availableRaids.filter { listVM.raidDominantType($0.raid.id) == type }
+    }
+
     var body: some View {
         List(selection: Binding(
             get: { navigation.selectedRaidInListId },
             set: { if let id = $0 { navigation.selectRaid(id) } }
         )) {
-            ForEach(listVM.availableRaids, id: \.raid.id) { entry in
+            ForEach(visibleRaids, id: \.raid.id) { entry in
                 row(entry.raid, count: entry.count)
                     .tag(entry.raid.id)
                     .contextMenu {
@@ -87,6 +92,8 @@ struct RaidDetailView: View {
     @State private var isLoadingMap = true
     @State private var proxy = MapViewProxy()
     @State private var coverPickerItem: PhotosPickerItem?
+    @State private var memberFullscreen = false
+    @AppStorage("raidInspectorWidth") private var inspectorWidth: Double = 380
     @State private var editingParticipant: RaidParticipant?
     @State private var isAddingParticipant = false
     @State private var showFilmOptions = false
@@ -137,6 +144,11 @@ struct RaidDetailView: View {
         listVM.allActivities.filter { $0.raidId == raid.id }.sorted { $0.startDate < $1.startDate }
     }
 
+    /// Activité membre sélectionnée (affichée dans le panneau glissant, comme une étape de parcours).
+    private var selectedMember: ActivitySummary? {
+        members.first { navigation.listSelection.contains($0.id) }
+    }
+
     private var isDirty: Bool {
         draft.name != raid.name
             || (draft.place ?? "") != (raid.place ?? "")
@@ -161,6 +173,11 @@ struct RaidDetailView: View {
             .padding(20)
             .frame(maxWidth: 900, alignment: .leading)
             .frame(maxWidth: .infinity)
+        }
+        .slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector) {
+            if let member = selectedMember {
+                ActivityDetailView(activity: member, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $memberFullscreen)
+            }
         }
         .navigationTitle(raid.name)
         .toolbar { ToolbarItemGroup { raidActions } }
@@ -603,7 +620,7 @@ struct RaidDetailView: View {
                         .frame(minHeight: 320)
                 } else {
                     TrackMapView(tracks: tracks, layer: $layer, proxy: proxy, slopeOverlayOpacity: slopeOverlayEnabled ? slopeOverlayOpacity : 0, onSelectActivity: { id in
-                        openWindow(value: id)
+                        navigation.listSelection = [id]
                     })
                     .frame(height: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -644,7 +661,7 @@ struct RaidDetailView: View {
     private func stepRow(index: Int, activity: ActivitySummary) -> some View {
         HStack(spacing: 12) {
             Button {
-                openWindow(value: activity.id)
+                navigation.listSelection = [activity.id]
             } label: {
                 HStack(spacing: 12) {
                     Text("J\(index)")
@@ -703,7 +720,7 @@ struct RaidDetailView: View {
         }
         .contextMenu {
             Button {
-                openWindow(value: activity.id)
+                navigation.listSelection = [activity.id]
             } label: { Label("Ouvrir l'étape", systemImage: "arrow.up.right.square") }
             Divider()
             Button(role: .destructive) {

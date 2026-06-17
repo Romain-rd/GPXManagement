@@ -31,6 +31,7 @@ enum SidebarDestination: Hashable {
     case allRaids
     case activityType(ActivityType)
     case courseType(ActivityType)
+    case raidType(ActivityType)
     case year(Int)
     case yearType(Int, ActivityType)
     case raid(UUID)
@@ -94,6 +95,7 @@ final class AppNavigationModel {
         case .activityType(let type):  return type
         case .yearType(_, let type):   return type
         case .courseType(let type):    return type
+        case .raidType(let type):      return type
         default:                       return nil
         }
     }
@@ -103,6 +105,14 @@ final class AppNavigationModel {
         switch sidebarSelection {
         case .allCourses, .courseType:  return true
         default:                        return false
+        }
+    }
+
+    /// Vrai quand le flux courant porte sur les raids (« Tous les raids » ou un type de raid).
+    var isRaidsScope: Bool {
+        switch sidebarSelection {
+        case .allRaids, .raidType:  return true
+        default:                    return false
         }
     }
 

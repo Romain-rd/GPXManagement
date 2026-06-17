@@ -126,6 +126,22 @@ final class ActivityListViewModel {
         }
     }
 
+    /// Type de sport dominant d'un raid (le plus fréquent parmi ses activités).
+    func raidDominantType(_ raidId: UUID) -> ActivityType? {
+        let types = allActivities.filter { $0.raidId == raidId }.map(\.activityType)
+        guard !types.isEmpty else { return nil }
+        return Dictionary(grouping: types, by: { $0 }).mapValues(\.count).max(by: { $0.value < $1.value })?.key
+    }
+
+    /// Types de sport présents parmi les raids (par type dominant), avec le nombre de raids.
+    var raidActivityTypes: [(type: ActivityType, count: Int)] {
+        var counts: [ActivityType: Int] = [:]
+        for entry in availableRaids {
+            if let t = raidDominantType(entry.raid.id) { counts[t, default: 0] += 1 }
+        }
+        return ActivityType.allCases.compactMap { t in counts[t].map { (t, $0) } }
+    }
+
     func suggestedRaidName(for ids: Set<UUID>) -> String {
         let dates = allActivities.filter { ids.contains($0.id) }.map(\.startDate)
         guard let earliest = dates.min() else { return "Nouveau raid" }

@@ -113,6 +113,7 @@ struct ActivityListView: View {
         case .allRaids:                return "Tous les raids"
         case .activityType(let t):     return t.displayName
         case .courseType(let t):       return "\(t.displayName) (parcours)"
+        case .raidType(let t):         return "\(t.displayName) (raids)"
         case .year(let y):             return String(y)
         case .yearType(let y, let t):  return "\(t.displayName) \(String(y))"
         case .smartFilter(let id):     return listVM.smartFilters.first { $0.id == id }?.name ?? "Filtre intelligent"

@@ -30,6 +30,12 @@ struct ContentView: View {
         return activity
     }
 
+    /// Vrai quand un panneau glissant (fiche d'étape de parcours OU activité membre de raid) peut être basculé.
+    private var inspectorToggleAvailable: Bool {
+        (selectedCourse != nil && navigation.selectedStageId != nil)
+            || (navigation.selectedRaidInListId != nil && !navigation.listSelection.isEmpty)
+    }
+
     private var raidMembers: [ActivitySummary] {
         guard let id = navigation.selectedRaidInListId else { return [] }
         return listVM.allActivities.filter { $0.raidId == id }.sorted { $0.startDate < $1.startDate }
@@ -55,7 +61,7 @@ struct ContentView: View {
             SidebarView(navigation: navigation, listVM: listVM)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } content: {
-            if navigation.sidebarSelection == .allRaids {
+            if navigation.isRaidsScope {
                 RaidsListView(listVM: listVM, navigation: navigation)
                     .navigationSplitViewColumnWidth(min: 280, ideal: 360)
             } else {
@@ -89,12 +95,12 @@ struct ContentView: View {
                     .keyboardShortcut(.cancelAction)
                 }
             }
-            if !window.isMapImmersive, selectedCourse != nil, navigation.selectedStageId != nil {
+            if !window.isMapImmersive, inspectorToggleAvailable {
                 ToolbarItem(placement: .automatic) {
                     Button { navigation.showStageInspector.toggle() } label: {
                         Image(systemName: "sidebar.right")
                     }
-                    .help(navigation.showStageInspector ? "Masquer la fiche d'étape" : "Afficher la fiche d'étape")
+                    .help(navigation.showStageInspector ? "Masquer le panneau" : "Afficher le panneau")
                 }
             }
             if window.isExportingMap {
@@ -247,15 +253,15 @@ struct ContentView: View {
             // Parcours : même emplacement qu'un détail d'activité (3ᵉ colonne), avec inspecteur d'étape glissant.
             ParcoursDetailView(activity: course, listVM: listVM, repository: repository, navigation: navigation, showsInlineInspector: true)
                 .id(course.id)
+        } else if let raidId = navigation.selectedRaidInListId,
+                  let raid = listVM.raids.first(where: { $0.id == raidId }),
+                  let repository {
+            // Raid : détail dans la 3ᵉ colonne ; le membre cliqué s'affiche dans un panneau glissant (comme une étape).
+            RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window).id(raid.id)
         } else if let selectedId = navigation.listSelection.first,
            let activity = listVM.allActivities.first(where: { $0.id == selectedId }),
            let repository {
             ActivityDetailView(activity: activity, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $window.mapFullscreen)
-        } else if let raidId = navigation.selectedRaidInListId,
-                  let raid = listVM.raids.first(where: { $0.id == raidId }),
-                  let repository {
-            // Raid : détail dans la 3ᵉ colonne (clic sur un membre → fenêtre autonome).
-            RaidDetailView(raid: raid, listVM: listVM, repository: repository, navigation: navigation, window: window).id(raid.id)
         } else {
             ContentUnavailableView(
                 "Aucune activité sélectionnée",
