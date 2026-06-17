@@ -233,41 +233,54 @@ struct ParcoursDetailView: View {
     }
 
     private var toolPalette: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 2) {
-                toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
-                toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
-                toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
-                if activity.isEditableRoute {
-                    toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
-                }
-            }
-            Divider().frame(height: 18)
-            if activity.isEditableRoute {
-                Button { showEditableRouteDialog = true } label: {
-                    Image(systemName: "lock.open").frame(width: 30, height: 24)
-                }
-                .buttonStyle(.borderless).help("Verrouiller le tracé (fidèle)")
-            } else {
-                Button { showEditableRouteDialog = true } label: {
-                    Label("Rendre modifiable", systemImage: "lock").font(.callout)
-                }
-                .buttonStyle(.borderless).help("Débloquer le re-tracé de l'itinéraire entre points de passage")
-            }
+        Group {
             if tool == .route && activity.isEditableRoute {
-                routeControls
+                // Barre adaptative : une ligne si la largeur suffit, sinon deux lignes (écran étroit).
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        toolsGroup; Divider().frame(height: 18); lockButton; Divider().frame(height: 18)
+                        searchField; enginePicker; recalcButton; fitButton
+                        Spacer(); pointCount; saveButton
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) { toolsGroup; Divider().frame(height: 18); lockButton; Spacer(); pointCount; saveButton }
+                        HStack(spacing: 8) { searchField; enginePicker; recalcButton; fitButton; Spacer() }
+                    }
+                }
             } else {
-                Spacer()
-                Text(toolHint).font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    toolsGroup; Divider().frame(height: 18); lockButton
+                    Spacer()
+                    Text(toolHint).font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 
-    /// Contrôles de routage, présents dans la barre **uniquement** en mode itinéraire modifiable.
-    @ViewBuilder private var routeControls: some View {
-        Divider().frame(height: 18)
+    private var toolsGroup: some View {
+        HStack(spacing: 2) {
+            toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
+            toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
+            toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+            if activity.isEditableRoute {
+                toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
+            }
+        }
+    }
+
+    @ViewBuilder private var lockButton: some View {
+        if activity.isEditableRoute {
+            Button { showEditableRouteDialog = true } label: { Image(systemName: "lock.open").frame(width: 30, height: 24) }
+                .buttonStyle(.borderless).help("Verrouiller le tracé (fidèle)")
+        } else {
+            Button { showEditableRouteDialog = true } label: { Label("Rendre modifiable", systemImage: "lock").font(.callout) }
+                .buttonStyle(.borderless).help("Débloquer le re-tracé de l'itinéraire entre points de passage")
+        }
+    }
+
+    private var searchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Rechercher un lieu…", text: $placeQuery)
@@ -281,6 +294,9 @@ struct ParcoursDetailView: View {
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
         .background(.quaternary.opacity(0.5), in: Capsule())
+    }
+
+    private var enginePicker: some View {
         Picker("Moteur", selection: Binding(
             get: { routeModel.engineRaw },
             set: { routeModel.engineRaw = $0; UserDefaults.standard.set($0, forKey: "connectorEngine"); routeModel.invalidateAll() }
@@ -291,12 +307,20 @@ struct ParcoursDetailView: View {
             Text("Ligne").tag("line")
         }
         .labelsHidden().pickerStyle(.menu).fixedSize()
+    }
+
+    private var recalcButton: some View {
         Button { routeModel.reroute() } label: { Image(systemName: "arrow.triangle.turn.up.right.diamond") }
             .help("Recalculer l'itinéraire").disabled(routeModel.busy || routeModel.waypoints.count < 2 || !routeModel.hasPending)
+    }
+    private var fitButton: some View {
         Button { routeModel.fit() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
             .help("Cadrer le parcours").disabled(routeModel.waypoints.isEmpty)
-        Spacer()
+    }
+    private var pointCount: some View {
         Text("\(routeModel.waypoints.count) pt").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+    }
+    private var saveButton: some View {
         Button { routeModel.save(activityId: activity.id) { Task { await load() } } } label: { Label("Enregistrer", systemImage: "checkmark") }
             .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.waypoints.count < 2 || routeModel.busy)
     }
