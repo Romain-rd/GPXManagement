@@ -204,6 +204,7 @@ public enum HTMLReportRenderer {
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
         let pois: [(name: String, lat: Double, lon: Double)]
         let profile: [(d: Double, e: Double)]   // distance (m depuis le début de l'étape), altitude (m)
+        let coverRef: String?                   // chemin relatif de la photo de couverture de l'étape, si présente
     }
 
     /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude).
@@ -248,11 +249,12 @@ public enum HTMLReportRenderer {
 
         let maxPerStage = max(200, 1800 / max(stages.count, 1))
         var stageVMs: [RouteStageVM] = []
+        var files: [String: Data] = [:]
         if stages.isEmpty {
             stageVMs.append(RouteStageVM(index: 1, name: activity.title, departure: "", arrival: "", dateText: fmtDateShort(activity.startDate),
                                          notes: "", distance: activity.distance, gain: activity.elevationGain,
                                          coords: decimatedCoords(points, max: 1800), color: routePalette[0], pois: poisByStage[1] ?? [],
-                                         profile: stageProfile(points)))
+                                         profile: stageProfile(points), coverRef: nil))
         } else {
             let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var prevArrival = waypoints.first?.name ?? ""
@@ -261,13 +263,17 @@ public enum HTMLReportRenderer {
                 let slice = lo <= hi ? Array(points[lo...hi]) : []
                 let st = s.stats(in: points)
                 let arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
+                var coverRef: String?
+                if let cov = s.coverImageData, !cov.isEmpty {
+                    let rel = "images/etape-\(i + 1).\(imageExt(cov))"; files[rel] = cov; coverRef = rel
+                }
                 stageVMs.append(RouteStageVM(index: i + 1, name: s.name.isEmpty ? "Étape \(i + 1)" : s.name,
                                              departure: prevArrival, arrival: arrival,
                                              dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
                                              notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                                              distance: st.distance, gain: st.elevationGain,
                                              coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count],
-                                             pois: poisByStage[i + 1] ?? [], profile: stageProfile(slice)))
+                                             pois: poisByStage[i + 1] ?? [], profile: stageProfile(slice), coverRef: coverRef))
                 if !arrival.isEmpty { prevArrival = arrival }
             }
         }
@@ -284,7 +290,8 @@ public enum HTMLReportRenderer {
 
         onProgress?(0.6, "Page web…")
         let html = buildRouteHTML(activity: activity, stages: stageVMs, markers: markers, tile: tile, accent: accent)
-        return ["index.html": html.data(using: .utf8) ?? Data()]
+        files["index.html"] = html.data(using: .utf8) ?? Data()
+        return files
     }
 
     private static func buildRouteHTML(activity: ActivitySummary, stages: [RouteStageVM], markers: [RouteMarkerVM], tile: WebTileLayer, accent: String) -> String {
@@ -305,7 +312,8 @@ public enum HTMLReportRenderer {
             let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
             let pois = "[" + s.pois.map { "{name:\(jsString($0.name)),lat:\(String(format: "%.6f", $0.lat)),lon:\(String(format: "%.6f", $0.lon))}" }.joined(separator: ",") + "]"
             let prof = "[" + s.profile.map { "[\(Int($0.d)),\(Int($0.e))]" }.joined(separator: ",") + "]"
-            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof)}"
+            let cover = s.coverRef.map { jsString($0) } ?? "null"
+            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof),cover:\(cover)}"
         }.joined(separator: ",")
 
         let infoCards = [
@@ -314,6 +322,8 @@ public enum HTMLReportRenderer {
             metricCard("📍", "Étapes", "\(n)"),
             metricCard("📅", "Dates", dateRange.isEmpty ? "—" : dateRange)
         ].joined()
+        let covers = stages.compactMap { s in s.coverRef.map { (s.index, $0) } }
+        let gallery = covers.isEmpty ? "" : "<section class=\"section gallery-sec\"><h2>Photos</h2><div class=\"gallery\">" + covers.map { "<a class=\"gthumb\" data-go=\"\($0.0)\"><img src=\"\($0.1)\" alt=\"\" loading=\"lazy\"></a>" }.joined() + "</div></section>"
 
         return """
         <!DOCTYPE html>
@@ -348,6 +358,7 @@ public enum HTMLReportRenderer {
                   <h2 id="ed-title"></h2>
                   <p id="ed-meta"></p>
                   <div id="ed-profile" class="prof"></div>
+                  <img id="ed-cover" class="ed-cover" hidden alt="">
                   <div id="ed-pois"></div>
                   <p id="ed-notes" class="notes"></p>
                 </div>
@@ -362,6 +373,7 @@ public enum HTMLReportRenderer {
             <section class="tabview" id="tab-infos">
               <header class="tv-head"><h1>\(esc(activity.title))</h1><p class="tv-sub">\(esc(summary))</p></header>
               <section class="metrics">\(infoCards)</section>
+              \(gallery)
             </section>
           </div>
           <nav class="tabbar">
@@ -389,6 +401,7 @@ public enum HTMLReportRenderer {
           window.__showTab = show;
           items.forEach(function(it){ it.addEventListener('click', function(){ show(it.getAttribute('data-tab')); }); });
           [].slice.call(document.querySelectorAll('.st-row')).forEach(function(r){ r.addEventListener('click', function(){ if (window.__openStage) window.__openStage(+r.getAttribute('data-stage') - 1); }); });
+          [].slice.call(document.querySelectorAll('.gthumb')).forEach(function(g){ g.addEventListener('click', function(){ show('etapes'); if (window.__openStage) window.__openStage(+g.getAttribute('data-go') - 1); }); });
         })();
         </script>
         </body>
@@ -478,6 +491,7 @@ public enum HTMLReportRenderer {
             var route = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : '';
             document.getElementById('ed-meta').textContent = [s.date, route, s.dist, s.gain].filter(Boolean).join(' · ');
             if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [] }]);
+            var cv = document.getElementById('ed-cover'); if (s.cover){ cv.src = s.cover; cv.hidden = false; } else { cv.hidden = true; cv.removeAttribute('src'); }
             var pe = document.getElementById('ed-pois'); pe.innerHTML = '';
             if (s.pois && s.pois.length){
               var t = document.createElement('div'); t.className = 'ed-poi-title'; t.textContent = 'Points d\\u2019intérêt'; pe.appendChild(t);
@@ -597,6 +611,11 @@ public enum HTMLReportRenderer {
     .prof-legend { display:flex; flex-wrap:wrap; gap:12px; padding:10px 16px 24px; font-size:13px; color:var(--sec); }
     .prof-legend .li { display:inline-flex; align-items:center; gap:5px; }
     .prof-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; }
+    .ed-cover { width:100%; border-radius:12px; border:1px solid var(--line); display:block; margin:0 0 16px; max-height:340px; object-fit:cover; }
+    .gallery-sec { padding:0 16px 28px; }
+    .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; }
+    .gthumb { display:block; cursor:pointer; }
+    .gthumb img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--line); }
     #ed-pois { margin:0 0 14px; }
     .ed-poi-title { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--sec); margin:0 0 6px; }
     .ed-poi { padding:4px 0; border-bottom:1px solid var(--line); }
