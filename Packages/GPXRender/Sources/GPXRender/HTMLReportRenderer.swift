@@ -377,10 +377,10 @@ public enum HTMLReportRenderer {
             </section>
           </div>
           <nav class="tabbar">
-            <a class="tabitem active" data-tab="carte"><span class="ti-ic">🗺️</span><span class="ti-l">Carte</span></a>
-            <a class="tabitem" data-tab="etapes"><span class="ti-ic">📋</span><span class="ti-l">Étapes</span></a>
-            <a class="tabitem" data-tab="profil"><span class="ti-ic">📈</span><span class="ti-l">Profil</span></a>
-            <a class="tabitem" data-tab="infos"><span class="ti-ic">ℹ️</span><span class="ti-l">Infos</span></a>
+            <a class="tabitem active" data-tab="carte">\(tabIcon("carte"))<span class="ti-l">Carte</span></a>
+            <a class="tabitem" data-tab="etapes">\(tabIcon("etapes"))<span class="ti-l">Étapes</span></a>
+            <a class="tabitem" data-tab="profil">\(tabIcon("profil"))<span class="ti-l">Profil</span></a>
+            <a class="tabitem" data-tab="infos">\(tabIcon("infos"))<span class="ti-l">Infos</span></a>
           </nav>
         </div>
         <script>window.__stages=[\(stagesJS)];</script>
@@ -520,6 +520,18 @@ public enum HTMLReportRenderer {
         """
     }
 
+    /// Icône d'onglet, style SF Symbols (trait monochrome `currentColor`).
+    private static func tabIcon(_ id: String) -> String {
+        let body: String
+        switch id {
+        case "carte":  body = #"<path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4Z"/><path d="M9 4v14M15 6v14"/>"#
+        case "etapes": body = #"<path d="M8.5 6h11M8.5 12h11M8.5 18h11" stroke-linecap="round"/><circle cx="4.3" cy="6" r="1.15" fill="currentColor" stroke="none"/><circle cx="4.3" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="4.3" cy="18" r="1.15" fill="currentColor" stroke="none"/>"#
+        case "profil": body = #"<path d="M3.5 4v15a1 1 0 0 0 1 1H20" stroke-linecap="round"/><path d="M7 14.5l3.2-4 3 2 4.3-6.2" stroke-linecap="round" stroke-linejoin="round"/>"#
+        default:       body = #"<circle cx="12" cy="12" r="8.4"/><path d="M12 11v5" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.05" fill="currentColor" stroke="none"/>"#
+        }
+        return "<svg class=\"ti-ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\">\(body)</svg>"
+    }
+
     private static func profileScript() -> String {
         return """
         <script>
@@ -580,11 +592,10 @@ public enum HTMLReportRenderer {
     .st-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .st-meta { font-size:13px; color:var(--sec); }
     .st-chev { color:var(--sec); font-size:22px; flex:0 0 auto; }
-    .tabbar { flex:0 0 auto; display:flex; background:var(--card); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); }
-    .tabitem { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 0 6px; color:var(--sec); text-decoration:none; font-size:11px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .tabbar { flex:0 0 auto; display:flex; background:color-mix(in srgb, var(--card) 78%, transparent); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px); border-top:1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-bottom:env(safe-area-inset-bottom); }
+    .tabitem { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 0 6px; color:var(--sec); text-decoration:none; font-size:10px; font-weight:500; letter-spacing:.01em; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:color .15s; }
     .tabitem.active { color:var(--accent); }
-    .tabitem .ti-ic { font-size:20px; line-height:1; filter:grayscale(1) opacity(.7); }
-    .tabitem.active .ti-ic { filter:none; }
+    .tabitem .ti-ic { width:27px; height:27px; display:block; }
     .rm-wrap { background:transparent; border:0; }
     .rm-pin { width:24px; height:24px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); }
     .rm-badge { min-width:22px; height:22px; padding:0 6px; border-radius:7px; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.45); white-space:nowrap; }
@@ -628,7 +639,7 @@ public enum HTMLReportRenderer {
       .tabbar { order:-1; flex-direction:column; width:210px; flex:0 0 auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
       .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
       .tabitem.active { background:var(--bg); }
-      .tabitem .ti-ic { font-size:18px; }
+      .tabitem .ti-ic { width:23px; height:23px; }
     }
     """
 
