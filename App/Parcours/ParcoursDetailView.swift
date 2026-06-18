@@ -247,11 +247,11 @@ struct ParcoursDetailView: View {
             if contentWidth > 1100 {
                 HStack(alignment: .top, spacing: 24) {
                     if !routeModel.waypoints.isEmpty { pointsList.frame(width: 360) }
-                    if showStages { parcoursOutline.frame(maxWidth: .infinity, alignment: .topLeading) }
+                    if showStages { compactStagesList.frame(maxWidth: .infinity, alignment: .topLeading) }
                 }
             } else {
                 if !routeModel.waypoints.isEmpty { pointsList }
-                if showStages { parcoursOutline }
+                if showStages { compactStagesList }
             }
         } else if !points.isEmpty {
             parcoursOutline
@@ -738,8 +738,8 @@ struct ParcoursDetailView: View {
                         Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : pointColor(wp.role)))
-                        Button { routeModel.cycleRole(wp.id) } label: { pointRoleIcon(wp.role) }
-                            .buttonStyle(.borderless).help("Rôle : point de tracé · POI · arrêt d'étape")
+                        Button { routeModel.cycleRole(wp.id) } label: { pointIcon(wp.role, position: i, count: routeModel.waypoints.count) }
+                            .buttonStyle(.borderless).help(i == 0 ? "Départ" : (i == routeModel.waypoints.count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
                             .textFieldStyle(.plain).font(.caption)
@@ -759,11 +759,21 @@ struct ParcoursDetailView: View {
     private func pointColor(_ role: RouteWaypoint.Role) -> Color {
         switch role { case .shaping: return .gray; case .poi: return .orange; case .stageStop: return .green }
     }
+    /// Icône d'un point : départ (1ᵉʳ) et arrivée (dernier) ont des icônes spécifiques ; sinon icône par rôle.
+    @ViewBuilder private func pointIcon(_ role: RouteWaypoint.Role, position: Int, count: Int) -> some View {
+        if position == 0 {
+            Image(systemName: "flag.circle.fill").foregroundStyle(.green)                 // départ
+        } else if position == count - 1 {
+            Image(systemName: "flag.checkered.circle.fill").foregroundStyle(.primary)      // arrivée
+        } else {
+            pointRoleIcon(role)
+        }
+    }
     @ViewBuilder private func pointRoleIcon(_ role: RouteWaypoint.Role) -> some View {
         switch role {
         case .shaping: Image(systemName: "smallcircle.filled.circle").foregroundStyle(.secondary)
         case .poi: Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
-        case .stageStop: Image(systemName: "flag.circle.fill").foregroundStyle(.green)
+        case .stageStop: Image(systemName: "flag.fill").foregroundStyle(.green)
         }
     }
 
@@ -780,6 +790,7 @@ struct ParcoursDetailView: View {
         var stageId: UUID?       // étape sauvegardée (fiche, renommage, suppression)
         var poiId: UUID?         // POI sauvegardé (extraWaypoints)
         var wpId: UUID?          // waypoint vivant (routeModel) en mode modifiable
+        var arrival: String?     // nom de l'arrêt d'arrivée de l'étape (liste compacte)
         var live = false
     }
 
@@ -823,10 +834,11 @@ struct ParcoursDetailView: View {
             let stop = wps[to]
             let saved = savedByStop[stop.id]
             let dPlus = saved.map { String(format: " · +%d m", stageGain($0)) } ?? ""
+            let arr = (stop.name?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 }
             items.append(OutlineItem(id: "lstage-\(stop.id)", kind: .stageHeader, number: e,
                                      stats: String(format: "%.1f km", liveStageKm(from, to)) + dPlus,
                                      date: saved?.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
-                                     offTrack: saved.flatMap { offTrackExtra($0) }, stageId: saved?.id, live: true))
+                                     offTrack: saved.flatMap { offTrackExtra($0) }, stageId: saved?.id, arrival: arr, live: true))
             items.append(OutlineItem(id: "lstop-\(stop.id)", kind: e == stopPos.count - 1 ? .arrival : .stop,
                                      stageId: saved?.id, wpId: stop.id, live: true))
         }
@@ -855,6 +867,34 @@ struct ParcoursDetailView: View {
             ForEach(outlineItems) { item in
                 outlineRow(item)
                 if item.kind == .stageHeader || item.kind == .arrival { Divider() }
+            }
+        }
+    }
+
+    /// Mode modifiable : liste d'étapes COMPACTE (les arrêts sont déjà dans la liste des points → pas de doublon).
+    /// Une ligne par étape : numéro · distance/D+ · → destination · date. Clic → fiche d'étape.
+    private var compactStagesList: some View {
+        let stages = liveOutlineItems.filter { $0.kind == .stageHeader }
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("Étapes").font(.caption.bold()).foregroundStyle(.secondary).padding(.bottom, 2)
+            ForEach(stages) { item in
+                HStack(spacing: 8) {
+                    Image(systemName: "\(min(item.number, 50)).circle.fill").foregroundStyle(.secondary)
+                    if let stats = item.stats { Text(stats).font(.caption).foregroundStyle(.secondary) }
+                    if let off = item.offTrack { Text(off).font(.caption).foregroundStyle(.orange) }
+                    if let arr = item.arrival { Text("→ \(arr)").fontWeight(.medium).lineLimit(1) }
+                    Spacer(minLength: 6)
+                    if let date = item.date { Text(date).font(.caption).foregroundStyle(.blue) }
+                    if item.stageId != nil { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
+                }
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+                .onTapGesture { openStage(item.stageId) }
+                .simultaneousGesture(TapGesture(count: 2).onEnded {
+                    if let id = item.stageId { openWindow(value: StageWindowRef(activityId: activity.id, stageId: id)) }
+                })
+                .background(navigation.selectedStageId == item.stageId ? Color.accentColor.opacity(0.12) : .clear)
+                Divider()
             }
         }
     }
