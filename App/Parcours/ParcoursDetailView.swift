@@ -192,7 +192,8 @@ struct ParcoursDetailView: View {
             }
         }
         .navigationTitle(activity.title)
-        .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load() }
+        .sheet(isPresented: $showWebSheet) { routeWebSheet }
+        .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState() }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
         .onDisappear { routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
@@ -281,14 +282,107 @@ struct ParcoursDetailView: View {
                             totalGainWithConnectors, stages.count))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button { previewWeb() } label: { Label("Aperçu web", systemImage: "safari") }
-                    .disabled(webPreviewBusy)
-                    .help("Génère la page web du parcours et l'ouvre dans le navigateur (test)")
+                Button { showWebSheet = true } label: { Label("Web", systemImage: "safari") }
+                    .help("Aperçu ou publication de la page web du parcours")
             }
         }
     }
 
     @State private var webPreviewBusy = false
+    @State private var showWebSheet = false
+    @State private var webOptions = WebExportOptions()
+    @State private var isPublishing = false
+    @State private var webPublishedURL: String?
+    @State private var webPublishConfig: String?
+    @State private var webError: String?
+
+    private var routeWebSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Page web du parcours").font(.title3.bold())
+            Text("Page mobile (carte par étape, profil, photos) façon application, à partager via un lien.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+            if let url = webPublishedURL {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Publié", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.callout.bold())
+                    HStack(spacing: 8) {
+                        Link(url, destination: URL(string: url) ?? URL(string: "https://www.gpxmanagement.net")!)
+                            .lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(url, forType: .string) } label: { Image(systemName: "doc.on.doc") }
+                            .buttonStyle(.borderless).help("Copier le lien")
+                    }
+                    .padding(8).background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+
+            Toggle("Inclure les photos (couvertures d'étape)", isOn: $webOptions.includePhotos)
+            Toggle("Inclure les notes", isOn: $webOptions.includeNotes)
+
+            if !BunnyStorageService.isConfigured {
+                Text("⚠︎ Bunny non configuré (renseigner Secrets.xcconfig).").font(.caption).foregroundStyle(.orange)
+            }
+            if let e = webError { Text(e).font(.caption).foregroundStyle(.red) }
+
+            HStack {
+                Button("Aperçu local") { showWebSheet = false; previewWeb() }
+                Spacer()
+                if webPublishedURL != nil {
+                    Button("Retirer", role: .destructive) { showWebSheet = false; unpublishRoute() }
+                }
+                Button("Fermer") { showWebSheet = false }
+                Button(webPublishedURL == nil ? "Publier" : "Republier") { showWebSheet = false; publishRoute() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!BunnyStorageService.isConfigured || isPublishing)
+            }
+        }
+        .padding(24).frame(width: 560)
+    }
+
+    private func loadWebState() async {
+        webPublishedURL = try? await repository.fetchWebPublishedURL(id: activity.id)
+        webPublishConfig = try? await repository.fetchWebPublishConfig(id: activity.id)
+    }
+
+    private func routeUUID() -> String? {
+        guard let url = webPublishedURL, let u = URL(string: url) else { return nil }
+        return u.pathComponents.filter { $0 != "/" && !$0.isEmpty }.last
+    }
+
+    private func publishRoute() {
+        guard !isPublishing else { return }
+        isPublishing = true; webError = nil
+        let progress = WebExportProgress.shared
+        progress.begin("Génération de la page…")
+        let act = activity, repo = repository, layer = MapLayer.base(fromRawValue: layerRaw)
+        var opts = webOptions; opts.output = .publishBunny
+        let uuid = routeUUID() ?? UUID().uuidString.lowercased()
+        Task { @MainActor in
+            defer { isPublishing = false; progress.end() }
+            do {
+                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: opts) { f, s in progress.update(f * 0.6, s) }
+                try await BunnyStorageService.publish(files: files, folder: "routes/\(uuid)") { f, s in progress.update(0.6 + f * 0.4, s) }
+                let url = "https://www.gpxmanagement.net/routes/\(uuid)/"
+                let configJSON = (try? JSONEncoder().encode(opts)).flatMap { String(data: $0, encoding: .utf8) }
+                try await repo.setWebPublished(id: act.id, url: url, configJSON: configJSON)
+                webPublishedURL = url; webPublishConfig = configJSON
+                NSWorkspace.shared.open(URL(string: url)!)
+            } catch { webError = error.localizedDescription }
+        }
+    }
+
+    private func unpublishRoute() {
+        guard let uuid = routeUUID() else { return }
+        let act = activity, repo = repository
+        Task { @MainActor in
+            do {
+                try await BunnyStorageService.unpublish(folder: "routes/\(uuid)")
+                try await repo.clearWebPublished(id: act.id)
+                webPublishedURL = nil; webPublishConfig = nil
+            } catch { webError = error.localizedDescription }
+        }
+    }
+
     /// Test phases 1-3 : génère la page web mono-page dans le dossier Téléchargements et l'ouvre dans le navigateur.
     private func previewWeb() {
         guard !webPreviewBusy else { return }

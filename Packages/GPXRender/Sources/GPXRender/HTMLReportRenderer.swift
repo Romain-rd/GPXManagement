@@ -264,13 +264,13 @@ public enum HTMLReportRenderer {
                 let st = s.stats(in: points)
                 let arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
                 var coverRef: String?
-                if let cov = s.coverImageData, !cov.isEmpty {
+                if options.includePhotos, let cov = s.coverImageData, !cov.isEmpty {
                     let rel = "images/etape-\(i + 1).\(imageExt(cov))"; files[rel] = cov; coverRef = rel
                 }
                 stageVMs.append(RouteStageVM(index: i + 1, name: s.name.isEmpty ? "Étape \(i + 1)" : s.name,
                                              departure: prevArrival, arrival: arrival,
                                              dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
-                                             notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                                             notes: options.includeNotes ? (s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") : "",
                                              distance: st.distance, gain: st.elevationGain,
                                              coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count],
                                              pois: poisByStage[i + 1] ?? [], profile: stageProfile(slice), coverRef: coverRef))
