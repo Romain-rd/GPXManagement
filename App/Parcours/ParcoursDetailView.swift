@@ -43,6 +43,7 @@ struct ParcoursDetailView: View {
     @State private var placeSearch = PlaceSearchModel()
     @State private var searchResult: (name: String, coordinate: CLLocationCoordinate2D)?
     @FocusState private var searchFocused: Bool
+    @FocusState private var titleFocused: Bool
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
          navigation: AppNavigationModel, window: WindowModel? = nil, showsInlineInspector: Bool = false) {
@@ -202,7 +203,7 @@ struct ParcoursDetailView: View {
         .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState() }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
-        .onDisappear { routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
+        .onDisappear { commitTitle(); routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
         .task(id: AppServices.shared.libraryRevision) {
             // Après un enregistrement (manuel ou automatique), recharge profil + étapes depuis le tracé sauvegardé.
             guard initialToolSet, grabbed == nil, !routeModel.busy else { return }
@@ -274,7 +275,9 @@ struct ParcoursDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             TextField("Titre du parcours", text: $titleDraft)
                 .font(.title2.bold()).textFieldStyle(.plain)
+                .focused($titleFocused)
                 .onSubmit { commitTitle() }
+                .onChange(of: titleFocused) { _, focused in if !focused { commitTitle() } }
             HStack(spacing: 10) {
                 Menu {
                     activityTypeMenuItems(selected: activity.activityType) { type in
