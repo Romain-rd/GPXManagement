@@ -35,29 +35,24 @@ final class RouteEditingModel {
         scheduleAutoSave()
     }
 
-    // MARK: Annuler / Rétablir
+    // MARK: Annuler / Rétablir (via l'UndoManager système → menu Édition + ⌘Z, unifié avec l'édition de texte)
     private struct Snapshot { let waypoints: [RouteWaypoint]; let segments: [[CLLocationCoordinate2D]?]; let selected: UUID? }
-    private var undoStack: [Snapshot] = []
-    private var redoStack: [Snapshot] = []
-    var canUndo: Bool { !undoStack.isEmpty }
-    var canRedo: Bool { !redoStack.isEmpty }
+    weak var undoManager: UndoManager?
+    var canUndo: Bool { undoManager?.canUndo ?? false }
+    var canRedo: Bool { undoManager?.canRedo ?? false }
 
-    /// À appeler AVANT une modification de géométrie pour la rendre annulable.
-    private func snapshot() {
-        undoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
-        if undoStack.count > 50 { undoStack.removeFirst() }
-        redoStack.removeAll()
+    /// À appeler AVANT une modification de géométrie : enregistre l'état courant comme point d'annulation.
+    private func snapshot(_ name: String = "Modifier l'itinéraire") {
+        let before = Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId)
+        undoManager?.registerUndo(withTarget: self) { $0.apply(before, name: name) }
+        undoManager?.setActionName(name)
     }
 
-    func undo() {
-        guard !busy, let snap = undoStack.popLast() else { return }
-        redoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
-        waypoints = snap.waypoints; segments = snap.segments; selectedWaypointId = snap.selected
-        markDirty()
-    }
-    func redo() {
-        guard !busy, let snap = redoStack.popLast() else { return }
-        undoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
+    /// Restaure un état et enregistre l'inverse (rétablir) — schéma récursif standard de l'UndoManager.
+    private func apply(_ snap: Snapshot, name: String) {
+        let inverse = Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId)
+        undoManager?.registerUndo(withTarget: self) { $0.apply(inverse, name: name) }
+        undoManager?.setActionName(name)
         waypoints = snap.waypoints; segments = snap.segments; selectedWaypointId = snap.selected
         markDirty()
     }
@@ -101,7 +96,7 @@ final class RouteEditingModel {
     /// Fait défiler le rôle d'un point : tracé muet → point d'intérêt → arrêt d'étape.
     func cycleRole(_ id: UUID) {
         guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
-        snapshot()
+        snapshot("Changer le rôle")
         let order: [RouteWaypoint.Role] = [.shaping, .poi, .stageStop]
         waypoints[j].role = order[((order.firstIndex(of: waypoints[j].role) ?? 0) + 1) % order.count]
         markDirty()
@@ -119,7 +114,7 @@ final class RouteEditingModel {
 
     func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
         guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
-        snapshot()
+        snapshot("Déplacer un point")
         waypoints[i].latitude = c.latitude
         waypoints[i].longitude = c.longitude
         touch(i)
@@ -130,7 +125,7 @@ final class RouteEditingModel {
     /// (au-delà de la fin → ajout en bout ; au-delà du début → en tête). Cohérent pour le clic ET la recherche.
     func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
         guard !busy else { return }
-        snapshot()
+        snapshot("Ajouter un point")
         let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
         let p = bestInsertionIndex(for: c)
         waypoints.insert(wp, at: p)
@@ -145,7 +140,7 @@ final class RouteEditingModel {
     /// Réordonne les points (glisser dans la liste) ; l'ordre change → on recalcule tout le tracé.
     func moveWaypoints(fromOffsets: IndexSet, toOffset: Int) {
         guard !busy else { return }
-        snapshot()
+        snapshot("Réordonner")
         waypoints.move(fromOffsets: fromOffsets, toOffset: toOffset)
         invalidateAll()
     }
@@ -174,7 +169,7 @@ final class RouteEditingModel {
 
     func delete(_ id: UUID) {
         guard !busy, let k = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
-        snapshot()
+        snapshot("Supprimer un point")
         if k == 0 { if !segments.isEmpty { segments.removeFirst() } }
         else if k == waypoints.count - 1 { if !segments.isEmpty { segments.removeLast() } }
         else if k - 1 < segments.count, k < segments.count { segments.replaceSubrange((k - 1)...k, with: [nil]) }

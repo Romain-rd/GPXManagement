@@ -24,6 +24,7 @@ struct ParcoursDetailView: View {
     /// En fenêtre autonome (pas de 3ᵉ colonne) : l'inspecteur d'étape s'affiche en panneau flottant interne.
     var showsInlineInspector: Bool = false
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.undoManager) private var undoManager
 
     /// Au-delà : tracé dense (GR importé) → non éditable par ancrages (gel + dégradation). Voir load().
     private static let maxRouteEditablePoints = 1500
@@ -193,7 +194,8 @@ struct ParcoursDetailView: View {
             }
         }
         .navigationTitle(activity.title)
-        .task(id: activity.id) { await load() }
+        .task(id: activity.id) { routeModel.undoManager = undoManager; await load() }
+        .onChange(of: undoManager) { routeModel.undoManager = $1 }
         .task(id: AppServices.shared.libraryRevision) {
             // Après un enregistrement (manuel ou automatique), recharge profil + étapes depuis le tracé sauvegardé.
             guard initialToolSet, grabbed == nil, !routeModel.busy else { return }
@@ -374,12 +376,10 @@ struct ParcoursDetailView: View {
 
     private var undoRedoButtons: some View {
         HStack(spacing: 2) {
-            Button { routeModel.undo() } label: { Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 24) }
+            Button { undoManager?.undo() } label: { Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 24) }
                 .help("Annuler (⌘Z)").disabled(!routeModel.canUndo || routeModel.busy)
-                .keyboardShortcut("z", modifiers: .command)
-            Button { routeModel.redo() } label: { Image(systemName: "arrow.uturn.forward").frame(width: 26, height: 24) }
+            Button { undoManager?.redo() } label: { Image(systemName: "arrow.uturn.forward").frame(width: 26, height: 24) }
                 .help("Rétablir (⇧⌘Z)").disabled(!routeModel.canRedo || routeModel.busy)
-                .keyboardShortcut("z", modifiers: [.command, .shift])
         }
         .buttonStyle(.borderless)
     }
