@@ -84,6 +84,49 @@ struct RaidDetailView: View {
         listVM.allActivities.filter { $0.raidId == raid.id }.sorted { $0.startDate < $1.startDate }
     }
 
+    @AppStorage("raidSecInfo") private var secInfoExpanded = true
+    @AppStorage("raidSecParticipants") private var secParticipantsExpanded = true
+    @AppStorage("raidSecMap") private var secMapExpanded = true
+    @AppStorage("raidSecSteps") private var secStepsExpanded = true
+    @AppStorage("raidSecNotes") private var secNotesExpanded = true
+
+    @ViewBuilder private func sectionChevron(_ expanded: Binding<Bool>) -> some View {
+        Button { withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() } } label: {
+            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0)).frame(width: 14, height: 14).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sectionHeader(_ title: String, _ icon: String, _ expanded: Binding<Bool>) -> some View {
+        HStack(spacing: 6) {
+            sectionChevron(expanded)
+            Label(title, systemImage: icon).font(.headline)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() } }
+    }
+
+    /// Section « Informations » : grille de stats + liens publiés (web/film), comme la fiche activité/parcours.
+    @ViewBuilder private var statsBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Informations", "info.circle", $secInfoExpanded)
+            if secInfoExpanded {
+                statsGrid
+                publishedLinkSection
+                filmLinkSection
+            }
+        }
+    }
+
+    @ViewBuilder private var mapBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Carte", "map", $secMapExpanded)
+            if secMapExpanded { mapCard }
+        }
+    }
+
     /// Activité membre sélectionnée (affichée dans le panneau glissant, comme une étape de parcours).
     private var selectedMember: ActivitySummary? {
         members.first { navigation.listSelection.contains($0.id) }
@@ -102,11 +145,9 @@ struct RaidDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 coverBanner
                 header
-                statsGrid
-                publishedLinkSection
-                filmLinkSection
+                statsBlock
                 participantsSection
-                mapCard
+                mapBlock
                 stepsSection
                 infoSection
             }
@@ -477,21 +518,23 @@ struct RaidDetailView: View {
 
     private var participantsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Participants").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
-                ForEach(draft.participants) { participant in
-                    Button { editingParticipant = participant } label: {
-                        participantChip(participant)
+            sectionHeader("Participants", "person.2", $secParticipantsExpanded)
+            if secParticipantsExpanded {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(draft.participants) { participant in
+                        Button { editingParticipant = participant } label: {
+                            participantChip(participant)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button { isAddingParticipant = true } label: {
+                        Label("Ajouter", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 20))
                     }
                     .buttonStyle(.plain)
                 }
-                Button { isAddingParticipant = true } label: {
-                    Label("Ajouter", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 20))
-                }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -614,15 +657,17 @@ struct RaidDetailView: View {
 
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Étapes").font(.headline)
-            if members.isEmpty {
-                Text("Aucune activité dans ce raid.")
-                    .foregroundStyle(.secondary).font(.callout)
-            } else {
-                Text("La disposition (profil / photos) de chaque étape sert au film du raid et de modèle par défaut pour le film de cette trace.")
-                    .font(.caption).foregroundStyle(.secondary)
-                ForEach(Array(members.enumerated()), id: \.element.id) { index, activity in
-                    stepRow(index: index + 1, activity: activity)
+            sectionHeader("Étapes", "flag.fill", $secStepsExpanded)
+            if secStepsExpanded {
+                if members.isEmpty {
+                    Text("Aucune activité dans ce raid.")
+                        .foregroundStyle(.secondary).font(.callout)
+                } else {
+                    Text("La disposition (profil / photos) de chaque étape sert au film du raid et de modèle par défaut pour le film de cette trace.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(Array(members.enumerated()), id: \.element.id) { index, activity in
+                        stepRow(index: index + 1, activity: activity)
+                    }
                 }
             }
         }
@@ -794,8 +839,9 @@ struct RaidDetailView: View {
 
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Notes").font(.headline)
+            HStack(spacing: 6) {
+                sectionChevron($secNotesExpanded)
+                Label("Notes", systemImage: "note.text").font(.headline)
                 Spacer()
                 if isDirty {
                     Button("Enregistrer") { save() }
@@ -803,14 +849,18 @@ struct RaidDetailView: View {
                         .controlSize(.small)
                 }
             }
-            TextEditor(text: Binding(
-                get: { draft.notes ?? "" },
-                set: { draft.notes = $0.isEmpty ? nil : $0 }
-            ))
-            .frame(minHeight: 90)
-            .padding(6)
-            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-            .font(.body)
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.snappy(duration: 0.2)) { secNotesExpanded.toggle() } }
+            if secNotesExpanded {
+                TextEditor(text: Binding(
+                    get: { draft.notes ?? "" },
+                    set: { draft.notes = $0.isEmpty ? nil : $0 }
+                ))
+                .frame(minHeight: 90)
+                .padding(6)
+                .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                .font(.body)
+            }
         }
     }
 
