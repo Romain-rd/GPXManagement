@@ -78,6 +78,9 @@ struct ParcoursDetailView: View {
     @State private var renameText = ""
     @AppStorage("parcoursAddKm") private var addKmRaw = "10"
     @AppStorage("parcoursAddGainMax") private var addGainRaw = ""
+    @State private var showRecalcDialog = false
+    @AppStorage("parcoursRecalcKm") private var recalcKmRaw = "20"
+    @AppStorage("parcoursRecalcGain") private var recalcGainRaw = ""
 
     private var layerBinding: Binding<MapLayer> {
         Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
@@ -222,6 +225,14 @@ struct ParcoursDetailView: View {
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Coupe la dernière étape à la distance indiquée, ou plus tôt si le D+ max est atteint.")
+        }
+        .alert("Recalculer les étapes", isPresented: $showRecalcDialog) {
+            TextField("Distance max (km)", text: $recalcKmRaw)
+            TextField("D+ max (m, optionnel)", text: $recalcGainRaw)
+            Button("Recalculer", role: .destructive) { recalcByLimits() }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Remplace toutes les étapes du parcours : il est redécoupé en étapes ne dépassant pas la distance et/ou le D+ indiqués.")
         }
         .alert("Renommer l'étape", isPresented: Binding(get: { renamingStageId != nil }, set: { if !$0 { renamingStageId = nil } })) {
             TextField("Nom", text: $renameText)
@@ -922,10 +933,12 @@ struct ParcoursDetailView: View {
         HStack {
             Button { showAddDialog = true } label: { Label("Ajouter une étape", systemImage: "plus") }
             Menu {
-                Button("Tous les 10 km") { recalcByDistance(10_000) }
-                Button("Tous les 20 km") { recalcByDistance(20_000) }
-                Button("Tous les 500 m D+") { recalcByGain(500) }
-                Button("Tous les 1000 m D+") { recalcByGain(1_000) }
+                Button("Tous les 10 km") { recalcKmRaw = "10"; recalcGainRaw = ""; showRecalcDialog = true }
+                Button("Tous les 20 km") { recalcKmRaw = "20"; recalcGainRaw = ""; showRecalcDialog = true }
+                Button("Tous les 500 m D+") { recalcKmRaw = ""; recalcGainRaw = "500"; showRecalcDialog = true }
+                Button("Tous les 1000 m D+") { recalcKmRaw = ""; recalcGainRaw = "1000"; showRecalcDialog = true }
+                Divider()
+                Button("Personnalisé…") { showRecalcDialog = true }
             } label: { Label("Recalculer", systemImage: "wand.and.stars") }
             Spacer()
         }
@@ -1243,21 +1256,32 @@ struct ParcoursDetailView: View {
         persist()
     }
 
-    private func recalcByDistance(_ meters: Double) {
-        rebuild(TrackSegmentBuilder.byDistance(points: points, every: meters))
-    }
-    private func recalcByGain(_ meters: Double) {
-        rebuild(TrackSegmentBuilder.byElevationGain(points: points, every: meters))
-    }
-    private func rebuild(_ segments: [TrackSegment]) {
-        guard !segments.isEmpty else { return }
+    /// Redécoupe TOUT le parcours en étapes ne dépassant ni la distance ni le D+ max (coupe au premier atteint).
+    private func recalcByLimits() {
+        let distMeters = (Double(recalcKmRaw.replacingOccurrences(of: ",", with: ".")) ?? 0) * 1000
+        let gainMeters = Double(recalcGainRaw.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let n = points.count
+        guard n >= 2, distMeters > 0 || gainMeters > 0, dists.count == n, cumGain.count == n else { return }
         navigation.selectedStageId = nil
-        stages = segments.enumerated().map { i, seg in
-            Stage(activityId: activity.id, order: i, name: "Étape \(i + 1)", startIndex: seg.startIndex, endIndex: seg.endIndex)
+        var bounds: [(Int, Int)] = []
+        var a = 0
+        while a < n - 1 {
+            var cut = n - 1
+            if a + 1 < n - 1 {
+                for i in (a + 1)..<(n - 1) {
+                    let distHit = distMeters > 0 && (dists[i] - dists[a] >= distMeters)
+                    let gainHit = gainMeters > 0 && (cumGain[i] - cumGain[a] >= gainMeters)
+                    if distHit || gainHit { cut = i; break }
+                }
+            }
+            bounds.append((a, cut))
+            a = cut
+        }
+        stages = bounds.enumerated().map { i, b in
+            Stage(activityId: activity.id, order: i, name: "Étape \(i + 1)", startIndex: b.0, endIndex: b.1)
         }
         persist()
     }
-
     private func persist() {
         for i in stages.indices { stages[i].order = i }
         let snapshot = stages
