@@ -25,6 +25,8 @@ struct StageDetailView: View {
     @State private var stageIndex: Int = -1
     @State private var w0 = 0
     @State private var w1 = 0
+    /// Connecteurs hors-trace décodés une fois (évite de re-décoder + recréer les overlays à chaque rendu = lag).
+    @State private var connectorOverlays: [[CLLocationCoordinate2D]] = []
     @State private var grabbed: Handle?
     @State private var dragCoord: CLLocationCoordinate2D?
     @State private var nameDraft = ""
@@ -176,7 +178,7 @@ struct StageDetailView: View {
                         }
                         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                                         coords: windowCoords, stages: windowStages,
-                                        connectors: [coords(departureConnector), coords(arrivalConnector), coords(nextDepartureConnector)].filter { $0.count >= 2 },
+                                        connectors: connectorOverlays,
                                         highlight: dragCoord ?? offTrackMarker,
                                         onMapClick: placingOnMap ? { setArrival(to: $0); placingOnMap = false } : nil,
                                         fitTrigger: [w0, w1],   // recadre quand la fenêtre de l'étape (coords) change réellement
@@ -239,7 +241,17 @@ struct StageDetailView: View {
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0)
                         .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
-                        .onEnded { _ in if grabbed != nil { grabbed = nil; dragCoord = nil; persist() } })
+                        .onEnded { _ in
+                            guard grabbed != nil else { return }
+                            let movedEnd = grabbed == .end
+                            grabbed = nil; dragCoord = nil
+                            // Borne de fin déplacée + arrêt hors-trace → re-router le chemin supplémentaire depuis la nouvelle borne.
+                            if movedEnd, let s = stage, let lat = s.endOffTrackLatitude, let lon = s.endOffTrackLongitude {
+                                setArrival(to: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+                            } else {
+                                persist()
+                            }
+                        })
             }
         }
     }
@@ -342,6 +354,7 @@ struct StageDetailView: View {
             allStages[stageIndex].startIndex = rejoin
             allStages[stageIndex].startConnectorData = try? TrackPointCodec.encode(departure)
             isRouting = false
+            refreshConnectors()
             persist()
         }
     }
@@ -440,6 +453,7 @@ struct StageDetailView: View {
                 allStages[stageIndex + 1].startConnectorData = try? TrackPointCodec.encode(departure)
             }
             isRouting = false
+            refreshConnectors()
             persist()
         }
     }
@@ -453,7 +467,13 @@ struct StageDetailView: View {
             allStages[stageIndex + 1].startConnectorData = nil
             allStages[stageIndex + 1].startIndex = s.endIndex // re-contigu avec la fin de cette étape
         }
+        refreshConnectors()
         persist()
+    }
+
+    /// Recalcule (une fois) les coordonnées des connecteurs hors-trace — à appeler après chargement/édition, pas à chaque rendu.
+    private func refreshConnectors() {
+        connectorOverlays = [coords(departureConnector), coords(arrivalConnector), coords(nextDepartureConnector)].filter { $0.count >= 2 }
     }
 
     private func nearestTrackIndex(to p: CLLocationCoordinate2D, in range: ClosedRange<Int>) -> Int {
@@ -514,6 +534,7 @@ struct StageDetailView: View {
             w0 = max(prevStart, indexAtMeters(d[s.startIndex] - contextM, in: d))
             w1 = min(nextEnd, indexAtMeters(d[s.endIndex] + contextM, in: d))
         }
+        refreshConnectors()
     }
 
     private func indexAtMeters(_ meters: Double, in d: [Double]) -> Int {
