@@ -373,8 +373,8 @@ struct ParcoursDetailView: View {
     }
 
     private var recalcButton: some View {
-        Button { routeModel.reroute() } label: { Image(systemName: "arrow.triangle.turn.up.right.diamond") }
-            .help("Recalculer l'itinéraire").disabled(routeModel.busy || routeModel.waypoints.count < 2 || !routeModel.hasPending)
+        Button { routeModel.invalidateAll(); routeModel.reroute() } label: { Image(systemName: "arrow.triangle.turn.up.right.diamond") }
+            .help("Recalculer tout l'itinéraire (avec le fournisseur courant)").disabled(routeModel.busy || routeModel.waypoints.count < 2)
     }
     private var fitButton: some View {
         Button { routeModel.fit() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
