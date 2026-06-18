@@ -1,7 +1,7 @@
 {
-  "latestBuild": 11,
+  "latestBuild": 12,
   "latestVersion": "1.0",
-  "minimumBuild": 1,
+  "minimumBuild": 12,
   "downloadURL": "https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg",
-  "notes": "Nouveautés :\n\n• Mises à jour automatiques (Sparkle) + fenêtre de nouveautés au démarrage et menu « Rechercher les mises à jour… ».\n• Préférences : organisation chronologique des fichiers, onglet Maintenance défilant.\n• Filtre intelligent « Publication ».\n• Aide en ligne complète."
+  "notes": "Nouveautés :\n\n• Publication web d'un parcours en étapes (façon application iPhone) : carte par étape, profil, photos, navigation entre étapes, lien partageable.\n• Repères d'étape « Jn » colorés, cohérents entre la carte, la liste et la page web.\n• Icône « publié » dans la liste pour activités, parcours et raids.\n• Duplication possible pour les activités, parcours et raids ; menu Édition adapté au type sélectionné.\n• Parcours : date affectée visible dans la liste, recalcul des étapes par distance et D+ max, édition d'itinéraire améliorée."
 }
