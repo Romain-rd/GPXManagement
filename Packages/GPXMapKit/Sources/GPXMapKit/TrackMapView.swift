@@ -128,12 +128,12 @@ final class WaypointAnnotation: MKPointAnnotation {
     let waypointId: UUID
     let index: Int
     let role: RouteWaypoint.Role
-    let label: String?
+    var label: String?
     let isPreview: Bool
-    let isSelected: Bool
+    var isSelected: Bool
     let isArrival: Bool
     let isDeparture: Bool
-    let stageIndex: Int?
+    var stageIndex: Int?
     init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool, isSelected: Bool, isArrival: Bool, isDeparture: Bool, stageIndex: Int?) {
         self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected; self.isArrival = isArrival; self.isDeparture = isDeparture; self.stageIndex = stageIndex
         super.init()
@@ -473,13 +473,28 @@ public struct TrackMapView: NSViewRepresentable {
         }
 
         func applyWaypoints(_ markers: [WaypointMarker], to mapView: MKMapView) {
-            // Pas de reconstruction pendant un drag (sinon le pin saute) : on diffe sur (id, index, coord).
-            let sig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.role.rawValue)|\($0.coordinate.latitude),\($0.coordinate.longitude)|\($0.isSelected)" }.joined(separator: ";")
-            if sig == waypointSignature { return }
-            waypointSignature = sig
-            mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview, isSelected: $0.isSelected, isArrival: $0.isArrival, isDeparture: $0.isDeparture, stageIndex: $0.stageIndex) }
-            mapView.addAnnotations(waypointAnnotations)
+            // Signature STRUCTURELLE (id, index, coord, role) : si elle change, on reconstruit. Sinon (seul l'aspect
+            // change : sélection/surbrillance, label, étape), on met à jour l'image en place — pas de remove/add
+            // global (qui faisait clignoter TOUS les marqueurs au survol).
+            let structSig = markers.map { "\($0.id.uuidString)|\($0.index)|\($0.role.rawValue)|\($0.coordinate.latitude),\($0.coordinate.longitude)|\($0.isPreview)" }.joined(separator: ";")
+            if structSig != waypointSignature {
+                waypointSignature = structSig
+                mapView.removeAnnotations(waypointAnnotations)
+                waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview, isSelected: $0.isSelected, isArrival: $0.isArrival, isDeparture: $0.isDeparture, stageIndex: $0.stageIndex) }
+                mapView.addAnnotations(waypointAnnotations)
+                return
+            }
+            // Même structure → ne mettre à jour QUE les marqueurs dont l'aspect a changé.
+            let byId = Dictionary(uniqueKeysWithValues: waypointAnnotations.map { ($0.waypointId, $0) })
+            for m in markers {
+                guard let ann = byId[m.id] else { continue }
+                if ann.isSelected != m.isSelected || ann.label != m.label || ann.stageIndex != m.stageIndex {
+                    ann.isSelected = m.isSelected; ann.label = m.label; ann.stageIndex = m.stageIndex
+                    if let view = mapView.view(for: ann) as? PassthroughDotView {
+                        view.image = Self.waypointImage(role: ann.role, isDeparture: ann.isDeparture, isArrival: ann.isArrival, isSelected: ann.isSelected, stageIndex: ann.stageIndex, label: ann.label)
+                    }
+                }
+            }
         }
         private var waypointSignature = ""
 

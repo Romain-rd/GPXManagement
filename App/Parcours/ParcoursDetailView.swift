@@ -1286,7 +1286,12 @@ struct ParcoursDetailView: View {
                     }
                     .contentShape(Rectangle())
                     .onHover { highlightedWaypointId = $0 ? wp.id : nil }
-                    .listRowBackground((routeModel.selectedWaypointId == wp.id || highlightedWaypointId == wp.id) ? Color.accentColor.opacity(0.12) : Color.clear)
+                    .listRowBackground(
+                        HStack(spacing: 0) {
+                            Rectangle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : .clear).frame(width: 3)
+                            ((routeModel.selectedWaypointId == wp.id || highlightedWaypointId == wp.id) ? Color.accentColor.opacity(0.18) : Color.clear)
+                        }
+                    )
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                     // Trait UNIQUEMENT après un arrêt interne (= frontière d'étape), pas entre chaque point.
                     .listRowSeparator((wp.role == .stageStop && i > 0 && i < count - 1) ? .visible : .hidden, edges: .bottom)
