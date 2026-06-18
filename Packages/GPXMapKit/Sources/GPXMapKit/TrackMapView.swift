@@ -136,6 +136,12 @@ final class WaypointAnnotation: MKPointAnnotation {
     }
 }
 
+/// Marqueur transparent aux événements souris : `hitTest` renvoie nil pour que le clic/glissement traverse jusqu'à
+/// la carte, où le `WaypointInteractionRecognizer` le capte uniformément (sinon MapKit avale l'interaction sur la pastille).
+final class PassthroughMarkerView: MKMarkerAnnotationView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 /// Reconnaisseur des interactions sur un point : revendique dès le `mouseDown` s'il est sur/près d'un marqueur
 /// (ce qui coupe le défilement interne de MKMapView avant qu'il démarre). Tap = sélection, glissement = déplacement.
 final class WaypointInteractionRecognizer: NSGestureRecognizer {
@@ -636,8 +642,8 @@ public struct TrackMapView: NSViewRepresentable {
                 }
                 // Épingle numérotée, couleur par rôle (gris = tracé, orange = POI, vert = arrêt d'étape).
                 let identifier = "waypoint.marker"
-                let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
-                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughMarkerView)
+                    ?? PassthroughMarkerView(annotation: annotation, reuseIdentifier: identifier)
                 marker.annotation = annotation
                 if wp.isPreview {
                     marker.markerTintColor = .systemRed
@@ -697,12 +703,10 @@ public struct TrackMapView: NSViewRepresentable {
             gestureRecognizer is NSClickGestureRecognizer && other is WaypointInteractionRecognizer
         }
 
+        /// Marqueur dont le cadre de vue contient le point (les vues sont transparentes au hitTest → on teste le cadre).
         func waypointAnnotation(atScreenPoint point: CGPoint, in mapView: MKMapView) -> WaypointAnnotation? {
-            guard let superview = mapView.superview else { return nil }
-            var view = mapView.hitTest(mapView.convert(point, to: superview))
-            while let current = view, current !== mapView {
-                if let av = current as? MKAnnotationView, let wp = av.annotation as? WaypointAnnotation { return wp }
-                view = current.superview
+            for ann in waypointAnnotations {
+                if let v = mapView.view(for: ann), v.frame.insetBy(dx: -6, dy: -6).contains(point) { return ann }
             }
             return nil
         }
