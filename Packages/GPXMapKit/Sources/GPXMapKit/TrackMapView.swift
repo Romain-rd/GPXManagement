@@ -671,8 +671,10 @@ public struct TrackMapView: NSViewRepresentable {
                     marker.glyphText = nil
                     marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
                 } else {
-                    // Sélectionné → bleu accent (mis en avant) ; sinon couleur par rôle.
-                    marker.markerTintColor = wp.isSelected ? .controlAccentColor : (wp.role == .stageStop ? .systemGreen : (wp.role == .poi ? .systemOrange : .systemGray))
+                    // Sélectionné → bleu ; départ/arrivée/arrêt → vert (comme la liste) ; POI → orange ; tracé → gris.
+                    marker.markerTintColor = wp.isSelected ? .controlAccentColor
+                        : (wp.isDeparture || wp.isArrival || wp.role == .stageStop) ? .systemGreen
+                        : (wp.role == .poi ? .systemOrange : .systemGray)
                     let glyph: String?
                     if wp.isArrival { glyph = "flag.checkered" }              // arrivée
                     else if wp.isDeparture { glyph = "flag.2.crossed.fill" }   // départ
