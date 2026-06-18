@@ -174,8 +174,26 @@ struct RaidDetailView: View {
         }
     }
 
+    /// Plein écran de la carte du raid en fenêtre AUTONOME (la fenêtre principale le présente via ContentView).
+    @ViewBuilder private var raidFullscreenOverlay: some View {
+        if isStandaloneWindow, window.fullscreenRaidId == raid.id, !members.isEmpty {
+            MapOverviewView(activities: members, selectedIds: [], repository: repository, window: window,
+                            onSelect: { _ in window.fullscreenRaidId = nil }, forceFullscreen: true)
+                .ignoresSafeArea()
+                .overlay(alignment: .topTrailing) {
+                    Button { window.fullscreenRaidId = nil } label: {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left").font(.title3).padding(10)
+                            .background(.regularMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain).padding(16).keyboardShortcut(.cancelAction)
+                }
+                .transition(.opacity)
+        }
+    }
+
     var body: some View {
         inspectorLayout
+        .overlay { raidFullscreenOverlay }
         .navigationTitle(raid.name)
         .toolbar {
             if selectedMember != nil {
