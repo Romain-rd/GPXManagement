@@ -146,6 +146,11 @@ final class PassthroughMarkerView: MKMarkerAnnotationView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
+/// Petite pastille d'annotation (image custom), transparente aux événements (interactions gérées par le reconnaisseur).
+final class PassthroughDotView: MKAnnotationView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 /// Croix de visée rouge affichée pendant le glissement d'un point (le sommet de l'épingle masque l'emplacement exact).
 final class CrosshairView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -626,6 +631,41 @@ public struct TrackMapView: NSViewRepresentable {
             return image
         }()
 
+        /// Petite pastille d'un point de passage (bien plus compacte que MKMarkerAnnotationView) ;
+        /// point de tracé = minuscule point ; sinon cercle coloré avec un petit glyphe blanc.
+        private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool) -> NSImage {
+            let color: NSColor = isSelected ? .controlAccentColor
+                : ((isDeparture || isArrival || role == .stageStop) ? .systemGreen : (role == .poi ? .systemOrange : .systemGray))
+            if role == .shaping && !isDeparture && !isArrival {
+                let d: CGFloat = 8
+                let img = NSImage(size: NSSize(width: d, height: d))
+                img.lockFocus()
+                color.setFill(); NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: d, height: d)).fill()
+                NSColor.white.setStroke(); let r = NSBezierPath(ovalIn: NSRect(x: 0.6, y: 0.6, width: d - 1.2, height: d - 1.2)); r.lineWidth = 1; r.stroke()
+                img.unlockFocus()
+                return img
+            }
+            let s: CGFloat = 19
+            let img = NSImage(size: NSSize(width: s, height: s))
+            img.lockFocus()
+            color.setFill(); NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: s, height: s)).fill()
+            NSColor.white.setStroke(); let ring = NSBezierPath(ovalIn: NSRect(x: 0.8, y: 0.8, width: s - 1.6, height: s - 1.6)); ring.lineWidth = 1.2; ring.stroke()
+            let symbol = isArrival ? "flag.checkered" : (isDeparture ? "flag.2.crossed.fill" : (role == .stageStop ? "flag.fill" : "mappin"))
+            let cfg = NSImage.SymbolConfiguration(pointSize: 10, weight: .bold)
+            if let base = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {
+                let white = NSImage(size: base.size)
+                white.lockFocus()
+                base.draw(at: .zero, from: NSRect(origin: .zero, size: base.size), operation: .sourceOver, fraction: 1)
+                NSColor.white.set(); NSRect(origin: .zero, size: base.size).fill(using: .sourceAtop)
+                white.unlockFocus()
+                let g = white.size, scale = min(11 / g.width, 11 / g.height)
+                let gw = g.width * scale, gh = g.height * scale
+                white.draw(in: NSRect(x: (s - gw) / 2, y: (s - gh) / 2, width: gw, height: gh))
+            }
+            img.unlockFocus()
+            return img
+        }
+
         public func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             if let photo = annotation as? PhotoAnnotation {
                 let identifier = "photo"
@@ -648,50 +688,28 @@ public struct TrackMapView: NSViewRepresentable {
                 return view
             }
             if let wp = annotation as? WaypointAnnotation {
-                // Point de routage muet SANS numéro : petit point discret, pas de bulle.
-                if wp.role == .shaping && wp.label == nil {
-                    let identifier = "waypoint.shaping"
-                    let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-                        ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-                    view.annotation = annotation
-                    view.image = Self.shapingImage
-                    view.centerOffset = .zero
-                    view.isDraggable = true
-                    view.canShowCallout = false
-                    view.displayPriority = .defaultLow
-                    return view
-                }
-                // Épingle numérotée, couleur par rôle (gris = tracé, orange = POI, vert = arrêt d'étape).
-                let identifier = "waypoint.marker"
-                let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughMarkerView)
-                    ?? PassthroughMarkerView(annotation: annotation, reuseIdentifier: identifier)
-                marker.annotation = annotation
+                // Repère d'aperçu de recherche : épingle rouge (ballon).
                 if wp.isPreview {
+                    let identifier = "waypoint.preview"
+                    let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughMarkerView)
+                        ?? PassthroughMarkerView(annotation: annotation, reuseIdentifier: identifier)
+                    marker.annotation = annotation
                     marker.markerTintColor = .systemRed
                     marker.glyphText = nil
                     marker.glyphImage = NSImage(systemSymbolName: "mappin", accessibilityDescription: nil)
-                } else {
-                    // Sélectionné → bleu ; départ/arrivée/arrêt → vert (comme la liste) ; POI → orange ; tracé → gris.
-                    marker.markerTintColor = wp.isSelected ? .controlAccentColor
-                        : (wp.isDeparture || wp.isArrival || wp.role == .stageStop) ? .systemGreen
-                        : (wp.role == .poi ? .systemOrange : .systemGray)
-                    let glyph: String?
-                    if wp.isArrival { glyph = "flag.checkered" }              // arrivée
-                    else if wp.isDeparture { glyph = "flag.2.crossed.fill" }   // départ
-                    else if wp.role == .stageStop { glyph = "flag.fill" }      // arrêt d'étape
-                    else if wp.role == .poi { glyph = "mappin" }
-                    else { glyph = nil }                                       // point de tracé → numéro
-                    if let glyph {
-                        marker.glyphText = nil
-                        marker.glyphImage = NSImage(systemSymbolName: glyph, accessibilityDescription: nil)
-                    } else {
-                        marker.glyphText = wp.label
-                        marker.glyphImage = nil
-                    }
+                    marker.displayPriority = .required
+                    marker.collisionMode = .circle
+                    return marker
                 }
-                marker.isDraggable = true
-                marker.canShowCallout = (wp.title?.isEmpty == false)
-                marker.animatesWhenAdded = false
+                // Petite pastille custom (bien plus compacte que MKMarkerAnnotationView), point de tracé minuscule.
+                let identifier = "waypoint.dot"
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughDotView)
+                    ?? PassthroughDotView(annotation: annotation, reuseIdentifier: identifier)
+                view.annotation = annotation
+                view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected)
+                view.centerOffset = .zero
+                view.canShowCallout = (wp.title?.isEmpty == false)
+                let marker = view   // alias pour la suite (réglages communs)
                 marker.displayPriority = .required   // ne pas masquer/agréger les pins voisins
                 marker.collisionMode = .circle
                 return marker
