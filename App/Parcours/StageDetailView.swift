@@ -36,12 +36,22 @@ struct StageDetailView: View {
     @State private var searchResults: [MKMapItem] = []
     @State private var isRouting = false
     @State private var placingOnMap = false
-    @AppStorage("mapLayerStage") private var layerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("mapLayerStage") private var defaultLayerRaw = MapLayer.ignScan25.rawValue   // repli global
+    @State private var layerRaw = MapLayer.ignScan25.rawValue                                // fond propre à CETTE étape
     @AppStorage("stageMapHeight") private var mapHeight: Double = 300
     @AppStorage("routeProfile") private var engineRaw = "car"
 
+    private var layerKey: String { "mapLayerStage-\(stageId.uuidString)" }
+    /// Étape sans fond propre → hérite du fond de son parcours parent, sinon repli global.
+    private func loadLayer() {
+        layerRaw = UserDefaults.standard.string(forKey: layerKey)
+            ?? UserDefaults.standard.string(forKey: "mapLayerParcours-\(activity.id.uuidString)")
+            ?? defaultLayerRaw
+    }
+
     private var layerBinding: Binding<MapLayer> {
-        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) },
+                set: { layerRaw = $0.rawValue; UserDefaults.standard.set($0.rawValue, forKey: layerKey); defaultLayerRaw = $0.rawValue })
     }
 
     private var stage: Stage? { allStages.indices.contains(stageIndex) ? allStages[stageIndex] : nil }
@@ -209,7 +219,7 @@ struct StageDetailView: View {
                 .onDisappear { persist() }
             }
         }
-        .task(id: stageId) { await load() }
+        .task(id: stageId) { loadLayer(); await load() }
     }
 
     private var loupeProfile: some View {

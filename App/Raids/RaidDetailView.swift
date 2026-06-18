@@ -21,7 +21,8 @@ struct RaidDetailView: View {
     @State private var draft: Raid
     @State private var model: RaidDetailViewModel
     @State private var hoveredStageId: UUID?
-    @AppStorage("mapLayerRaid") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue
+    @AppStorage("mapLayerRaid") private var defaultLayerRaw: String = MapLayer.ignScan25.rawValue   // défaut d'un nouveau raid
+    private var layerKey: String { "mapLayerRaid-\(raid.id.uuidString)" }                            // fond propre à CE raid
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
@@ -210,8 +211,11 @@ struct RaidDetailView: View {
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await model.loadPublishState(raidId: raid.id) }
         .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
-        .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
-        .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
+        .onAppear { layer = MapLayer.base(fromRawValue: UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw) }
+        .onChange(of: layer) { _, newValue in
+            UserDefaults.standard.set(newValue.rawValue, forKey: layerKey)
+            defaultLayerRaw = newValue.rawValue
+        }
         .onChange(of: window.duplicateToken) { _, _ in
             Task { await AppServices.shared.duplicateRaid(raid, members: members) }
         }
@@ -422,7 +426,7 @@ struct RaidDetailView: View {
         let progress = WebExportProgress.shared
         progress.begin("Préparation…")
         defer { isExportingWeb = false; progress.end() }
-        let mapLayer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        let mapLayer = MapLayer.base(fromRawValue: layer.rawValue)
         let safeName = raid.name.replacingOccurrences(of: "/", with: "-")
         do {
             if webOptions.includePhotos { progress.update(0, "Recherche des photos…") }

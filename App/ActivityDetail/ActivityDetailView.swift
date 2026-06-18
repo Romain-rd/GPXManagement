@@ -74,7 +74,8 @@ struct ActivityDetailView: View {
     @State private var webOptions = WebExportOptions()
     @State private var titleDraft: String = ""
     @FocusState private var titleFocused: Bool
-    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"
+    @AppStorage("defaultMapLayer") private var defaultLayerRaw: String = "ign_scan25"   // défaut d'une nouvelle activité
+    @State private var layerRaw = "ign_scan25"                                          // fond propre à CETTE activité
     @AppStorage("slopeOverlayEnabled") private var slopeOverlayEnabled: Bool = false
     @AppStorage("slopeOverlayOpacity") private var slopeOverlayOpacity: Double = 0.6
     @AppStorage("trackColorMode") private var trackColorModeRaw: String = TrackColorMode.uniform.rawValue
@@ -152,6 +153,7 @@ struct ActivityDetailView: View {
         .toolbarBackground(isStandaloneWindow && fullscreenMap ? .hidden : .automatic, for: .windowToolbar)
         .task(id: "\(activity.id)-\(activity.activityType.rawValue)-\(pauseThresholdMinutes)-\(pauseRadiusMeters)") { await model.loadDerivedMetrics(for: activity, pauseMinSeconds: pauseThresholdMinutes * 60, pauseRadiusMeters: pauseRadiusMeters) }
         .onAppear {
+            layerRaw = UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw   // fond propre à cette activité
             notesDraft = activity.notes ?? ""
             titleDraft = activity.title
             hiddenPhotoIDs = Set(UserDefaults.standard.stringArray(forKey: Self.hiddenPhotosKey) ?? [])
@@ -1065,10 +1067,12 @@ struct ActivityDetailView: View {
         .background(.ultraThinMaterial)
     }
 
+    private var layerKey: String { "mapLayerActivity-\(activity.id.uuidString)" }
+
     private var mapLayerBinding: Binding<MapLayer> {
         Binding(
-            get: { MapLayer.base(fromRawValue: defaultLayerRaw) },
-            set: { defaultLayerRaw = $0.rawValue }
+            get: { MapLayer.base(fromRawValue: layerRaw) },
+            set: { layerRaw = $0.rawValue; UserDefaults.standard.set($0.rawValue, forKey: layerKey); defaultLayerRaw = $0.rawValue }
         )
     }
 
@@ -1814,7 +1818,7 @@ struct ActivityDetailView: View {
         let progress = WebExportProgress.shared
         progress.begin("Génération de la page…")
         defer { isExportingWeb = false; progress.end() }
-        let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        let layer = MapLayer(rawValue: layerRaw) ?? .ignScan25
         // Seules les photos sélectionnées (affichées sur la carte) sont exportées.
         let photos = webOptions.includePhotos ? photoAssets.filter { isPhotoShown($0.localIdentifier) } : []
         let safeName = activity.title.replacingOccurrences(of: "/", with: "-")
@@ -1887,7 +1891,7 @@ struct ActivityDetailView: View {
     private func exportPDF() async {
         isExportingPDF = true
         defer { isExportingPDF = false }
-        let layer = MapLayer(rawValue: defaultLayerRaw) ?? .ignScan25
+        let layer = MapLayer(rawValue: layerRaw) ?? .ignScan25
         do {
             let data = try await PDFReportRenderer.render(activity: activity, repository: repository, layer: layer)
             let panel = NSSavePanel()
