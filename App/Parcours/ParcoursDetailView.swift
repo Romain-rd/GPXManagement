@@ -662,14 +662,17 @@ struct ParcoursDetailView: View {
                             coords: activity.isEditableRoute ? routeModel.displayCoords : coords,
                             stages: activity.isEditableRoute ? displayStages() : stages,
                             waypoints: activity.isEditableRoute ? routeModel.markers : (poiMarkers + boundaryMarkers),
-                            layer: layerBinding)
+                            showsLayerPicker: false, layer: layerBinding)
                 .ignoresSafeArea()
-                .overlay(alignment: .topLeading) {
+                .overlay(alignment: .topTrailing) {
                     Button { fullscreenMap = false } label: {
                         Image(systemName: "arrow.down.right.and.arrow.up.left").font(.title3).padding(10)
                             .background(.regularMaterial, in: Circle())
                     }
                     .buttonStyle(.plain).padding(16).keyboardShortcut(.cancelAction)
+                }
+                .overlay(alignment: .bottom) {
+                    LayerPicker(layer: layerBinding).padding(.bottom, 12)
                 }
                 .transition(.opacity)
         }

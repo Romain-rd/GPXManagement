@@ -100,6 +100,7 @@ struct StageColoredMap: View {
     var onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil
     var proxy: MapViewProxy? = nil
     var fitTrigger: AnyHashable? = nil
+    var showsLayerPicker: Bool = true
     @Binding var layer: MapLayer
 
     private static let connectorIds = [
@@ -134,7 +135,7 @@ struct StageColoredMap: View {
         TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, proxy: proxy, highlight: highlight, fitsOnce: true, fitTrigger: fitTrigger,
                      waypoints: waypoints, onWaypointMoved: onWaypointMoved, onWaypointTapped: onWaypointTapped, onMapClick: onMapClick)
             .overlay(alignment: .topTrailing) {
-                LayerPicker(layer: $layer).padding(8)
+                if showsLayerPicker { LayerPicker(layer: $layer).padding(8) }
             }
     }
 }
