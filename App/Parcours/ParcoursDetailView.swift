@@ -72,7 +72,9 @@ struct ParcoursDetailView: View {
     @State private var dragCoord: CLLocationCoordinate2D?
     @State private var zoomSpanKm: Double?
     @State private var centerKm: Double = 0
-    @AppStorage("mapLayerParcours") private var layerRaw = MapLayer.ignScan25.rawValue
+    @AppStorage("mapLayerParcours") private var defaultLayerRaw = MapLayer.ignScan25.rawValue   // dernier fond choisi (défaut d'un nouveau parcours)
+    @State private var layerRaw = MapLayer.ignScan25.rawValue                                   // fond propre à CE parcours
+    private var layerKey: String { "mapLayerParcours-\(activity.id.uuidString)" }
     @AppStorage("parcoursMapHeight") private var mapHeight: Double = 240
     @AppStorage("parcoursProfileHeight") private var profileHeight: Double = 150
     @State private var resizeAccum: CGFloat = 0
@@ -86,7 +88,8 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursRecalcGain") private var recalcGainRaw = ""
 
     private var layerBinding: Binding<MapLayer> {
-        Binding(get: { MapLayer.base(fromRawValue: layerRaw) }, set: { layerRaw = $0.rawValue })
+        Binding(get: { MapLayer.base(fromRawValue: layerRaw) },
+                set: { layerRaw = $0.rawValue; UserDefaults.standard.set($0.rawValue, forKey: layerKey); defaultLayerRaw = $0.rawValue })
     }
 
     private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
@@ -228,7 +231,10 @@ struct ParcoursDetailView: View {
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in
             Task { await AppServices.shared.duplicateParcours(parent: activity) }
         }
-        .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState() }
+        .task(id: activity.id) {
+            layerRaw = UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw   // fond propre à ce parcours
+            titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState()
+        }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
         .onDisappear { commitTitle(); routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
