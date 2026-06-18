@@ -182,7 +182,6 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         header
-                        webPublishedSection
                         infoSection
                         mapSection
                         profileCollapsible
@@ -238,6 +237,12 @@ struct ParcoursDetailView: View {
     private var coreBody: some View {
         inspectorLayout
         .navigationTitle(activity.title)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button { showWebSheet = true } label: { Image(systemName: "globe") }
+                    .help("Page web du parcours (aperçu / publication)")
+            }
+        }
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in
             Task { await AppServices.shared.duplicateParcours(parent: activity) }
@@ -343,9 +348,6 @@ struct ParcoursDetailView: View {
                 Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
                             totalGainWithConnectors, stages.count))
                     .foregroundStyle(.secondary)
-                Spacer()
-                Button { showWebSheet = true } label: { Label("Web", systemImage: "safari") }
-                    .help("Aperçu ou publication de la page web du parcours")
             }
         }
     }
@@ -538,29 +540,17 @@ struct ParcoursDetailView: View {
         .onTapGesture { withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() } }
     }
 
-    private func statCard(_ icon: String, _ tint: Color, _ value: String, _ label: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon).foregroundStyle(tint).font(.system(size: 16)).frame(width: 22)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(value).font(.callout.weight(.semibold))
-                Text(label).font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
-    }
-
     @ViewBuilder private var infoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader("Informations", "info.circle", $secInfoExpanded)
             if secInfoExpanded {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 10)], spacing: 10) {
-                    statCard("ruler", .blue, String(format: "%.1f km", totalKmWithConnectors), "Distance")
-                    statCard("arrow.up.right", .green, "+\(totalGainWithConnectors) m", "Dénivelé +")
-                    statCard("flag.fill", .orange, "\(stages.count)", "Étapes")
-                    if let d = baseDate { statCard("calendar", .purple, Self.infoDateFormatter.string(from: d), "Départ") }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                    MetricCard(icon: "ruler", value: String(format: "%.1f km", totalKmWithConnectors), label: "Distance", tint: .blue)
+                    MetricCard(icon: "arrow.up.forward", value: "+\(totalGainWithConnectors) m", label: "Dénivelé +", tint: .green)
+                    MetricCard(icon: "flag.fill", value: "\(stages.count)", label: "Étapes", tint: .orange)
+                    if let d = baseDate { MetricCard(icon: "calendar", value: Self.infoDateFormatter.string(from: d), label: "Départ", tint: .purple) }
                 }
+                webPublishedSection
             }
         }
     }
