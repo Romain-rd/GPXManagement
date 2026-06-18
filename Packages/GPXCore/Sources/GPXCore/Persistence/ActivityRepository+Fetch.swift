@@ -309,6 +309,31 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Photo de couverture d'une activité/parcours (champ Activity.coverImageData).
+    public func fetchActivityCoverData(id: UUID) async throws -> Data? {
+        let context = persistence.container.newBackgroundContext()
+        return try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            return try context.fetch(fetch).first?.value(forKey: "coverImageData") as? Data
+        }
+    }
+
+    public func setActivityCoverData(id: UUID, data: Data?) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(data, forKey: "coverImageData")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
     /// Marque une activité comme dérivée d'une autre (édition : découpe, fusion, nettoyage, lissage).
     public func setEditedFromActivityId(newId: UUID, parentId: UUID) async throws {
         let context = persistence.container.newBackgroundContext()

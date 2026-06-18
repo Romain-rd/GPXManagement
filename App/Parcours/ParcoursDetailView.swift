@@ -3,6 +3,7 @@ import AppKit
 import Charts
 import MapKit
 import Photos
+import PhotosUI
 import QuickLook
 import AVFoundation
 import UniformTypeIdentifiers
@@ -87,6 +88,9 @@ struct ParcoursDetailView: View {
     @State private var showReverseConfirm = false
     @State private var showSplitConfirm = false
     @State private var showSplitSheet = false
+    @State private var coverData: Data?
+    @State private var coverPickerItem: PhotosPickerItem?
+    @State private var showCoverPicker = false
     @AppStorage("parcSecInfo") private var secInfoExpanded = true
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
@@ -249,7 +253,9 @@ struct ParcoursDetailView: View {
         }
         .task(id: activity.id) {
             layerRaw = UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw   // fond propre à ce parcours
-            titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState()
+            titleDraft = activity.title; routeModel.undoManager = undoManager
+            coverData = try? await repository.fetchActivityCoverData(id: activity.id)
+            await load(); await loadWebState()
         }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
@@ -330,26 +336,81 @@ struct ParcoursDetailView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TextField("Titre du parcours", text: $titleDraft)
-                .font(.title2.bold()).textFieldStyle(.plain)
-                .focused($titleFocused)
-                .onSubmit { commitTitle() }
-                .onChange(of: titleFocused) { _, focused in if !focused { commitTitle() } }
-            HStack(spacing: 10) {
-                Menu {
-                    activityTypeMenuItems(selected: activity.activityType) { type in
-                        Task { await listVM.updateType(id: activity.id, type: type) }
-                    }
-                } label: {
-                    Label(activity.activityType.displayName, systemImage: "tag")
+        HStack(spacing: 14) {
+            avatar
+            VStack(alignment: .leading, spacing: 3) {
+                TextField("Titre du parcours", text: $titleDraft)
+                    .font(.title.bold()).textFieldStyle(.plain)
+                    .focused($titleFocused)
+                    .onSubmit { commitTitle() }
+                    .onChange(of: titleFocused) { _, focused in if !focused { commitTitle() } }
+                Text(activity.activityType.displayName).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Avatar du parcours : photo de couverture si présente, sinon pastille de type. Menu : changer le type / photo.
+    private var avatar: some View {
+        Menu {
+            Menu("Changer le type") {
+                activityTypeMenuItems(selected: activity.activityType) { type in
+                    Task { await listVM.updateType(id: activity.id, type: type) }
                 }
-                .menuStyle(.borderlessButton).fixedSize()
-                Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
-                            totalGainWithConnectors, stages.count))
-                    .foregroundStyle(.secondary)
+            }
+            Divider()
+            Button("Choisir une photo…") { showCoverPicker = true }
+            if coverData != nil { Button("Retirer la photo", role: .destructive) { setCover(nil) } }
+        } label: {
+            avatarLabel
+        }
+        .buttonStyle(.plain).menuIndicator(.hidden)
+        .help("Type du parcours · photo de couverture")
+        .photosPicker(isPresented: $showCoverPicker, selection: $coverPickerItem, matching: .images)
+        .onChange(of: coverPickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let resized = Self.downscaledJPEG(data, maxDimension: 1200) {
+                    setCover(resized)
+                }
+                coverPickerItem = nil
             }
         }
+    }
+
+    @ViewBuilder private var avatarLabel: some View {
+        Group {
+            if let data = coverData, let img = NSImage(data: data) {
+                Image(nsImage: img).resizable().aspectRatio(contentMode: .fill).frame(width: 54, height: 54).clipShape(Circle())
+            } else {
+                Image(systemName: activity.activityType.symbolName)
+                    .font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 54, height: 54).background(Circle().fill(Color(nsColor: activity.activityType.trackColor)))
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "pencil.circle.fill").font(.system(size: 16))
+                .foregroundStyle(.secondary, Color(NSColor.windowBackgroundColor))
+        }
+    }
+
+    private func setCover(_ data: Data?) {
+        coverData = data
+        let id = activity.id, repo = repository
+        Task { try? await repo.setActivityCoverData(id: id, data: data); AppServices.shared.libraryRevision += 1 }
+    }
+
+    static func downscaledJPEG(_ data: Data, maxDimension: CGFloat, quality: CGFloat = 0.8) -> Data? {
+        guard let img = NSImage(data: data) else { return nil }
+        let size = img.size
+        let scale = min(1, maxDimension / max(size.width, size.height))
+        let newSize = NSSize(width: size.width * scale, height: size.height * scale)
+        let out = NSImage(size: newSize)
+        out.lockFocus()
+        img.draw(in: NSRect(origin: .zero, size: newSize), from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1)
+        out.unlockFocus()
+        guard let tiff = out.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .jpeg, properties: [.compressionFactor: quality])
     }
 
     @State private var webPreviewBusy = false

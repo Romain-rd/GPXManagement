@@ -34,7 +34,7 @@ struct SidebarView: View {
             .opacity(listVM.availableActivityTypes.isEmpty ? 0 : 1)
             .disabled(listVM.availableActivityTypes.isEmpty)
             Label {
-                Text("Toutes les activités")
+                Text("Activités")
             } icon: {
                 Image(systemName: "tray.full").foregroundStyle(.tint)
             }
@@ -59,7 +59,7 @@ struct SidebarView: View {
             .opacity(listVM.courseActivityTypes.isEmpty ? 0 : 1)
             .disabled(listVM.courseActivityTypes.isEmpty)
             Label {
-                Text("Tous les parcours")
+                Text("Parcours")
             } icon: {
                 Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").foregroundStyle(.tint)
             }
@@ -121,7 +121,7 @@ struct SidebarView: View {
                     .opacity(listVM.raidActivityTypes.isEmpty ? 0 : 1)
                     .disabled(listVM.raidActivityTypes.isEmpty)
                     Label {
-                        Text("Tous les raids")
+                        Text("Raids")
                     } icon: {
                         Image(systemName: "flag.2.crossed").foregroundStyle(.orange)
                     }
