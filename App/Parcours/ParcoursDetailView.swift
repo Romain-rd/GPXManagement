@@ -94,6 +94,7 @@ struct ParcoursDetailView: View {
     @AppStorage("parcShowStages") private var showStages = true
     @AppStorage("parcShowPOI") private var showPOI = true
     @AppStorage("parcShowShaping") private var showShaping = false   // points de tracé masqués par défaut (lisibilité)
+    @State private var highlightedWaypointId: UUID?                   // survol liste → marqueur mis en évidence sur la carte
     @AppStorage("parcSecInfo") private var secInfoExpanded = true
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
@@ -900,7 +901,8 @@ struct ParcoursDetailView: View {
         }
     }
 
-    /// Filtre les marqueurs selon les calques actifs (départ/arrivée toujours visibles).
+    /// Filtre les marqueurs selon les calques actifs (départ/arrivée toujours visibles) et met en évidence
+    /// le point survolé dans la liste (surbrillance croisée liste → carte).
     private func visibleMarkers(_ markers: [WaypointMarker]) -> [WaypointMarker] {
         markers.filter { m in
             if m.isDeparture || m.isArrival { return true }
@@ -910,6 +912,9 @@ struct ParcoursDetailView: View {
             case .shaping: return showShaping
             case .stageStop: return showStages
             }
+        }.map { m in
+            guard m.id == highlightedWaypointId, !m.isSelected else { return m }
+            return WaypointMarker(id: m.id, coordinate: m.coordinate, index: m.index, role: m.role, name: m.name, label: m.label, isPreview: m.isPreview, isSelected: true, isArrival: m.isArrival, isDeparture: m.isDeparture, stageIndex: m.stageIndex)
         }
     }
 
@@ -1254,8 +1259,9 @@ struct ParcoursDetailView: View {
         let info = stageInfoByStop()
         let count = routeModel.waypoints.count
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Glisser pour réordonner, cliquer la pastille pour le rôle")
+            Text("Glisser pour réordonner, cliquer la pastille pour le rôle · survoler un point le situe sur la carte")
                 .font(.caption).foregroundStyle(.secondary)
+            ScrollViewReader { proxy in
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
@@ -1278,6 +1284,9 @@ struct ParcoursDetailView: View {
                         Button { routeModel.delete(wp.id) } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless).disabled(count <= 2)
                     }
+                    .contentShape(Rectangle())
+                    .onHover { highlightedWaypointId = $0 ? wp.id : nil }
+                    .listRowBackground((routeModel.selectedWaypointId == wp.id || highlightedWaypointId == wp.id) ? Color.accentColor.opacity(0.12) : Color.clear)
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                     // Trait UNIQUEMENT après un arrêt interne (= frontière d'étape), pas entre chaque point.
                     .listRowSeparator((wp.role == .stageStop && i > 0 && i < count - 1) ? .visible : .hidden, edges: .bottom)
@@ -1287,6 +1296,10 @@ struct ParcoursDetailView: View {
             }
             .listStyle(.plain)
             .frame(height: min(Double(count) * 30 + 8, 420))
+            .onChange(of: routeModel.selectedWaypointId) { _, id in
+                if let id { withAnimation(.snappy) { proxy.scrollTo(id, anchor: .center) } }
+            }
+            }
         }
     }
 
