@@ -568,15 +568,16 @@ public enum HTMLReportRenderer {
     }
 
     private static let routeCSS = """
-    html, body { height:100%; }
-    .route-app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
-    .tab-views { flex:1; position:relative; min-height:0; }
-    .tabview { position:absolute; inset:0; overflow-y:auto; display:none; -webkit-overflow-scrolling:touch; }
-    .tabview.active { display:block; }
-    #tab-carte { display:none; flex-direction:column; }
-    #tab-carte.active { display:flex; }
-    .route-map { flex:1; min-height:0; width:100%; background:var(--card); z-index:0; }
-    .map-banner { flex:0 0 auto; background:var(--card); border-top:1px solid var(--line); padding:10px 16px; display:flex; flex-direction:column; gap:1px; }
+    /* Mobile : c'est le DOCUMENT qui défile (la barre Safari se replie au scroll), tab bar en position fixe. */
+    :root { --tabbar-h:56px; }
+    html, body { margin:0; }
+    .route-app { display:block; }
+    .tab-views { display:block; }
+    .tabview { display:none; }
+    .tabview.active { display:block; padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+    #tab-carte.active { display:block; }
+    .route-map { width:100%; height:calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); min-height:300px; background:var(--card); z-index:0; }
+    .map-banner { background:var(--card); border-top:1px solid var(--line); padding:10px 16px; display:flex; flex-direction:column; gap:1px; }
     .map-banner strong { font-size:16px; font-weight:700; letter-spacing:-.01em; }
     .map-banner span { font-size:13px; color:var(--sec); }
     .tv-head { padding:18px 16px 6px; }
@@ -592,7 +593,7 @@ public enum HTMLReportRenderer {
     .st-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .st-meta { font-size:13px; color:var(--sec); }
     .st-chev { color:var(--sec); font-size:22px; flex:0 0 auto; }
-    .tabbar { flex:0 0 auto; display:flex; background:color-mix(in srgb, var(--card) 78%, transparent); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px); border-top:1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-bottom:env(safe-area-inset-bottom); }
+    .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:100; display:flex; background:color-mix(in srgb, var(--card) 78%, transparent); -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px); border-top:1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-bottom:env(safe-area-inset-bottom); }
     .tabitem { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 0 6px; color:var(--sec); text-decoration:none; font-size:10px; font-weight:500; letter-spacing:.01em; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:color .15s; }
     .tabitem.active { color:var(--accent); }
     .tabitem .ti-ic { width:27px; height:27px; display:block; }
@@ -601,13 +602,13 @@ public enum HTMLReportRenderer {
     .rm-badge { min-width:22px; height:22px; padding:0 6px; border-radius:7px; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.45); white-space:nowrap; }
     .rm-dot { width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.4); }
     /* Détail d'étape */
-    #etape-detail:not([hidden]) { display:flex; flex-direction:column; min-height:100%; }
+    #etape-detail:not([hidden]) { display:block; }
     .ed-head { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); flex:0 0 auto; position:sticky; top:0; background:var(--bg); z-index:3; }
     .ed-back { color:var(--accent); cursor:pointer; font-weight:600; white-space:nowrap; }
     .ed-chips { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .ed-chip { flex:0 0 auto; padding:5px 12px; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--sec); cursor:pointer; font-size:13px; font-weight:600; text-decoration:none; }
     .ed-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-    .ed-map { width:100%; flex:1 0 auto; min-height:55vh; background:var(--card); z-index:0; }
+    .ed-map { width:100%; height:55vh; min-height:300px; background:var(--card); z-index:0; }
     .ed-body { padding:18px 16px; flex:0 0 auto; }
     .ed-body h2 { margin:0 0 6px; font-size:22px; font-weight:700; letter-spacing:-.01em; }
     #ed-meta { margin:0 0 14px; color:var(--sec); font-size:15px; }
@@ -631,15 +632,24 @@ public enum HTMLReportRenderer {
     .ed-poi-title { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--sec); margin:0 0 6px; }
     .ed-poi { padding:4px 0; border-bottom:1px solid var(--line); }
     .ed-poi:last-child { border-bottom:0; }
-    .ed-nav { position:sticky; bottom:0; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 14px; background:var(--card); border-top:1px solid var(--line); min-height:22px; }
+    .ed-nav { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 14px; background:var(--card); border-top:1px solid var(--line); min-height:22px; }
     .ed-navbtn { color:var(--accent); cursor:pointer; font-weight:600; padding:6px 8px; }
     @media (min-width:920px) {
-      .ed-map { min-height:60vh; }
-      .route-app { flex-direction:row; }
-      .tabbar { order:-1; flex-direction:column; width:210px; flex:0 0 auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
+      /* Desktop : coquille à hauteur fixe, rail à gauche, contenu en scroll interne (pas de scroll document). */
+      .route-app { display:flex; flex-direction:row; height:100dvh; }
+      .tab-views { flex:1; position:relative; min-width:0; }
+      .tabview { position:absolute; inset:0; overflow-y:auto; }
+      .tabview.active { padding-bottom:0; }
+      #tab-carte.active { display:flex; flex-direction:column; }
+      .route-map { flex:1; height:auto; min-height:0; }
+      .tabbar { position:static; order:-1; flex-direction:column; width:210px; flex:0 0 auto; height:auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
       .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
       .tabitem.active { background:var(--bg); }
       .tabitem .ti-ic { width:23px; height:23px; }
+      #etape-detail:not([hidden]) { display:flex; flex-direction:column; min-height:100%; }
+      .ed-map { flex:1 0 auto; height:auto; min-height:60vh; }
+      .ed-head { position:sticky; top:0; }
+      .ed-nav { position:sticky; bottom:0; }
     }
     """
 
