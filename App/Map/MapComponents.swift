@@ -133,7 +133,7 @@ struct StageColoredMap: View {
 
     var body: some View {
         TrackMapView(tracks: (coords.isEmpty ? [] : [overlay]) + connectorOverlays, layer: $layer, proxy: proxy, highlight: highlight, fitsOnce: true, fitTrigger: fitTrigger,
-                     waypoints: waypoints, onWaypointMoved: onWaypointMoved, onWaypointTapped: onWaypointTapped, onMapClick: onMapClick)
+                     waypoints: waypoints, onWaypointMoved: onWaypointMoved, onWaypointTapped: onWaypointTapped, onMapClick: onMapClick, crosshairCursor: onMapClick != nil)
             .overlay(alignment: .topTrailing) {
                 if showsLayerPicker { LayerPicker(layer: $layer).padding(8) }
             }

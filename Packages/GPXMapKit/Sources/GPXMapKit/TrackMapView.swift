@@ -216,6 +216,8 @@ public struct TrackMapView: NSViewRepresentable {
     public var slopeOverlayOpacity: Double
     /// Si défini, un clic sur la carte renvoie la coordonnée (mode « poser un point ») plutôt que de sélectionner une trace.
     public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
+    /// Curseur en croix (mode « poser un point » actif).
+    public var crosshairCursor: Bool = false
     /// Si vrai, la carte ne se cadre qu'une seule fois (au premier affichage) et ne re-zoome plus aux mises à jour.
     public var fitsOnce: Bool = false
     /// Recadre la carte (une fois) chaque fois que cette valeur change — p. ex. l'id de l'étape affichée.
@@ -225,8 +227,9 @@ public struct TrackMapView: NSViewRepresentable {
     public var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)?
     public var onWaypointTapped: ((UUID) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, fitTrigger: AnyHashable? = nil, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, fitTrigger: AnyHashable? = nil, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil, crosshairCursor: Bool = false) {
         self.tracks = tracks
+        self.crosshairCursor = crosshairCursor
         self._layer = layer
         self.proxy = proxy
         self.highlight = highlight
@@ -248,7 +251,7 @@ public struct TrackMapView: NSViewRepresentable {
     }
 
     public func makeNSView(context: Context) -> MKMapView {
-        let mapView = MKMapView()
+        let mapView = CursorMapView()
         mapView.delegate = context.coordinator
         mapView.showsCompass = true
         mapView.showsZoomControls = true
@@ -297,6 +300,7 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.onWaypointMoved = onWaypointMoved
         context.coordinator.onWaypointTapped = onWaypointTapped
         context.coordinator.applyWaypoints(waypoints, to: mapView)
+        (mapView as? CursorMapView)?.wantsCrosshair = crosshairCursor
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -893,4 +897,16 @@ final class PhotoAnnotation: MKPointAnnotation {
     var id: String = ""
     var image: NSImage?
     var isVideo = false
+}
+
+/// MKMapView avec curseur en croix optionnel (mode « poser un point »). MKMapView remet son curseur au survol,
+/// donc on passe par les cursor rects d'AppKit (réappliqués automatiquement).
+final class CursorMapView: MKMapView {
+    var wantsCrosshair = false {
+        didSet { if oldValue != wantsCrosshair { window?.invalidateCursorRects(for: self) } }
+    }
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if wantsCrosshair { addCursorRect(bounds, cursor: .crosshair) }
+    }
 }
