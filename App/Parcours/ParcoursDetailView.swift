@@ -306,11 +306,15 @@ struct ParcoursDetailView: View {
 
     private var toolsGroup: some View {
         HStack(spacing: 2) {
-            toolButton(.select, "hand.point.up.left", "Sélection / déplacement")
-            toolButton(.poi, "mappin", "Poser un point d'intérêt (aimanté à la trace)")
-            toolButton(.stageStop, "flag.checkered", "Poser une fin d'étape (aimantée à la trace)")
+            toolButton(.select, "hand.point.up.left",
+                       "Sélection / déplacement — cliquer un point pour le sélectionner, glisser pour le déplacer. Un clic sur le vide n'ajoute rien.")
+            toolButton(.poi, "mappin",
+                       "Point d'intérêt — un clic sur la carte ajoute un lieu nommé (col, village, point de vue…) que le parcours traverse, sans couper d'étape.")
+            toolButton(.stageStop, "flag.fill",
+                       "Fin d'étape — un clic sur la carte pose un arrêt qui coupe le parcours en étapes (distance, D+, date, et couleur du tracé).")
             if activity.isEditableRoute {
-                toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath", "Re-tracer l'itinéraire (routage)")
+                toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath",
+                           "Point de tracé — un clic sur la carte ajoute un point muet qui force l'itinéraire à passer par là (ni POI, ni étape).")
             }
         }
     }
@@ -445,10 +449,10 @@ struct ParcoursDetailView: View {
 
     private var toolHint: String {
         switch tool {
-        case .select: return "Glissez un POI, un drapeau d'étape ou une jonction."
-        case .poi: return "Cliquez sur la trace pour poser un point d'intérêt."
-        case .stageStop: return "Cliquez sur la trace pour couper une étape."
-        case .route: return "Re-tracé de l'itinéraire."
+        case .select: return "Cliquez un point pour le sélectionner, glissez pour le déplacer."
+        case .poi: return "Cliquez sur la trace pour poser un point d'intérêt (lieu nommé)."
+        case .stageStop: return "Cliquez sur la trace pour poser un arrêt et couper une étape."
+        case .route: return "Cliquez pour ajouter un point de tracé (force le passage de l'itinéraire)."
         }
     }
 
