@@ -350,6 +350,7 @@ public enum HTMLReportRenderer {
             if (tab === 'etapes' && window.__closeStage) window.__closeStage();
             if (tab === 'carte' && window.__routeMap) { setTimeout(function(){ window.__routeMap.invalidateSize(); }, 60); }
           }
+          window.__showTab = show;
           items.forEach(function(it){ it.addEventListener('click', function(){ show(it.getAttribute('data-tab')); }); });
           [].slice.call(document.querySelectorAll('.st-row')).forEach(function(r){ r.addEventListener('click', function(){ if (window.__openStage) window.__openStage(+r.getAttribute('data-stage') - 1); }); });
         })();
@@ -377,12 +378,21 @@ public enum HTMLReportRenderer {
           L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom: \(tile.maxZoom), attribution: \(jsString(tile.attribution)) }).addTo(map);
           var lines = [];
           groups.forEach(function(g){ if (g.coords.length) { lines.push(L.polyline(g.coords, { color:g.color, weight:5, opacity:0.95 }).addTo(map)); } });
-          function pin(m){
-            var bg = m.kind==='poi' ? '#f58231' : (m.kind==='departure'||m.kind==='arrival'||m.kind==='stop' ? '#3cb44b' : '#888');
-            var glyph = m.kind==='arrival' ? '🏁' : (m.kind==='departure' ? '⚑' : (m.kind==='poi' ? '•' : m.label));
-            return L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:'+bg+'">'+glyph+'</div>', iconSize:[24,24], iconAnchor:[12,12] });
+          function badge(txt,color){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-badge" style="background:'+color+'">'+txt+'</div>', iconSize:[30,22], iconAnchor:[15,11] }); }
+          function dot(color){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-dot" style="background:'+color+'"></div>', iconSize:[14,14], iconAnchor:[7,7] }); }
+          var S = window.__stages || [];
+          // Départ
+          if (groups.length && groups[0].coords.length) {
+            L.marker(groups[0].coords[0], { icon: L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:#3cb44b">⚑</div>', iconSize:[24,24], iconAnchor:[12,12] }) }).addTo(map).bindTooltip('Départ');
           }
-          markers.forEach(function(m){ var mk = L.marker([m.lat, m.lon], { icon: pin(m) }).addTo(map); if (m.name) mk.bindPopup(m.name); });
+          // Badge Jn (couleur de l'étape) à l'arrivée de chaque étape — clic → ouvre l'étape.
+          groups.forEach(function(g,i){ var c=g.coords; if(!c.length) return;
+            var b = L.marker(c[c.length-1], { icon: badge('J'+(i+1), g.color) }).addTo(map);
+            var s = S[i]; if (s) b.bindTooltip('J'+(i+1)+' · '+(s.name||'')+(s.arr?' — '+s.arr:''));
+            b.on('click', function(){ if (window.__showTab) window.__showTab('etapes'); if (window.__openStage) window.__openStage(i); });
+          });
+          // POI
+          markers.forEach(function(m){ if(m.kind!=='poi') return; var mk = L.marker([m.lat, m.lon], { icon: dot('#f58231') }).addTo(map); if (m.name) mk.bindTooltip(m.name); });
           if (lines.length) map.fitBounds(L.featureGroup(lines).getBounds(), { padding:[28,28] });
           var el = document.getElementById('map'), pseudo=false, fsBtn=null;
           function nat(){ return !!(el.requestFullscreen||el.webkitRequestFullscreen); }
@@ -419,7 +429,7 @@ public enum HTMLReportRenderer {
             var c = S[i].coords;
             if (c.length){
               slayers.push(L.marker(c[0], { icon: pin('⚑','#3cb44b') }).addTo(smap));
-              slayers.push(L.marker(c[c.length-1], { icon: pin(i===S.length-1?'🏁':String(i+1),'#3cb44b') }).addTo(smap));
+              slayers.push(L.marker(c[c.length-1], { icon: L.divIcon({ className:'rm-wrap', html:'<div class="rm-badge" style="background:'+S[i].color+'">J'+(i+1)+'</div>', iconSize:[30,22], iconAnchor:[15,11] }) }).addTo(smap));
               setTimeout(function(){ smap.invalidateSize(); smap.fitBounds(L.latLngBounds(c), { padding:[26,26] }); }, 30);
             }
           }
@@ -484,6 +494,8 @@ public enum HTMLReportRenderer {
     .tabitem.active .ti-ic { filter:none; }
     .rm-wrap { background:transparent; border:0; }
     .rm-pin { width:24px; height:24px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    .rm-badge { min-width:22px; height:22px; padding:0 6px; border-radius:7px; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.45); white-space:nowrap; }
+    .rm-dot { width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.4); }
     /* Détail d'étape */
     #etape-detail:not([hidden]) { display:flex; flex-direction:column; min-height:100%; }
     .ed-head { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:3; }
