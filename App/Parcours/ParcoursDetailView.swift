@@ -111,6 +111,9 @@ struct ParcoursDetailView: View {
         let start = Calendar.current.startOfDay(for: d)
         for k in stages.indices { stages[k].plannedDate = Calendar.current.date(byAdding: .day, value: k, to: start) }
         persist()
+        // La date du parcours (liste/tri/années) = date de départ planifiée ; fin = dernière étape.
+        let end = stages.last?.plannedDate ?? start
+        Task { await listVM.updateStartEndDate(id: activity.id, start: start, end: end) }
     }
     private func clearDates() {
         for k in stages.indices { stages[k].plannedDate = nil }

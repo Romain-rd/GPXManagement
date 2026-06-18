@@ -35,6 +35,22 @@ extension CoreDataActivityRepository {
         }
     }
 
+    /// Fixe les dates de début/fin d'une activité (utilisé pour dater un parcours = date de départ planifiée).
+    public func updateStartEndDate(id: UUID, start: Date, end: Date) async throws {
+        let context = persistence.container.newBackgroundContext()
+        try await context.perform {
+            let fetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            fetch.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            fetch.fetchLimit = 1
+            if let activity = try context.fetch(fetch).first {
+                activity.setValue(start, forKey: "startDate")
+                activity.setValue(end, forKey: "endDate")
+                activity.setValue(Date(), forKey: "updatedAt")
+                try context.save()
+            }
+        }
+    }
+
     public func setEditableRoute(id: UUID, _ value: Bool) async throws {
         let context = persistence.container.newBackgroundContext()
         try await context.perform {

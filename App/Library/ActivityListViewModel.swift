@@ -295,6 +295,19 @@ final class ActivityListViewModel {
         }
     }
 
+    /// Date d'un parcours = date de départ planifiée → visible dans la liste, le tri et le regroupement par année.
+    func updateStartEndDate(id: UUID, start: Date, end: Date) async {
+        do {
+            try await repository.updateStartEndDate(id: id, start: start, end: end)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingDates(start: start, end: end)
+            }
+            AppServices.shared.libraryRevision += 1
+        } catch {
+            self.error = "Échec de la mise à jour de la date : \(error.localizedDescription)"
+        }
+    }
+
     func updateType(id: UUID, type: ActivityType) async {
         do {
             try await repository.updateActivityType(id: id, rawValue: type.rawValue)

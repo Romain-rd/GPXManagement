@@ -93,6 +93,10 @@ public struct ActivitySummary: Identifiable, Sendable, Hashable {
         ActivitySummary(id: id, title: newTitle, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute, isEditableRoute: isEditableRoute)
     }
 
+    public func updatingDates(start newStart: Date, end newEnd: Date) -> ActivitySummary {
+        ActivitySummary(id: id, title: title, activityType: activityType, startDate: newStart, endDate: newEnd, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: notes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute, isEditableRoute: isEditableRoute)
+    }
+
     public func updatingNotes(_ newNotes: String?) -> ActivitySummary {
         ActivitySummary(id: id, title: title, activityType: activityType, startDate: startDate, endDate: endDate, distance: distance, duration: duration, movingDuration: movingDuration, elevationGain: elevationGain, elevationLoss: elevationLoss, avgSpeed: avgSpeed, maxSpeed: maxSpeed, maxSlope: maxSlope, avgHeartRate: avgHeartRate, maxHeartRate: maxHeartRate, sourceFileName: sourceFileName, sourceFileFormat: sourceFileFormat, sourceApp: sourceApp, tags: tags, notes: newNotes, raidId: raidId, isCourse: isCourse, isPublished: isPublished, isStagedRoute: isStagedRoute, isEditableRoute: isEditableRoute)
     }
