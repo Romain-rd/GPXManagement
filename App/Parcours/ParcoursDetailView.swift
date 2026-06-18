@@ -959,13 +959,16 @@ struct ParcoursDetailView: View {
     }
 
     /// Écart hors-trace d'une étape (raccords départ + arrivée), pour l'afficher dans la liste.
+    /// Détours hors-trace de l'étape, affichés SÉPARÉMENT (départ et/ou arrivée), pas en cumul.
     private func offTrackExtra(_ s: Stage) -> String? {
-        let dep = ActivityStatsCalculator.compute(points: s.startConnectorPoints)
-        let arr = ActivityStatsCalculator.compute(points: s.endConnectorPoints)
-        let km = (dep.distance + arr.distance) / 1000
-        let gain = Int((dep.elevationGain + arr.elevationGain).rounded())
-        guard km > 0.05 || gain > 0 else { return nil }
-        return String(format: "↗ hors-trace +%.1f km · +%d m", km, gain)
+        func part(_ label: String, _ pts: [TrackPoint]) -> String? {
+            let st = ActivityStatsCalculator.compute(points: pts)
+            guard st.distance >= 50 || st.elevationGain >= 1 else { return nil }
+            return String(format: "%@ +%.1f km·+%d m", label, st.distance / 1000, Int(st.elevationGain.rounded()))
+        }
+        let parts = [part("départ", s.startConnectorPoints), part("arrivée", s.endConnectorPoints)].compactMap { $0 }
+        guard !parts.isEmpty else { return nil }
+        return "↗ détour " + parts.joined(separator: " · ")
     }
 
     @ViewBuilder private var dateBar: some View {
