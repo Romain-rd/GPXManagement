@@ -24,6 +24,8 @@ struct ParcoursDetailView: View {
     var window: WindowModel? = nil
     /// En fenêtre autonome (pas de 3ᵉ colonne) : l'inspecteur d'étape s'affiche en panneau flottant interne.
     var showsInlineInspector: Bool = false
+    /// Fenêtre indépendante : fiche d'étape en split view (côte à côte) plutôt qu'en slide-over recouvrant.
+    var isStandaloneWindow: Bool = false
     @Environment(\.openWindow) private var openWindow
     @Environment(\.undoManager) private var undoManager
 
@@ -46,13 +48,14 @@ struct ParcoursDetailView: View {
     @FocusState private var titleFocused: Bool
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
-         navigation: AppNavigationModel, window: WindowModel? = nil, showsInlineInspector: Bool = false) {
+         navigation: AppNavigationModel, window: WindowModel? = nil, showsInlineInspector: Bool = false, isStandaloneWindow: Bool = false) {
         self.activity = activity
         self.listVM = listVM
         self.repository = repository
         self.navigation = navigation
         self.window = window
         self.showsInlineInspector = showsInlineInspector
+        self.isStandaloneWindow = isStandaloneWindow
         _routeModel = State(initialValue: RouteEditingModel(repository: repository))
     }
 
@@ -161,7 +164,7 @@ struct ParcoursDetailView: View {
         return r
     }
 
-    var body: some View {
+    private var mainContent: some View {
         Group {
             if isLoading {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -198,12 +201,28 @@ struct ParcoursDetailView: View {
                 }
             }
         }
-        .slideOverInspector(width: $inspectorWidth,
-                            isPresented: showsInlineInspector && navigation.selectedStageId != nil && navigation.showStageInspector) {
-            if let stageId = navigation.selectedStageId {
+    }
+
+    /// Fiche d'étape : split view (côte à côte, redimensionnable) en fenêtre autonome ; slide-over (recouvrant) dans la fenêtre principale.
+    @ViewBuilder private var inspectorLayout: some View {
+        if isStandaloneWindow, let stageId = navigation.selectedStageId, navigation.showStageInspector {
+            HSplitView {
+                mainContent
                 StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                    .frame(minWidth: 340, idealWidth: inspectorWidth, maxWidth: 680)
+            }
+        } else {
+            mainContent.slideOverInspector(width: $inspectorWidth,
+                                isPresented: showsInlineInspector && navigation.selectedStageId != nil && navigation.showStageInspector) {
+                if let stageId = navigation.selectedStageId {
+                    StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                }
             }
         }
+    }
+
+    var body: some View {
+        inspectorLayout
         .navigationTitle(activity.title)
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in

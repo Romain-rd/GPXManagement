@@ -122,7 +122,7 @@ struct ActivityDetailWindowView: View {
             if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
                let repo = AppServices.shared.repository as? CoreDataActivityRepository {
                 if activity.isCourse || activity.isStagedRoute {
-                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model, showsInlineInspector: true)
+                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model, showsInlineInspector: true, isStandaloneWindow: true)
                         .navigationTitle(activity.title)
                         .toolbar {
                             if model.navigation.selectedStageId != nil {
@@ -140,7 +140,7 @@ struct ActivityDetailWindowView: View {
                 }
             } else if let raid = model.listVM.raids.first(where: { $0.id == activityId }),
                       let repo = AppServices.shared.repository as? CoreDataActivityRepository {
-                RaidDetailView(raid: raid, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model)
+                RaidDetailView(raid: raid, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model, isStandaloneWindow: true)
                     .navigationTitle(raid.name)
             } else if model.listVM.allActivities.isEmpty {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)

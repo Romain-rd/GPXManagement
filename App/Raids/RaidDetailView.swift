@@ -68,12 +68,14 @@ struct RaidDetailView: View {
         stageLayouts[id] ?? VideoLayout.defaultLayout(for: filmFormat)
     }
 
-    init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel, window: WindowModel) {
+    let isStandaloneWindow: Bool
+    init(raid: Raid, listVM: ActivityListViewModel, repository: CoreDataActivityRepository, navigation: AppNavigationModel, window: WindowModel, isStandaloneWindow: Bool = false) {
         self.raid = raid
         self.listVM = listVM
         self.repository = repository
         self.navigation = navigation
         self.window = window
+        self.isStandaloneWindow = isStandaloneWindow
         _draft = State(initialValue: raid)
         _model = State(initialValue: RaidDetailViewModel(repository: repository))
     }
@@ -95,7 +97,7 @@ struct RaidDetailView: View {
             || draft.coverImageData != raid.coverImageData
     }
 
-    var body: some View {
+    private var mainContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 coverBanner
@@ -112,11 +114,27 @@ struct RaidDetailView: View {
             .frame(maxWidth: 900, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector) {
-            if let member = selectedMember {
+    }
+
+    /// Fiche du membre : split view (côte à côte) en fenêtre autonome ; slide-over (recouvrant) dans la fenêtre principale.
+    @ViewBuilder private var inspectorLayout: some View {
+        if isStandaloneWindow, let member = selectedMember, navigation.showStageInspector {
+            HSplitView {
+                mainContent
                 ActivityDetailView(activity: member, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $memberFullscreen)
+                    .frame(minWidth: 360, idealWidth: inspectorWidth, maxWidth: 760)
+            }
+        } else {
+            mainContent.slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector) {
+                if let member = selectedMember {
+                    ActivityDetailView(activity: member, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $memberFullscreen)
+                }
             }
         }
+    }
+
+    var body: some View {
+        inspectorLayout
         .navigationTitle(raid.name)
         .toolbar {
             if selectedMember != nil {
