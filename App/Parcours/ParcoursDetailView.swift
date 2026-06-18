@@ -212,13 +212,14 @@ struct ParcoursDetailView: View {
             HSplitView {
                 mainContent.frame(minWidth: 360)
                 StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                    .id(stageId)   // recrée la fiche (carte recadrée) au changement d'étape
                     .frame(minWidth: 340, idealWidth: inspectorWidth)
             }
         } else {
             mainContent.slideOverInspector(width: $inspectorWidth,
                                 isPresented: showsInlineInspector && navigation.selectedStageId != nil && navigation.showStageInspector) {
                 if let stageId = navigation.selectedStageId {
-                    StageDetailView(activity: activity, stageId: stageId, repository: repository)
+                    StageDetailView(activity: activity, stageId: stageId, repository: repository).id(stageId)
                 }
             }
         }
