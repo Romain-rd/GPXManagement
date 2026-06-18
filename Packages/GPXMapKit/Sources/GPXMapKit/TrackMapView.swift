@@ -218,12 +218,14 @@ public struct TrackMapView: NSViewRepresentable {
     public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
     /// Si vrai, la carte ne se cadre qu'une seule fois (au premier affichage) et ne re-zoome plus aux mises à jour.
     public var fitsOnce: Bool = false
+    /// Recadre la carte (une fois) chaque fois que cette valeur change — p. ex. l'id de l'étape affichée.
+    public var fitTrigger: AnyHashable? = nil
     /// Points de passage éditables (pins numérotés déplaçables).
     public var waypoints: [WaypointMarker] = []
     public var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)?
     public var onWaypointTapped: ((UUID) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, fitTrigger: AnyHashable? = nil, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil) {
         self.tracks = tracks
         self._layer = layer
         self.proxy = proxy
@@ -232,6 +234,7 @@ public struct TrackMapView: NSViewRepresentable {
         self.photos = photos
         self.slopeOverlayOpacity = slopeOverlayOpacity
         self.fitsOnce = fitsOnce
+        self.fitTrigger = fitTrigger
         self.waypoints = waypoints
         self.onWaypointMoved = onWaypointMoved
         self.onWaypointTapped = onWaypointTapped
@@ -281,9 +284,11 @@ public struct TrackMapView: NSViewRepresentable {
         }
         context.coordinator.applySlopeOverlay(opacity: slopeOverlayOpacity, to: mapView)
         let idsChanged = context.coordinator.lastTrackIds != Set(tracks.map(\.activityId))
-        let shouldFit = fitsOnce ? !context.coordinator.hasFitted : idsChanged
+        let triggerChanged = context.coordinator.lastFitTrigger != fitTrigger
+        let shouldFit = (fitsOnce ? !context.coordinator.hasFitted : idsChanged) || triggerChanged
         context.coordinator.applyTracks(tracks, to: mapView, fitOnChange: shouldFit)
         context.coordinator.lastTrackIds = Set(tracks.map(\.activityId))
+        context.coordinator.lastFitTrigger = fitTrigger
         if shouldFit, !tracks.isEmpty { context.coordinator.hasFitted = true }
         context.coordinator.applyHighlight(highlight, to: mapView)
         context.coordinator.applyHighlightRange(highlightRange, to: mapView)
@@ -323,6 +328,7 @@ public struct TrackMapView: NSViewRepresentable {
         var currentLayer: MapLayer = .ignPlanV2
         var lastTrackIds: Set<UUID> = []
         var hasFitted = false
+        var lastFitTrigger: AnyHashable?
         weak var mapView: MKMapView?
         private let onSelectActivity: ((UUID) -> Void)?
         private let onSelectPhoto: ((String) -> Void)?

@@ -179,6 +179,7 @@ struct StageDetailView: View {
                                         connectors: [coords(departureConnector), coords(arrivalConnector), coords(nextDepartureConnector)].filter { $0.count >= 2 },
                                         highlight: dragCoord ?? offTrackMarker,
                                         onMapClick: placingOnMap ? { setArrival(to: $0); placingOnMap = false } : nil,
+                                        fitTrigger: stageId,
                                         layer: layerBinding)
                             .frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(alignment: .top) {
