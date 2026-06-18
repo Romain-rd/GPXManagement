@@ -502,21 +502,37 @@ extension AppServices {
                 }
             }
             guard coords.count >= 2 else { importError = "Itinéraire vide."; return false }
+            // 1) Écriture rapide de la GÉOMÉTRIE (sans attendre l'altitude, qui peut être très lente en transfrontalier).
             let raw = coords.map { TrackPoint(latitude: $0.latitude, longitude: $0.longitude) }
-            let enriched = await ElevationEnricher.shared.enrich(points: raw).points
-            let stats = ActivityStatsCalculator.compute(points: enriched)
-            let trackData = try TrackPointCodec.encode(enriched)
+            let stats = ActivityStatsCalculator.compute(points: raw)
+            let trackData = try TrackPointCodec.encode(raw)
+            let wpData = RouteWaypointCodec.encode(waypoints)
             try await repo.updateTrackData(id: activityId, trackData: trackData, stats: stats)
-            try await repo.updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(waypoints))
+            try await repo.updateRouteWaypointsData(id: activityId, data: wpData)
             // Les arrêts .stageStop deviennent de vraies étapes (métadonnées conservées par stopWaypointId).
             let existing = (try? await repo.fetchStages(activityId: activityId)) ?? []
-            let derived = Stage.derive(activityId: activityId, from: waypoints, points: enriched, existing: existing)
+            let derived = Stage.derive(activityId: activityId, from: waypoints, points: raw, existing: existing)
             try await repo.replaceStages(activityId: activityId, with: derived)
             libraryRevision += 1
+            // 2) Altitude/D+ enrichis EN ARRIÈRE-PLAN (non bloquant) ; mise à jour si la géométrie n'a pas changé entre-temps.
+            enrichElevationInBackground(activityId: activityId, raw: raw, waypointsData: wpData)
             return true
         } catch {
             importError = "Échec du routage : \(error.localizedDescription)"
             return false
+        }
+    }
+
+    private func enrichElevationInBackground(activityId: UUID, raw: [TrackPoint], waypointsData: Data?) {
+        elevationTask?.cancel()
+        elevationTask = Task { [weak self] in
+            let enriched = await ElevationEnricher.shared.enrich(points: raw).points
+            guard !Task.isCancelled, let self, let repo = self.coreDataRepository,
+                  let current = try? await repo.fetchRouteWaypointsData(id: activityId), current == waypointsData else { return }
+            let stats = ActivityStatsCalculator.compute(points: enriched)
+            guard let td = try? TrackPointCodec.encode(enriched) else { return }
+            try? await repo.updateTrackData(id: activityId, trackData: td, stats: stats)
+            self.libraryRevision += 1
         }
     }
 

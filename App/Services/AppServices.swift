@@ -40,6 +40,8 @@ final class AppServices {
     var lastMaintenanceSummary: String?
     var libraryRevision: Int = 0
     var isReorganizing: Bool = false
+    /// Tâche d'enrichissement altitude en arrière-plan (annulée/relancée à chaque enregistrement de route).
+    @ObservationIgnored var elevationTask: Task<Void, Never>?
     var reorganizeProgress: String?
     var pendingReorganizeCount: Int = 0
     var isSyncingStrava: Bool = false
