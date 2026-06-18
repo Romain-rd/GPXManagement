@@ -26,4 +26,9 @@ public struct TrackPoint: Sendable, Equatable {
         self.cadence = cadence
         self.power = power
     }
+
+    /// Géométrie seule (lat/lon/altitude) — sans données temporelles ni capteurs. Pour un parcours (route planifiée).
+    public func clearingTime() -> TrackPoint {
+        TrackPoint(latitude: latitude, longitude: longitude, altitude: altitude)
+    }
 }

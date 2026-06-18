@@ -84,6 +84,9 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursAddKm") private var addKmRaw = "10"
     @AppStorage("parcoursAddGainMax") private var addGainRaw = ""
     @State private var showRecalcDialog = false
+    @State private var showReverseConfirm = false
+    @State private var showSplitConfirm = false
+    @State private var showSplitSheet = false
     @AppStorage("parcoursRecalcKm") private var recalcKmRaw = "20"
     @AppStorage("parcoursRecalcGain") private var recalcGainRaw = ""
 
@@ -224,7 +227,29 @@ struct ParcoursDetailView: View {
         }
     }
 
-    var body: some View {
+    var body: some View { traceOps(coreBody) }
+
+    /// Découper / inverser un parcours (menu Édition) — avec avertissement de perte des étapes. Isolé du body (type-check).
+    @ViewBuilder private func traceOps(_ content: some View) -> some View {
+        content
+            .onChange(of: window?.reverseToken ?? 0) { _, _ in
+                if stages.isEmpty { performReverse() } else { showReverseConfirm = true }
+            }
+            .onChange(of: window?.splitToken ?? 0) { _, _ in
+                if stages.isEmpty { showSplitSheet = true } else { showSplitConfirm = true }
+            }
+            .alert("Inverser le sens du parcours", isPresented: $showReverseConfirm) {
+                Button("Inverser", role: .destructive) { performReverse() }
+                Button("Annuler", role: .cancel) {}
+            } message: { Text("Le parcours sera retourné et ses \(stages.count) étape(s) supprimées.") }
+            .alert("Scinder le parcours", isPresented: $showSplitConfirm) {
+                Button("Continuer", role: .destructive) { showSplitSheet = true }
+                Button("Annuler", role: .cancel) {}
+            } message: { Text("Scinder crée deux parcours et supprime les \(stages.count) étape(s) (les points de passage ne sont pas conservés).") }
+            .sheet(isPresented: $showSplitSheet) { SplitTrackSheet(activity: activity, repository: repository) }
+    }
+
+    private var coreBody: some View {
         inspectorLayout
         .navigationTitle(activity.title)
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
@@ -425,6 +450,10 @@ struct ParcoursDetailView: View {
             webOptions = opts
         }
         publishRoute()
+    }
+
+    private func performReverse() {
+        Task { await AppServices.shared.reverseParcours(activityId: activity.id) }
     }
 
     private func loadWebState() async {

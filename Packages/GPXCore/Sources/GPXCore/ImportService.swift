@@ -295,10 +295,12 @@ public actor ImportService {
         )
 
         let relativePath = try await storage.store(sourceFile: proposal.sourceURL, for: descriptor)
-        let trackData = try TrackPointCodec.encode(proposal.parsed.points)
 
         // Pour un parcours, on conserve les <wpt> du fichier comme points de passage (POI / arrêts d'étape).
         let resolvedIsCourse = isCourse ?? proposal.suggestedIsCourse
+        // Un parcours est une route planifiée : on retire les données temporelles (timestamps, capteurs) de la trace.
+        let trackPoints = resolvedIsCourse ? proposal.parsed.points.map { $0.clearingTime() } : proposal.parsed.points
+        let trackData = try TrackPointCodec.encode(trackPoints)
         // Heuristique : un parcours à peu de points est dessiné (modifiable) ; dense = GR fidèle (verrouillé).
         let isEditableRoute = resolvedIsCourse && proposal.parsed.points.count < Self.editableRoutePointThreshold
         let routeWaypointsData: Data? = (resolvedIsCourse && !proposal.parsed.waypoints.isEmpty)
@@ -317,7 +319,7 @@ public actor ImportService {
             endDate: endDate,
             stats: proposal.stats,
             trackData: trackData,
-            sensorData: Self.encodeSensors(proposal.parsed),
+            sensorData: resolvedIsCourse ? Data() : Self.encodeSensors(proposal.parsed),
             fileSHA256: proposal.fileSHA256,
             stravaId: proposal.stravaId,
             isCourse: resolvedIsCourse,

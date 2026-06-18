@@ -39,8 +39,10 @@ final class WindowModel {
         if navigation.isCoursesScope { return "Dupliquer le parcours" }
         return "Dupliquer l'activité"
     }
-    /// L'édition de trace (découper, simplifier, nettoyer, inverser, fusionner) ne vaut que pour les activités.
+    /// Simplifier, nettoyer, fusionner : activités seulement.
     var canEditTrack: Bool { hasSelection && !navigation.isRaidsScope && !navigation.isCoursesScope }
+    /// Scinder (découper) et inverser : activités ET parcours (pas les raids) — pour un parcours, supprime les étapes.
+    var canSplitReverse: Bool { hasSelection && !navigation.isRaidsScope }
 
     var selectedSummaries: [ActivitySummary] {
         listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }

@@ -152,7 +152,7 @@ struct AppMenuCommands: Commands {
             Button("Découper la trace…") {
                 window?.requestSplit()
             }
-            .disabled(!(window?.canEditTrack ?? false))
+            .disabled(!(window?.canSplitReverse ?? false))
 
             Button("Simplifier la trace…") {
                 window?.requestSimplify()
@@ -167,7 +167,7 @@ struct AppMenuCommands: Commands {
             Button("Inverser le sens de la trace") {
                 window?.requestReverse()
             }
-            .disabled(!(window?.canEditTrack ?? false))
+            .disabled(!(window?.canSplitReverse ?? false))
 
             Button("Fusionner les traces…") {
                 window?.requestMerge()

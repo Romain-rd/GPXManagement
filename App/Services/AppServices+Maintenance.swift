@@ -373,6 +373,27 @@ extension AppServices {
         }
     }
 
+    /// Inverse le sens d'un parcours EN PLACE : trace + points de passage retournés, étapes supprimées (devenues caduques).
+    func reverseParcours(activityId: UUID) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            if let data = try await repo.fetchTrackData(id: activityId), let pts = try? TrackPointCodec.decode(data), pts.count >= 2 {
+                let reversed = TrackOperations.reverse(points: pts)
+                try await repo.updateTrackData(id: activityId, trackData: try TrackPointCodec.encode(reversed), stats: ActivityStatsCalculator.compute(points: reversed))
+            }
+            let wps = RouteWaypointCodec.decode(try await repo.fetchRouteWaypointsData(id: activityId))
+            if !wps.isEmpty {
+                try await repo.updateRouteWaypointsData(id: activityId, data: RouteWaypointCodec.encode(Array(wps.reversed())))
+            }
+            try await repo.replaceStages(activityId: activityId, with: [])
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de l'inversion : \(error.localizedDescription)"
+            return false
+        }
+    }
+
     /// Duplique un parcours : trace + points de passage typés + étapes (re-clés sur la copie) + drapeaux parcours.
     func duplicateParcours(parent: ActivitySummary) async -> Bool {
         guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
