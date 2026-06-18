@@ -478,9 +478,27 @@ struct ParcoursDetailView: View {
     }
 
     /// Carte unique d'un parcours modifiable : tracé routé + points de passage typés, clic = ajouter (selon l'outil).
+    /// Étapes synthétiques (indices dans displayCoords) pour colorer le tracé par étape sur la carte modifiable.
+    private func displayStages() -> [Stage] {
+        let wps = routeModel.waypoints
+        guard wps.count >= 2 else { return [] }
+        var wpPos = [0], acc = 0
+        for i in 0..<(wps.count - 1) {
+            let n = max((i < routeModel.segments.count ? routeModel.segments[i]?.count : nil) ?? 2, 2)
+            acc += n - 1
+            wpPos.append(acc)
+        }
+        var stopIdx = [0]
+        for i in 1..<(wps.count - 1) where wps[i].role == .stageStop { stopIdx.append(i) }
+        stopIdx.append(wps.count - 1)
+        return (1..<stopIdx.count).map { e in
+            Stage(activityId: activity.id, order: e - 1, name: "", startIndex: wpPos[stopIdx[e - 1]], endIndex: wpPos[stopIdx[e]])
+        }
+    }
+
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
-                        coords: routeModel.displayCoords, waypoints: routeModel.markers + searchPreviewMarkers,
+                        coords: routeModel.displayCoords, stages: displayStages(), waypoints: routeModel.markers + searchPreviewMarkers,
                         onWaypointMoved: { id, c in
                             if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
@@ -728,10 +746,12 @@ struct ParcoursDetailView: View {
         for i in 1..<(wps.count - 1) where wps[i].role == .stageStop { stopPos.append(i) }
         stopPos.append(wps.count - 1)
         let savedByStop = Dictionary(stages.compactMap { s in s.stopWaypointId.map { ($0, s) } }, uniquingKeysWith: { a, _ in a })
+        let lastStage = stages.first { $0.stopWaypointId == nil } ?? stages.max(by: { $0.order < $1.order })
         var out: [UUID: StageInfo] = [:]
         for e in 1..<stopPos.count {
             let stop = wps[stopPos[e]]
-            let saved = savedByStop[stop.id]
+            // La dernière étape (arrivée) a stopWaypointId = nil → on la rattache au dernier arrêt.
+            let saved = e == stopPos.count - 1 ? lastStage : savedByStop[stop.id]
             let dPlus = saved.map { String(format: " · +%d m", stageGain($0)) } ?? ""
             out[stop.id] = StageInfo(stats: String(format: "%.0f km", liveStageKm(stopPos[e - 1], stopPos[e])) + dPlus,
                                      date: saved?.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
@@ -752,11 +772,8 @@ struct ParcoursDetailView: View {
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
-                        Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : pointColor(wp.role)))
-                        Button { routeModel.cycleRole(wp.id) } label: { pointIcon(wp.role, position: i, count: count) }
-                            .buttonStyle(.borderless).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape"))
+                        Button { routeModel.cycleRole(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id) }
+                            .buttonStyle(.plain).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape (cliquer pour changer)"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
                             .textFieldStyle(.plain).font(.caption).frame(maxWidth: 220, alignment: .leading)
@@ -786,21 +803,16 @@ struct ParcoursDetailView: View {
     private func pointColor(_ role: RouteWaypoint.Role) -> Color {
         switch role { case .shaping: return .gray; case .poi: return .orange; case .stageStop: return .green }
     }
-    /// Icône d'un point : départ (1ᵉʳ) et arrivée (dernier) ont des icônes spécifiques ; sinon icône par rôle.
-    @ViewBuilder private func pointIcon(_ role: RouteWaypoint.Role, position: Int, count: Int) -> some View {
-        if position == 0 {
-            Image(systemName: "flag.circle.fill").foregroundStyle(.green)                 // départ
-        } else if position == count - 1 {
-            Image(systemName: "flag.checkered.circle.fill").foregroundStyle(.primary)      // arrivée
-        } else {
-            pointRoleIcon(role)
-        }
-    }
-    @ViewBuilder private func pointRoleIcon(_ role: RouteWaypoint.Role) -> some View {
-        switch role {
-        case .shaping: Image(systemName: "smallcircle.filled.circle").foregroundStyle(.secondary)
-        case .poi: Image(systemName: "mappin.circle.fill").foregroundStyle(.orange)
-        case .stageStop: Image(systemName: "flag.fill").foregroundStyle(.green)
+    /// Pastille identique aux marqueurs de la carte : cercle coloré par rôle (gris=tracé, orange=POI, vert=arrêt),
+    /// bleu si sélectionné, avec le numéro — ou un drapeau à damier pour l'arrivée.
+    @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool) -> some View {
+        ZStack {
+            Circle().fill(selected ? Color.accentColor : pointColor(role)).frame(width: 22, height: 22)
+            if i == count - 1 && count >= 2 {
+                Image(systemName: "flag.checkered").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+            } else {
+                Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
+            }
         }
     }
 
