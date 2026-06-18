@@ -120,9 +120,9 @@ struct RaidDetailView: View {
     @ViewBuilder private var inspectorLayout: some View {
         if isStandaloneWindow, let member = selectedMember, navigation.showStageInspector {
             HSplitView {
-                mainContent
+                mainContent.frame(minWidth: 380)
                 ActivityDetailView(activity: member, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $memberFullscreen)
-                    .frame(minWidth: 360, idealWidth: inspectorWidth, maxWidth: 760)
+                    .frame(minWidth: 360, idealWidth: inspectorWidth)
             }
         } else {
             mainContent.slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector) {

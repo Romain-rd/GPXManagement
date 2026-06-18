@@ -210,9 +210,9 @@ struct ParcoursDetailView: View {
     @ViewBuilder private var inspectorLayout: some View {
         if isStandaloneWindow, let stageId = navigation.selectedStageId, navigation.showStageInspector {
             HSplitView {
-                mainContent
+                mainContent.frame(minWidth: 360)
                 StageDetailView(activity: activity, stageId: stageId, repository: repository)
-                    .frame(minWidth: 340, idealWidth: inspectorWidth, maxWidth: 680)
+                    .frame(minWidth: 340, idealWidth: inspectorWidth)
             }
         } else {
             mainContent.slideOverInspector(width: $inspectorWidth,
