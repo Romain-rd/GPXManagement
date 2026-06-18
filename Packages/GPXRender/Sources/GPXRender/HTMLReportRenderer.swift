@@ -147,6 +147,8 @@ public enum HTMLReportRenderer {
     }
 
     private static let raidPalette = ["#e6194B", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990", "#9A6324", "#800000", "#808000", "#000075", "#a9a9a9"]
+    // Palette des étapes de PARCOURS : identique (couleurs et ordre) à MapTrackPalette de l'app (bleu, rouge, vert, orange).
+    private static let routePalette = ["#1E88E5", "#E53935", "#43A047", "#FB8C00"]
 
     /// Génère le dossier d'un raid : page d'ensemble + une page complète par étape (réutilise `render`).
     public static func renderRaid(raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
@@ -223,7 +225,7 @@ public enum HTMLReportRenderer {
         if stages.isEmpty {
             stageVMs.append(RouteStageVM(index: 1, name: activity.title, departure: "", arrival: "", dateText: fmtDateShort(activity.startDate),
                                          notes: "", distance: activity.distance, gain: activity.elevationGain,
-                                         coords: decimatedCoords(points, max: 1800), color: raidPalette[0]))
+                                         coords: decimatedCoords(points, max: 1800), color: routePalette[0]))
         } else {
             let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var prevArrival = waypoints.first?.name ?? ""
@@ -237,7 +239,7 @@ public enum HTMLReportRenderer {
                                              dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
                                              notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                                              distance: st.distance, gain: st.elevationGain,
-                                             coords: decimatedCoords(slice, max: maxPerStage), color: raidPalette[i % raidPalette.count]))
+                                             coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count]))
                 if !arrival.isEmpty { prevArrival = arrival }
             }
         }
@@ -497,20 +499,20 @@ public enum HTMLReportRenderer {
     .rm-badge { min-width:22px; height:22px; padding:0 6px; border-radius:7px; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.45); white-space:nowrap; }
     .rm-dot { width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 2px rgba(0,0,0,.4); }
     /* Détail d'étape */
-    #etape-detail:not([hidden]) { display:flex; flex-direction:column; min-height:100%; }
-    .ed-head { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:3; }
+    #etape-detail:not([hidden]) { display:flex; flex-direction:column; height:100%; }
+    .ed-head { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); flex:0 0 auto; background:var(--bg); z-index:3; }
     .ed-back { color:var(--accent); cursor:pointer; font-weight:600; white-space:nowrap; }
     .ed-chips { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .ed-chip { flex:0 0 auto; padding:5px 12px; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--sec); cursor:pointer; font-size:13px; font-weight:600; text-decoration:none; }
     .ed-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-    .ed-map { width:100%; height:300px; background:var(--card); z-index:0; }
-    .ed-body { padding:16px; flex:1; }
-    .ed-body h2 { margin:0 0 4px; font-size:21px; font-weight:700; letter-spacing:-.01em; }
-    #ed-meta { margin:0 0 14px; color:var(--sec); }
+    .ed-map { width:100%; flex:1 1 auto; min-height:240px; background:var(--card); z-index:0; }
+    .ed-body { padding:18px 16px; flex:0 0 auto; }
+    .ed-body h2 { margin:0 0 6px; font-size:22px; font-weight:700; letter-spacing:-.01em; }
+    #ed-meta { margin:0 0 14px; color:var(--sec); font-size:15px; }
     .ed-nav { position:sticky; bottom:0; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 14px; background:var(--card); border-top:1px solid var(--line); min-height:22px; }
     .ed-navbtn { color:var(--accent); cursor:pointer; font-weight:600; padding:6px 8px; }
     @media (min-width:920px) {
-      .ed-map { height:440px; }
+      .ed-map { min-height:360px; }
       .route-app { flex-direction:row; }
       .tabbar { order:-1; flex-direction:column; width:210px; flex:0 0 auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
       .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
