@@ -118,6 +118,9 @@ struct ParcoursDetailView: View {
     private func clearDates() {
         for k in stages.indices { stages[k].plannedDate = nil }
         persist()
+        // Plus de date planifiée → la date du parcours revient à aujourd'hui.
+        let today = Calendar.current.startOfDay(for: Date())
+        Task { await listVM.updateStartEndDate(id: activity.id, start: today, end: today) }
     }
 
     /// Supprime une étape en absorbant sa portion dans une étape voisine (la partition reste continue).
