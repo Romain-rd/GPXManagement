@@ -1036,11 +1036,17 @@ struct ParcoursDetailView: View {
         let pts = points
         let pois = extraWaypoints
         Task {
-            guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts, pois: pois) else { return }
-            await MainActor.run {
-                // Réinjecte les stopWaypointId créés (stabilité des ids), sans écraser une édition en cours.
-                guard grabbed == nil, updated.count == stages.count else { return }
-                for i in stages.indices { stages[i].stopWaypointId = updated[i].stopWaypointId }
+            if activity.isEditableRoute {
+                // Modifiable : les points de passage appartiennent à routeModel. NE PAS les reconstruire
+                // (saveStagedRoute/syncStops perdrait le départ et l'arrivée) — on ne persiste QUE les étapes.
+                try? await repository.replaceStages(activityId: activity.id, with: snapshot)
+            } else {
+                guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts, pois: pois) else { return }
+                await MainActor.run {
+                    // Réinjecte les stopWaypointId créés (stabilité des ids), sans écraser une édition en cours.
+                    guard grabbed == nil, updated.count == stages.count else { return }
+                    for i in stages.indices { stages[i].stopWaypointId = updated[i].stopWaypointId }
+                }
             }
         }
     }
