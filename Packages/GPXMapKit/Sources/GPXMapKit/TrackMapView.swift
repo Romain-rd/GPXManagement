@@ -118,8 +118,9 @@ public struct WaypointMarker: Sendable, Identifiable {
     public let isSelected: Bool   // pastille sélectionnée (mise en évidence sur la carte)
     public let isArrival: Bool    // dernier point = arrivée → drapeau à damier
     public let isDeparture: Bool  // premier point = départ → drapeau spécifique
-    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil, isPreview: Bool = false, isSelected: Bool = false, isArrival: Bool = false, isDeparture: Bool = false) {
-        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected; self.isArrival = isArrival; self.isDeparture = isDeparture
+    public let stageIndex: Int?   // arrêt d'arrivée d'une étape → badge « Jn » dans la couleur de l'étape
+    public init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role = .shaping, name: String? = nil, label: String? = nil, isPreview: Bool = false, isSelected: Bool = false, isArrival: Bool = false, isDeparture: Bool = false, stageIndex: Int? = nil) {
+        self.id = id; self.coordinate = coordinate; self.index = index; self.role = role; self.name = name; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected; self.isArrival = isArrival; self.isDeparture = isDeparture; self.stageIndex = stageIndex
     }
 }
 
@@ -132,8 +133,9 @@ final class WaypointAnnotation: MKPointAnnotation {
     let isSelected: Bool
     let isArrival: Bool
     let isDeparture: Bool
-    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool, isSelected: Bool, isArrival: Bool, isDeparture: Bool) {
-        self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected; self.isArrival = isArrival; self.isDeparture = isDeparture
+    let stageIndex: Int?
+    init(id: UUID, coordinate: CLLocationCoordinate2D, index: Int, role: RouteWaypoint.Role, name: String?, label: String?, isPreview: Bool, isSelected: Bool, isArrival: Bool, isDeparture: Bool, stageIndex: Int?) {
+        self.waypointId = id; self.index = index; self.role = role; self.label = label; self.isPreview = isPreview; self.isSelected = isSelected; self.isArrival = isArrival; self.isDeparture = isDeparture; self.stageIndex = stageIndex
         super.init()
         self.coordinate = coordinate
         self.title = name
@@ -441,7 +443,7 @@ public struct TrackMapView: NSViewRepresentable {
             if sig == waypointSignature { return }
             waypointSignature = sig
             mapView.removeAnnotations(waypointAnnotations)
-            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview, isSelected: $0.isSelected, isArrival: $0.isArrival, isDeparture: $0.isDeparture) }
+            waypointAnnotations = markers.map { WaypointAnnotation(id: $0.id, coordinate: $0.coordinate, index: $0.index, role: $0.role, name: $0.name, label: $0.label, isPreview: $0.isPreview, isSelected: $0.isSelected, isArrival: $0.isArrival, isDeparture: $0.isDeparture, stageIndex: $0.stageIndex) }
             mapView.addAnnotations(waypointAnnotations)
         }
         private var waypointSignature = ""
@@ -633,7 +635,23 @@ public struct TrackMapView: NSViewRepresentable {
 
         /// Petite pastille d'un point de passage (bien plus compacte que MKMarkerAnnotationView) ;
         /// point de tracé = minuscule point ; sinon cercle coloré avec un petit glyphe blanc.
-        private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool) -> NSImage {
+        private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool, stageIndex: Int?) -> NSImage {
+            // Arrêt d'arrivée d'étape : badge « Jn » dans la couleur de l'étape (cohérent avec le tracé et le web).
+            if let n = stageIndex {
+                let bg: NSColor = isSelected ? .controlAccentColor : MapTrackPalette.color(at: n - 1)
+                let text = "J\(n)" as NSString
+                let font = NSFont.systemFont(ofSize: 11, weight: .bold)
+                let ts = text.size(withAttributes: [.font: font])
+                let w = max(22, ts.width + 12), h: CGFloat = 20
+                let img = NSImage(size: NSSize(width: w, height: h))
+                img.lockFocus()
+                let path = NSBezierPath(roundedRect: NSRect(x: 0.9, y: 0.9, width: w - 1.8, height: h - 1.8), xRadius: 6, yRadius: 6)
+                bg.setFill(); path.fill()
+                NSColor.white.setStroke(); path.lineWidth = 1.5; path.stroke()
+                text.draw(at: NSPoint(x: (w - ts.width) / 2, y: (h - ts.height) / 2), withAttributes: [.font: font, .foregroundColor: NSColor.white])
+                img.unlockFocus()
+                return img
+            }
             let color: NSColor = isSelected ? .controlAccentColor
                 : ((isDeparture || isArrival || role == .stageStop) ? .systemGreen : (role == .poi ? .systemOrange : .systemGray))
             if role == .shaping && !isDeparture && !isArrival {
@@ -706,7 +724,7 @@ public struct TrackMapView: NSViewRepresentable {
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughDotView)
                     ?? PassthroughDotView(annotation: annotation, reuseIdentifier: identifier)
                 view.annotation = annotation
-                view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected)
+                view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected, stageIndex: wp.stageIndex)
                 view.centerOffset = .zero
                 view.canShowCallout = (wp.title?.isEmpty == false)
                 let marker = view   // alias pour la suite (réglages communs)

@@ -818,7 +818,7 @@ struct ParcoursDetailView: View {
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
-                        Button { routeModel.cycleRole(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id) }
+                        Button { routeModel.cycleRole(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id]) }
                             .buttonStyle(.plain).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape (cliquer pour changer)"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
@@ -852,25 +852,21 @@ struct ParcoursDetailView: View {
     private func pointColor(_ role: RouteWaypoint.Role) -> Color {
         switch role { case .shaping: return .gray; case .poi: return .orange; case .stageStop: return .green }
     }
-    /// Pastille identique aux marqueurs de la carte : départ (drapeaux croisés) / arrivée (damier) / arrêt d'étape
-    /// (drapeau + numéro en petit) / POI (épingle) / point de tracé (numéro). Bleu si sélectionné.
-    @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool) -> some View {
-        let tint = selected ? Color.accentColor : pointColor(role)
-        if i == count - 1 && count >= 2 {
-            Image(systemName: "flag.checkered").font(.system(size: 17)).foregroundStyle(selected ? Color.accentColor : .primary).frame(width: 26)
+    /// Pastille identique aux marqueurs de la carte : arrêt d'étape = badge « Jn » dans la couleur de l'étape ;
+    /// départ = drapeaux croisés ; POI = épingle ; point de tracé = numéro. Bleu si sélectionné.
+    @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool, stage: Int?) -> some View {
+        if let n = stage {
+            Text("J\(n)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+                .padding(.horizontal, 6).frame(height: 22)
+                .background(RoundedRectangle(cornerRadius: 6).fill(selected ? Color.accentColor : Color(nsColor: MapTrackPalette.color(at: n - 1))))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 1))
         } else if i == 0 && count >= 2 {
             Image(systemName: "flag.2.crossed.fill").font(.system(size: 15)).foregroundStyle(selected ? Color.accentColor : .green).frame(width: 26)
-        } else if role == .stageStop {
-            ZStack(alignment: .bottomTrailing) {
-                Image(systemName: "flag.fill").font(.system(size: 15)).foregroundStyle(tint)
-                Text("\(i + 1)").font(.system(size: 8, weight: .black)).foregroundStyle(.white)
-                    .padding(1.5).background(Circle().fill(tint)).overlay(Circle().stroke(.white, lineWidth: 0.5)).offset(x: 5, y: 3)
-            }.frame(width: 26, height: 22)
         } else if role == .poi {
             Image(systemName: "mappin.circle.fill").font(.system(size: 17)).foregroundStyle(selected ? Color.accentColor : .orange).frame(width: 26)
         } else {
             ZStack {
-                Circle().fill(tint).frame(width: 20, height: 20)
+                Circle().fill(selected ? Color.accentColor : pointColor(role)).frame(width: 20, height: 20)
                 Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
             }.frame(width: 26)
         }

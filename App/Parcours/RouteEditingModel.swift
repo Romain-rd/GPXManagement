@@ -68,7 +68,21 @@ final class RouteEditingModel {
     }
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
-    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId, isArrival: $0 == waypoints.count - 1 && waypoints.count >= 2, isDeparture: $0 == 0 && waypoints.count >= 2) } }
+    var markers: [WaypointMarker] {
+        let stages = stageArrivalNumbers
+        return waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId, isArrival: $0 == waypoints.count - 1 && waypoints.count >= 2, isDeparture: $0 == 0 && waypoints.count >= 2, stageIndex: stages[$1.id]) }
+    }
+
+    /// Numéro d'étape (Jn) de chaque arrêt d'arrivée (arrêt d'étape interne ou point d'arrivée) — exclut le départ.
+    var stageArrivalNumbers: [UUID: Int] {
+        var out: [UUID: Int] = [:]
+        var n = 0
+        let c = waypoints.count
+        for (i, wp) in waypoints.enumerated() where i > 0 && (wp.role == .stageStop || i == c - 1) {
+            n += 1; out[wp.id] = n
+        }
+        return out
+    }
     var hasPending: Bool { segments.contains(where: { $0 == nil }) }
     var busy: Bool { isRouting || isSaving }
 
