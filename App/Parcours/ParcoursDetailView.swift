@@ -243,16 +243,7 @@ struct ParcoursDetailView: View {
     /// Listes points + étapes : côte à côte si la fenêtre est large (carte/profil restent pleine largeur), empilées sinon.
     @ViewBuilder private var listsSection: some View {
         if activity.isEditableRoute {
-            let showStages = routeModel.waypoints.count >= 2
-            if contentWidth > 1100 {
-                HStack(alignment: .top, spacing: 24) {
-                    if !routeModel.waypoints.isEmpty { pointsList.frame(width: 360) }
-                    if showStages { compactStagesList.frame(maxWidth: .infinity, alignment: .topLeading) }
-                }
-            } else {
-                if !routeModel.waypoints.isEmpty { pointsList }
-                if showStages { compactStagesList }
-            }
+            if !routeModel.waypoints.isEmpty { pointsList.frame(maxWidth: 720, alignment: .leading) }
         } else if !points.isEmpty {
             parcoursOutline
             actions
@@ -728,9 +719,35 @@ struct ParcoursDetailView: View {
     // MARK: Liste des points (mode modifiable : ordre éditable)
 
     /// Tous les points dans l'ordre : numéro, rôle (cliquer pour changer), nom, suppression, glisser pour réordonner.
+    private struct StageInfo { let stats: String; let date: String?; let stageId: UUID?; let offTrack: String? }
+    /// Info d'étape (distance/D+/date) indexée par l'arrêt d'ARRIVÉE — affichée en ligne sur le point dans la liste unique.
+    private func stageInfoByStop() -> [UUID: StageInfo] {
+        let wps = routeModel.waypoints
+        guard wps.count >= 2 else { return [:] }
+        var stopPos: [Int] = [0]
+        for i in 1..<(wps.count - 1) where wps[i].role == .stageStop { stopPos.append(i) }
+        stopPos.append(wps.count - 1)
+        let savedByStop = Dictionary(stages.compactMap { s in s.stopWaypointId.map { ($0, s) } }, uniquingKeysWith: { a, _ in a })
+        var out: [UUID: StageInfo] = [:]
+        for e in 1..<stopPos.count {
+            let stop = wps[stopPos[e]]
+            let saved = savedByStop[stop.id]
+            let dPlus = saved.map { String(format: " · +%d m", stageGain($0)) } ?? ""
+            out[stop.id] = StageInfo(stats: String(format: "%.0f km", liveStageKm(stopPos[e - 1], stopPos[e])) + dPlus,
+                                     date: saved?.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
+                                     stageId: saved?.id, offTrack: saved.flatMap { offTrackExtra($0) })
+        }
+        return out
+    }
+
+    /// Liste UNIQUE « Le long du parcours » (mode modifiable) : chaque point est une ligne éditable (n°, rôle,
+    /// nom, suppression, glisser pour réordonner) ; l'info d'étape (← distance · D+ · date) s'affiche en ligne
+    /// sur le point d'arrivée et ouvre sa fiche. Plus de doublon points/étapes.
     private var pointsList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Points · glisser pour réordonner, cliquer la pastille pour changer le rôle")
+        let info = stageInfoByStop()
+        let count = routeModel.waypoints.count
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Le long du parcours · glisser pour réordonner, cliquer la pastille pour le rôle")
                 .font(.caption).foregroundStyle(.secondary)
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
@@ -738,21 +755,31 @@ struct ParcoursDetailView: View {
                         Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : pointColor(wp.role)))
-                        Button { routeModel.cycleRole(wp.id) } label: { pointIcon(wp.role, position: i, count: routeModel.waypoints.count) }
-                            .buttonStyle(.borderless).help(i == 0 ? "Départ" : (i == routeModel.waypoints.count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape"))
+                        Button { routeModel.cycleRole(wp.id) } label: { pointIcon(wp.role, position: i, count: count) }
+                            .buttonStyle(.borderless).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
-                            .textFieldStyle(.plain).font(.caption)
+                            .textFieldStyle(.plain).font(.caption).frame(maxWidth: 220, alignment: .leading)
+                        if let s = info[wp.id] {
+                            Button { openStage(s.stageId) } label: {
+                                HStack(spacing: 6) {
+                                    Text("← \(s.stats)").foregroundStyle(.secondary)
+                                    if let off = s.offTrack { Text(off).foregroundStyle(.orange) }
+                                    if let d = s.date { Text(d).foregroundStyle(.blue) }
+                                    if s.stageId != nil { Image(systemName: "chevron.right").foregroundStyle(.tertiary) }
+                                }.font(.caption)
+                            }.buttonStyle(.plain).help("Détails de l'étape")
+                        }
                         Spacer(minLength: 4)
                         Button { routeModel.delete(wp.id) } label: { Image(systemName: "trash") }
-                            .buttonStyle(.borderless).disabled(routeModel.waypoints.count <= 2)
+                            .buttonStyle(.borderless).disabled(count <= 2)
                     }
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                 }
                 .onMove { routeModel.moveWaypoints(fromOffsets: $0, toOffset: $1) }
             }
             .listStyle(.plain)
-            .frame(height: min(Double(routeModel.waypoints.count) * 30 + 8, 220))
+            .frame(height: min(Double(count) * 30 + 8, 420))
         }
     }
 
@@ -867,34 +894,6 @@ struct ParcoursDetailView: View {
             ForEach(outlineItems) { item in
                 outlineRow(item)
                 if item.kind == .stageHeader || item.kind == .arrival { Divider() }
-            }
-        }
-    }
-
-    /// Mode modifiable : liste d'étapes COMPACTE (les arrêts sont déjà dans la liste des points → pas de doublon).
-    /// Une ligne par étape : numéro · distance/D+ · → destination · date. Clic → fiche d'étape.
-    private var compactStagesList: some View {
-        let stages = liveOutlineItems.filter { $0.kind == .stageHeader }
-        return VStack(alignment: .leading, spacing: 0) {
-            Text("Étapes").font(.caption.bold()).foregroundStyle(.secondary).padding(.bottom, 2)
-            ForEach(stages) { item in
-                HStack(spacing: 8) {
-                    Image(systemName: "\(min(item.number, 50)).circle.fill").foregroundStyle(.secondary)
-                    if let stats = item.stats { Text(stats).font(.caption).foregroundStyle(.secondary) }
-                    if let off = item.offTrack { Text(off).font(.caption).foregroundStyle(.orange) }
-                    if let arr = item.arrival { Text("→ \(arr)").fontWeight(.medium).lineLimit(1) }
-                    Spacer(minLength: 6)
-                    if let date = item.date { Text(date).font(.caption).foregroundStyle(.blue) }
-                    if item.stageId != nil { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary) }
-                }
-                .padding(.vertical, 7)
-                .contentShape(Rectangle())
-                .onTapGesture { openStage(item.stageId) }
-                .simultaneousGesture(TapGesture(count: 2).onEnded {
-                    if let id = item.stageId { openWindow(value: StageWindowRef(activityId: activity.id, stageId: id)) }
-                })
-                .background(navigation.selectedStageId == item.stageId ? Color.accentColor.opacity(0.12) : .clear)
-                Divider()
             }
         }
     }
