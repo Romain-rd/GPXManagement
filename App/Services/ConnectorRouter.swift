@@ -19,7 +19,7 @@ enum RoutingProvider: String, CaseIterable, Identifiable {
     var note: String {
         switch self {
         case .mapkit: return "Sans clé. À pied / route. Peut être saturé (limite Apple) sur de longs parcours."
-        case .ign: return "Sans clé, idéal en France. Route / à pied (vélo routé comme à pied)."
+        case .ign: return "Sans clé, France UNIQUEMENT (hors France → repli BRouter). Route / à pied. Inadapté aux parcours transfrontaliers."
         case .ors: return "Clé gratuite requise. Tous profils, transfrontalier, dénivelé."
         case .graphhopper: return "Clé gratuite requise. Tous profils, quota journalier plus serré."
         case .brouter: return "Sans clé (serveur public). Tous profils, qualité variable."
@@ -60,8 +60,9 @@ enum RouteProfile: String, CaseIterable, Identifiable {
 enum ConnectorRouter {
     // Provider/clés lus globalement ; le profil vient du parcours (éditeur).
     private static var provider: RoutingProvider { RoutingProvider(rawValue: UserDefaults.standard.string(forKey: "routingProvider") ?? "") ?? .mapkit }
-    /// Seul MapKit est limité en débit → ne temporiser entre segments que pour lui.
-    static var needsPacing: Bool { provider == .mapkit }
+    /// Limités en débit (serveurs publics) → temporiser entre segments. MapKit (Apple), IGN et BRouter
+    /// — y compris le repli BRouter d'IGN hors France. ORS/GraphHopper (clé perso) n'en ont pas besoin.
+    static var needsPacing: Bool { let p = provider; return p == .mapkit || p == .ign || p == .brouter }
     private static func key(_ p: RoutingProvider) -> String? {
         guard let k = p.keyDefaultsKey, let v = UserDefaults.standard.string(forKey: k)?.trimmingCharacters(in: .whitespaces), !v.isEmpty else { return nil }
         return v
@@ -189,12 +190,20 @@ enum ConnectorRouter {
 
     private static func brouterRoute(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D, profile: String) async -> [CLLocationCoordinate2D]? {
         let urlStr = "https://brouter.de/brouter?lonlats=\(from.longitude),\(from.latitude)|\(to.longitude),\(to.latitude)&profile=\(profile)&alternativeidx=0&format=geojson"
-        guard let url = URL(string: urlStr),
-              let (data, resp) = try? await URLSession.shared.data(from: url),
-              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        guard let url = URL(string: urlStr) else { return nil }
         struct GeoJSON: Decodable { let features: [Feature]; struct Feature: Decodable { let geometry: Geometry }; struct Geometry: Decodable { let coordinates: [[Double]] } }
-        guard let gj = try? JSONDecoder().decode(GeoJSON.self, from: data), let coords = gj.features.first?.geometry.coordinates else { return nil }
-        return lonLat(coords)
+        // Serveur public limité en débit : on réessaie avec un délai croissant.
+        for attempt in 0..<3 {
+            if let (data, resp) = try? await URLSession.shared.data(from: url),
+               (resp as? HTTPURLResponse)?.statusCode == 200,
+               let gj = try? JSONDecoder().decode(GeoJSON.self, from: data),
+               let coords = gj.features.first?.geometry.coordinates,
+               let out = lonLat(coords) {
+                return out
+            }
+            if attempt < 2 { try? await Task.sleep(nanoseconds: UInt64(0.8 * Double(attempt + 1) * 1_000_000_000)) }
+        }
+        return nil
     }
 
     /// [[lon, lat, (ele)], …] → [CLLocationCoordinate2D].

@@ -475,7 +475,7 @@ struct ParcoursDetailView: View {
                 } else if routeModel.routedWithFallback {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        Text("MapKit saturé : un segment a été routé en repli (route approximative).").font(.caption)
+                        Text("Un segment a été routé en repli (route approximative). Si transfrontalier, change de fournisseur dans Réglages › Itinéraire ; sinon recalcule.").font(.caption)
                         Button("Recalculer") { routeModel.invalidateAll(); routeModel.reroute() }
                             .controlSize(.small).disabled(routeModel.busy)
                     }
