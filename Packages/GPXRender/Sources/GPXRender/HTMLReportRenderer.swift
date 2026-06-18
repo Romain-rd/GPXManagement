@@ -225,9 +225,10 @@ public enum HTMLReportRenderer {
         var poisByStage: [Int: [(name: String, lat: Double, lon: Double)]] = [:]
         var sc = 1
         for (i, wp) in waypoints.enumerated() where i > 0 {
-            if wp.role == .poi {
+            let isLast = i == waypoints.count - 1
+            if wp.role == .poi && !isLast {   // le dernier point = arrivée, jamais un POI
                 poisByStage[sc, default: []].append(((wp.name ?? "").isEmpty ? "Point d'intérêt" : wp.name!, wp.latitude, wp.longitude))
-            } else if wp.role == .stageStop || i == waypoints.count - 1 {
+            } else if wp.role == .stageStop || isLast {
                 sc += 1
             }
         }
