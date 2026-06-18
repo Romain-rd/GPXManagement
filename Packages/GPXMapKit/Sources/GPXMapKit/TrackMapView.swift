@@ -156,6 +156,28 @@ final class PassthroughDotView: MKAnnotationView {
 /// Croix de visée rouge affichée pendant le glissement d'un point (le sommet de l'épingle masque l'emplacement exact).
 final class CrosshairView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    private let iconView = NSImageView()
+    /// Icône du type de point en cours de pose (POI, arrêt d'étape, point de tracé) — affichée près de la croix.
+    var symbol: String? {
+        didSet {
+            if let symbol, let img = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) {
+                iconView.image = img.withSymbolConfiguration(.init(pointSize: 13, weight: .bold))
+                iconView.contentTintColor = .systemRed
+                iconView.isHidden = false
+            } else { iconView.isHidden = true }
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        iconView.frame = NSRect(x: bounds.midX + 7, y: bounds.midY + 5, width: 17, height: 17)
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.isHidden = true
+        addSubview(iconView)
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         let c = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -216,8 +238,8 @@ public struct TrackMapView: NSViewRepresentable {
     public var slopeOverlayOpacity: Double
     /// Si défini, un clic sur la carte renvoie la coordonnée (mode « poser un point ») plutôt que de sélectionner une trace.
     public var onMapClick: ((CLLocationCoordinate2D) -> Void)?
-    /// Curseur en croix (mode « poser un point » actif).
-    public var crosshairCursor: Bool = false
+    /// Mode « poser un point » : si défini, une croix de visée suit la souris, portant cette icône SF Symbol.
+    public var crosshairSymbol: String? = nil
     /// Si vrai, la carte ne se cadre qu'une seule fois (au premier affichage) et ne re-zoome plus aux mises à jour.
     public var fitsOnce: Bool = false
     /// Recadre la carte (une fois) chaque fois que cette valeur change — p. ex. l'id de l'étape affichée.
@@ -227,9 +249,9 @@ public struct TrackMapView: NSViewRepresentable {
     public var onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)?
     public var onWaypointTapped: ((UUID) -> Void)?
 
-    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, fitTrigger: AnyHashable? = nil, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil, crosshairCursor: Bool = false) {
+    public init(tracks: [TrackOverlayInput], layer: Binding<MapLayer>, proxy: MapViewProxy? = nil, highlight: CLLocationCoordinate2D? = nil, highlightRange: [CLLocationCoordinate2D] = [], photos: [PhotoMapItem] = [], slopeOverlayOpacity: Double = 0, fitsOnce: Bool = false, fitTrigger: AnyHashable? = nil, waypoints: [WaypointMarker] = [], onWaypointMoved: ((UUID, CLLocationCoordinate2D) -> Void)? = nil, onWaypointTapped: ((UUID) -> Void)? = nil, onSelectActivity: ((UUID) -> Void)? = nil, onSelectPhoto: ((String) -> Void)? = nil, onMapClick: ((CLLocationCoordinate2D) -> Void)? = nil, crosshairSymbol: String? = nil) {
         self.tracks = tracks
-        self.crosshairCursor = crosshairCursor
+        self.crosshairSymbol = crosshairSymbol
         self._layer = layer
         self.proxy = proxy
         self.highlight = highlight
@@ -300,7 +322,10 @@ public struct TrackMapView: NSViewRepresentable {
         context.coordinator.onWaypointMoved = onWaypointMoved
         context.coordinator.onWaypointTapped = onWaypointTapped
         context.coordinator.applyWaypoints(waypoints, to: mapView)
-        (mapView as? CursorMapView)?.wantsCrosshair = crosshairCursor
+        if let cv = mapView as? CursorMapView {
+            cv.crosshairSymbol = crosshairSymbol
+            cv.wantsCrosshair = crosshairSymbol != nil
+        }
     }
 
     private func configure(mapView: MKMapView, layer: MapLayer) {
@@ -908,6 +933,7 @@ final class CursorMapView: MKMapView {
     var wantsCrosshair = false {
         didSet { if oldValue != wantsCrosshair, !wantsCrosshair { placingCrosshair?.isHidden = true } }
     }
+    var crosshairSymbol: String? { didSet { placingCrosshair?.symbol = crosshairSymbol } }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -924,6 +950,7 @@ final class CursorMapView: MKMapView {
             addSubview(v)
             placingCrosshair = v
         }
+        placingCrosshair?.symbol = crosshairSymbol
         placingCrosshair?.frame.origin = CGPoint(x: point.x - 24, y: point.y - 24)
         placingCrosshair?.isHidden = false
     }

@@ -883,7 +883,7 @@ struct ParcoursDetailView: View {
                         onWaypointMoved: { id, c in moveMarker(id: id, to: c) },
                         onWaypointTapped: { tapMarker($0) },
                         onMapClick: tool == .poi || tool == .stageStop ? { mapClick(at: $0) } : nil,
-                        layer: layerBinding)
+                        crosshairSymbol: toolSymbol, layer: layerBinding)
     }
 
     /// Rôle du point ajouté au clic selon l'outil actif (sélection = pas d'ajout).
@@ -893,6 +893,16 @@ struct ParcoursDetailView: View {
         case .poi: return .poi
         case .stageStop: return .stageStop
         case .select: return nil
+        }
+    }
+
+    /// Icône du type de point en cours de pose, affichée sur la croix de visée (même symboles que la barre d'outils).
+    private var toolSymbol: String? {
+        switch tool {
+        case .select: return nil
+        case .poi: return "mappin"
+        case .stageStop: return "flag.fill"
+        case .route: return "point.topleft.down.to.point.bottomright.curvepath"
         }
     }
 
@@ -933,7 +943,7 @@ struct ParcoursDetailView: View {
                             if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
                         },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
-                        proxy: routeModel.proxy, layer: layerBinding)
+                        proxy: routeModel.proxy, crosshairSymbol: toolSymbol, layer: layerBinding)
             .overlay(alignment: .top) {
                 if let r = searchResult {
                     HStack(spacing: 8) {
