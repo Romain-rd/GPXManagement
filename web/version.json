@@ -1,7 +1,7 @@
 {
-  "latestBuild": 12,
+  "latestBuild": 13,
   "latestVersion": "1.0",
-  "minimumBuild": 12,
+  "minimumBuild": 13,
   "downloadURL": "https://www.gpxmanagement.net/download/GPXManagement-1.0.dmg",
-  "notes": "Nouveautés :\n\n• Publication web d'un parcours en étapes (façon application iPhone) : carte par étape, profil, photos, navigation entre étapes, lien partageable.\n• Repères d'étape « Jn » colorés, cohérents entre la carte, la liste et la page web.\n• Icône « publié » dans la liste pour activités, parcours et raids.\n• Duplication possible pour les activités, parcours et raids ; menu Édition adapté au type sélectionné.\n• Parcours : date affectée visible dans la liste, recalcul des étapes par distance et D+ max, édition d'itinéraire améliorée."
+  "notes": "Nouveautés :\n\n• Parcours/raid en fenêtre indépendante : la fiche d'étape ou de membre s'ouvre en vue divisée redimensionnable (simple clic) ou dans une nouvelle fenêtre (double clic).\n• La carte de la fiche d'étape se recentre sur le tracé de l'étape sélectionnée.\n• Fond de carte mémorisé par parcours (et repris à la publication web).\n• Recalcul des étapes par distance et dénivelé maximum, avec confirmation.\n• Date affectée à un parcours visible dans la liste ; titre enregistré dès qu'on quitte le champ.\n• Publication web des parcours (carte par étape, profil, photos, navigation) et icône « publié » dans la liste."
 }
