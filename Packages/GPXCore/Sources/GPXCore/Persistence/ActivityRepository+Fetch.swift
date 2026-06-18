@@ -694,7 +694,9 @@ enum ActivitySummaryMapper {
             isPublished: (object.value(forKey: "webPublishedURL") as? String)?.isEmpty == false
                       || (object.value(forKey: "filmPublishedURL") as? String)?.isEmpty == false,
             isStagedRoute: object.value(forKey: "isStagedRoute") as? Bool ?? false,
-            isEditableRoute: object.value(forKey: "isEditableRoute") as? Bool ?? false
+            isEditableRoute: object.value(forKey: "isEditableRoute") as? Bool ?? false,
+            // Couverture chargée seulement pour les parcours (évite de charger l'image pour les 1000+ activités).
+            coverImageData: (object.value(forKey: "isCourse") as? Bool ?? false) ? (object.value(forKey: "coverImageData") as? Data) : nil
         )
     }
 }

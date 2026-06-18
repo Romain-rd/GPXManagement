@@ -90,7 +90,6 @@ struct ParcoursDetailView: View {
     @State private var showSplitSheet = false
     @State private var coverData: Data?
     @State private var coverPickerItem: PhotosPickerItem?
-    @State private var showCoverPicker = false
     @AppStorage("parcSecInfo") private var secInfoExpanded = true
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
@@ -185,6 +184,7 @@ struct ParcoursDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
+                        coverBanner
                         header
                         infoSection
                         mapSection
@@ -250,6 +250,15 @@ struct ParcoursDetailView: View {
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in
             Task { await AppServices.shared.duplicateParcours(parent: activity) }
+        }
+        .onChange(of: coverPickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let resized = Self.downscaledJPEG(data, maxDimension: 1400) {
+                    setCover(resized)
+                }
+                coverPickerItem = nil
+            }
         }
         .task(id: activity.id) {
             layerRaw = UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw   // fond propre à ce parcours
@@ -350,54 +359,56 @@ struct ParcoursDetailView: View {
         }
     }
 
-    /// Avatar du parcours : photo de couverture si présente, sinon pastille de type. Menu : changer le type / photo.
+    /// Avatar = pastille du TYPE de parcours (le menu change le type). La photo est une couverture séparée.
     private var avatar: some View {
         Menu {
-            Menu("Changer le type") {
-                activityTypeMenuItems(selected: activity.activityType) { type in
-                    Task { await listVM.updateType(id: activity.id, type: type) }
-                }
+            activityTypeMenuItems(selected: activity.activityType) { type in
+                Task { await listVM.updateType(id: activity.id, type: type) }
             }
-            Divider()
-            Button("Choisir une photo…") { showCoverPicker = true }
-            if coverData != nil { Button("Retirer la photo", role: .destructive) { setCover(nil) } }
         } label: {
-            avatarLabel
-        }
-        .buttonStyle(.plain).menuIndicator(.hidden)
-        .help("Type du parcours · photo de couverture")
-        .photosPicker(isPresented: $showCoverPicker, selection: $coverPickerItem, matching: .images)
-        .onChange(of: coverPickerItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let resized = Self.downscaledJPEG(data, maxDimension: 1200) {
-                    setCover(resized)
+            Image(systemName: activity.activityType.symbolName)
+                .font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 54, height: 54).background(Circle().fill(Color(nsColor: activity.activityType.trackColor)))
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "pencil.circle.fill").font(.system(size: 16))
+                        .foregroundStyle(.secondary, Color(NSColor.windowBackgroundColor))
                 }
-                coverPickerItem = nil
-            }
         }
+        .buttonStyle(.plain).menuIndicator(.hidden).help("Changer le type")
     }
 
-    @ViewBuilder private var avatarLabel: some View {
-        Group {
-            if let data = coverData, let img = NSImage(data: data) {
-                Image(nsImage: img).resizable().aspectRatio(contentMode: .fill).frame(width: 54, height: 54).clipShape(Circle())
-            } else {
-                Image(systemName: activity.activityType.symbolName)
-                    .font(.system(size: 24, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 54, height: 54).background(Circle().fill(Color(nsColor: activity.activityType.trackColor)))
+    /// Photo de couverture du parcours (bandeau en haut, comme un raid) — apparaît aussi dans la liste.
+    @ViewBuilder private var coverBanner: some View {
+        if let data = coverData, let img = NSImage(data: data) {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                .frame(maxWidth: .infinity).frame(height: 200).clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(alignment: .topTrailing) {
+                    Menu {
+                        PhotosPicker("Changer la photo…", selection: $coverPickerItem, matching: .images)
+                        Button("Retirer la photo", role: .destructive) { setCover(nil) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle.fill").font(.title2).foregroundStyle(.white, .black.opacity(0.45))
+                    }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().padding(8)
+                }
+        } else {
+            PhotosPicker(selection: $coverPickerItem, matching: .images) {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.badge.plus")
+                    Text("Ajouter une photo de couverture")
+                }
+                .font(.callout).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).frame(height: 64)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.08)))
             }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "pencil.circle.fill").font(.system(size: 16))
-                .foregroundStyle(.secondary, Color(NSColor.windowBackgroundColor))
+            .buttonStyle(.plain)
         }
     }
 
     private func setCover(_ data: Data?) {
         coverData = data
-        let id = activity.id, repo = repository
-        Task { try? await repo.setActivityCoverData(id: id, data: data); AppServices.shared.libraryRevision += 1 }
+        Task { await listVM.updateCover(id: activity.id, data: data) }
     }
 
     static func downscaledJPEG(_ data: Data, maxDimension: CGFloat, quality: CGFloat = 0.8) -> Data? {

@@ -295,6 +295,18 @@ final class ActivityListViewModel {
         }
     }
 
+    func updateCover(id: UUID, data: Data?) async {
+        do {
+            try await repository.setActivityCoverData(id: id, data: data)
+            if let idx = allActivities.firstIndex(where: { $0.id == id }) {
+                allActivities[idx] = allActivities[idx].updatingCover(data)
+            }
+            AppServices.shared.libraryRevision += 1
+        } catch {
+            self.error = "Échec de la photo de couverture : \(error.localizedDescription)"
+        }
+    }
+
     /// Date d'un parcours = date de départ planifiée → visible dans la liste, le tri et le regroupement par année.
     func updateStartEndDate(id: UUID, start: Date, end: Date) async {
         do {

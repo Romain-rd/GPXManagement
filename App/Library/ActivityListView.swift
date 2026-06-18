@@ -371,14 +371,19 @@ struct ActivityRow: View {
         .padding(.vertical, 5)
     }
 
-    private var avatar: some View {
-        ZStack {
-            Circle().fill(Color(nsColor: activity.activityType.trackColor))
-            Image(systemName: activity.activityType.symbolName)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+    @ViewBuilder private var avatar: some View {
+        if let data = activity.coverImageData, let image = NSImage(data: data) {
+            Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                .frame(width: 36, height: 36).clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            ZStack {
+                Circle().fill(Color(nsColor: activity.activityType.trackColor))
+                Image(systemName: activity.activityType.symbolName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 36, height: 36)
         }
-        .frame(width: 36, height: 36)
     }
 
     private static let dateFormatter: DateFormatter = {
