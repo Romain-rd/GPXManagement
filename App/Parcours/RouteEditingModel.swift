@@ -70,7 +70,33 @@ final class RouteEditingModel {
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
     var markers: [WaypointMarker] {
         let stages = stageArrivalNumbers
-        return waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId, isArrival: $0 == waypoints.count - 1 && waypoints.count >= 2, isDeparture: $0 == 0 && waypoints.count >= 2, stageIndex: stages[$1.id]) }
+        let c = waypoints.count
+        var p = 0, t = 0
+        return waypoints.enumerated().map { i, w in
+            let isDep = i == 0 && c >= 2
+            let isArr = i == c - 1 && c >= 2
+            var label: String? = nil
+            if stages[w.id] == nil, !isDep, !isArr {
+                if w.role == .poi { p += 1; label = "P\(p)" }
+                else if w.role == .shaping { t += 1; label = "T\(t)" }
+            }
+            return WaypointMarker(id: w.id, coordinate: coord(w), index: i, role: w.role, name: w.name, label: label, isSelected: w.id == selectedWaypointId, isArrival: isArr, isDeparture: isDep, stageIndex: stages[w.id])
+        }
+    }
+
+    /// Numéros typés (J/P/T) par waypoint — partagés entre la carte et la liste pour suivre les correspondances.
+    var typedLabels: [UUID: String] {
+        let stages = stageArrivalNumbers
+        let c = waypoints.count
+        var out: [UUID: String] = [:]
+        var p = 0, t = 0
+        for (i, w) in waypoints.enumerated() {
+            if let n = stages[w.id] { out[w.id] = "J\(n)"; continue }
+            if i == 0 || i == c - 1 { continue }
+            if w.role == .poi { p += 1; out[w.id] = "P\(p)" }
+            else if w.role == .shaping { t += 1; out[w.id] = "T\(t)" }
+        }
+        return out
     }
 
     /// Numéro d'étape (Jn) de chaque arrêt d'arrivée (arrêt d'étape interne ou point d'arrivée) — exclut le départ.

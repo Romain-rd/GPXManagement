@@ -1215,7 +1215,7 @@ struct ParcoursDetailView: View {
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
-                        Button { routeModel.cycleRole(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id]) }
+                        Button { routeModel.cycleRole(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id], label: routeModel.typedLabels[wp.id]) }
                             .buttonStyle(.plain).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Rôle : point de tracé · POI · arrêt d'étape (cliquer pour changer)"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
@@ -1251,22 +1251,26 @@ struct ParcoursDetailView: View {
     }
     /// Pastille identique aux marqueurs de la carte : arrêt d'étape = badge « Jn » dans la couleur de l'étape ;
     /// départ = drapeaux croisés ; POI = épingle ; point de tracé = numéro. Bleu si sélectionné.
-    @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool, stage: Int?) -> some View {
+    @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool, stage: Int?, label: String?) -> some View {
         if let n = stage {
-            Text("J\(n)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 6).frame(height: 22)
-                .background(RoundedRectangle(cornerRadius: 6).fill(selected ? Color.accentColor : Color(nsColor: MapTrackPalette.color(at: n - 1))))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 1))
+            labelBadge("J\(n)", selected ? Color.accentColor : Color(nsColor: MapTrackPalette.color(at: n - 1)))
         } else if i == 0 && count >= 2 {
             Image(systemName: "flag.2.crossed.fill").font(.system(size: 15)).foregroundStyle(selected ? Color.accentColor : .green).frame(width: 26)
         } else if role == .poi {
-            Image(systemName: "mappin.circle.fill").font(.system(size: 17)).foregroundStyle(selected ? Color.accentColor : .orange).frame(width: 26)
+            labelBadge(label ?? "P", selected ? Color.accentColor : .orange)
+        } else if role == .shaping {
+            labelBadge(label ?? "T", selected ? Color.accentColor : .gray, small: true)
         } else {
-            ZStack {
-                Circle().fill(selected ? Color.accentColor : pointColor(role)).frame(width: 20, height: 20)
-                Text("\(i + 1)").font(.caption2.bold()).foregroundStyle(.white)
-            }.frame(width: 26)
+            Image(systemName: "mappin.circle.fill").font(.system(size: 17)).foregroundStyle(selected ? Color.accentColor : .orange).frame(width: 26)
         }
+    }
+
+    private func labelBadge(_ text: String, _ color: Color, small: Bool = false) -> some View {
+        Text(text).font(.system(size: small ? 9 : 11, weight: .bold)).foregroundStyle(.white)
+            .padding(.horizontal, 5).frame(height: small ? 17 : 22)
+            .background(RoundedRectangle(cornerRadius: 5).fill(color))
+            .overlay(RoundedRectangle(cornerRadius: 5).stroke(.white, lineWidth: 1))
+            .frame(width: 30)
     }
 
     // MARK: Liste unique « Le long du parcours »
@@ -1607,8 +1611,11 @@ struct ParcoursDetailView: View {
     // MARK: POI sur la trace (mode fidèle : aimantés au tracé, jamais de re-routage)
 
     private var poiMarkers: [WaypointMarker] {
-        extraWaypoints.enumerated().compactMap { _, w in
-            w.role == .poi ? WaypointMarker(id: w.id, coordinate: CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude), index: 0, role: .poi, name: w.name) : nil
+        var p = 0
+        return extraWaypoints.compactMap { w in
+            guard w.role == .poi else { return nil }
+            p += 1
+            return WaypointMarker(id: w.id, coordinate: CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude), index: 0, role: .poi, name: w.name, label: "P\(p)")
         }
     }
 

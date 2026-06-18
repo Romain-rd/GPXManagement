@@ -670,22 +670,31 @@ public struct TrackMapView: NSViewRepresentable {
 
         /// Petite pastille d'un point de passage (bien plus compacte que MKMarkerAnnotationView) ;
         /// point de tracé = minuscule point ; sinon cercle coloré avec un petit glyphe blanc.
-        private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool, stageIndex: Int?) -> NSImage {
+        /// Badge arrondi numéroté (J1 / P1 / T1) — texte blanc sur fond coloré, bordure blanche.
+        private static func roundedBadge(_ text: String, _ bg: NSColor, height: CGFloat = 20, fontSize: CGFloat = 11) -> NSImage {
+            let t = text as NSString
+            let font = NSFont.systemFont(ofSize: fontSize, weight: .bold)
+            let ts = t.size(withAttributes: [.font: font])
+            let w = max(height + 2, ts.width + 12), h = height
+            let img = NSImage(size: NSSize(width: w, height: h))
+            img.lockFocus()
+            let path = NSBezierPath(roundedRect: NSRect(x: 0.9, y: 0.9, width: w - 1.8, height: h - 1.8), xRadius: 6, yRadius: 6)
+            bg.setFill(); path.fill()
+            NSColor.white.setStroke(); path.lineWidth = 1.5; path.stroke()
+            t.draw(at: NSPoint(x: (w - ts.width) / 2, y: (h - ts.height) / 2), withAttributes: [.font: font, .foregroundColor: NSColor.white])
+            img.unlockFocus()
+            return img
+        }
+
+        private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool, stageIndex: Int?, label: String?) -> NSImage {
             // Arrêt d'arrivée d'étape : badge « Jn » dans la couleur de l'étape (cohérent avec le tracé et le web).
             if let n = stageIndex {
-                let bg: NSColor = isSelected ? .controlAccentColor : MapTrackPalette.color(at: n - 1)
-                let text = "J\(n)" as NSString
-                let font = NSFont.systemFont(ofSize: 11, weight: .bold)
-                let ts = text.size(withAttributes: [.font: font])
-                let w = max(22, ts.width + 12), h: CGFloat = 20
-                let img = NSImage(size: NSSize(width: w, height: h))
-                img.lockFocus()
-                let path = NSBezierPath(roundedRect: NSRect(x: 0.9, y: 0.9, width: w - 1.8, height: h - 1.8), xRadius: 6, yRadius: 6)
-                bg.setFill(); path.fill()
-                NSColor.white.setStroke(); path.lineWidth = 1.5; path.stroke()
-                text.draw(at: NSPoint(x: (w - ts.width) / 2, y: (h - ts.height) / 2), withAttributes: [.font: font, .foregroundColor: NSColor.white])
-                img.unlockFocus()
-                return img
+                return roundedBadge("J\(n)", isSelected ? .controlAccentColor : MapTrackPalette.color(at: n - 1))
+            }
+            // POI (Pn, orange) et points de tracé (Tn, gris plus petit), numérotés — hors départ/arrivée.
+            if !isDeparture, !isArrival, let label {
+                if role == .poi { return roundedBadge(label, isSelected ? .controlAccentColor : .systemOrange) }
+                if role == .shaping { return roundedBadge(label, isSelected ? .controlAccentColor : .systemGray, height: 16, fontSize: 9) }
             }
             let color: NSColor = isSelected ? .controlAccentColor
                 : ((isDeparture || isArrival || role == .stageStop) ? .systemGreen : (role == .poi ? .systemOrange : .systemGray))
@@ -759,7 +768,7 @@ public struct TrackMapView: NSViewRepresentable {
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? PassthroughDotView)
                     ?? PassthroughDotView(annotation: annotation, reuseIdentifier: identifier)
                 view.annotation = annotation
-                view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected, stageIndex: wp.stageIndex)
+                view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected, stageIndex: wp.stageIndex, label: wp.label)
                 view.centerOffset = .zero
                 view.canShowCallout = (wp.title?.isEmpty == false)
                 let marker = view   // alias pour la suite (réglages communs)
