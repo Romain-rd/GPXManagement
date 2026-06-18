@@ -202,6 +202,7 @@ public enum HTMLReportRenderer {
     private struct RouteStageVM {
         let index: Int; let name: String; let departure: String; let arrival: String; let dateText: String; let notes: String
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
+        let pois: [(name: String, lat: Double, lon: Double)]
     }
     private struct RouteMarkerVM {
         let lat: Double; let lon: Double; let kind: String; let label: String; let name: String
@@ -220,12 +221,23 @@ public enum HTMLReportRenderer {
         let tile = webTileLayer(for: layer)
         let accent = hex(activity.activityType.trackColor)
 
+        // POIs (lieux nommés traversés) par étape (1-based), selon l'ordre des waypoints le long du parcours.
+        var poisByStage: [Int: [(name: String, lat: Double, lon: Double)]] = [:]
+        var sc = 1
+        for (i, wp) in waypoints.enumerated() where i > 0 {
+            if wp.role == .poi {
+                poisByStage[sc, default: []].append(((wp.name ?? "").isEmpty ? "Point d'intérêt" : wp.name!, wp.latitude, wp.longitude))
+            } else if wp.role == .stageStop || i == waypoints.count - 1 {
+                sc += 1
+            }
+        }
+
         let maxPerStage = max(200, 1800 / max(stages.count, 1))
         var stageVMs: [RouteStageVM] = []
         if stages.isEmpty {
             stageVMs.append(RouteStageVM(index: 1, name: activity.title, departure: "", arrival: "", dateText: fmtDateShort(activity.startDate),
                                          notes: "", distance: activity.distance, gain: activity.elevationGain,
-                                         coords: decimatedCoords(points, max: 1800), color: routePalette[0]))
+                                         coords: decimatedCoords(points, max: 1800), color: routePalette[0], pois: poisByStage[1] ?? []))
         } else {
             let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var prevArrival = waypoints.first?.name ?? ""
@@ -239,7 +251,8 @@ public enum HTMLReportRenderer {
                                              dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
                                              notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                                              distance: st.distance, gain: st.elevationGain,
-                                             coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count]))
+                                             coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count],
+                                             pois: poisByStage[i + 1] ?? []))
                 if !arrival.isEmpty { prevArrival = arrival }
             }
         }
@@ -275,7 +288,8 @@ public enum HTMLReportRenderer {
         let chips = stages.map { "<a class=\"ed-chip\" data-go=\"\($0.index)\">J\($0.index)</a>" }.joined()
         let stagesJS = stages.map { s -> String in
             let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
-            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords)}"
+            let pois = "[" + s.pois.map { "{name:\(jsString($0.name)),lat:\(String(format: "%.6f", $0.lat)),lon:\(String(format: "%.6f", $0.lon))}" }.joined(separator: ",") + "]"
+            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois)}"
         }.joined(separator: ",")
 
         let infoCards = [
@@ -317,6 +331,7 @@ public enum HTMLReportRenderer {
                 <div class="ed-body">
                   <h2 id="ed-title"></h2>
                   <p id="ed-meta"></p>
+                  <div id="ed-pois"></div>
                   <p id="ed-notes" class="notes"></p>
                 </div>
                 <div class="ed-nav"><a id="ed-prev" class="ed-navbtn"></a><a id="ed-next" class="ed-navbtn"></a></div>
@@ -418,6 +433,7 @@ public enum HTMLReportRenderer {
           if (!detail || !list) return;
           var smap = null, slayers = [], cur = 0;
           function pin(glyph,bg){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:'+bg+'">'+glyph+'</div>', iconSize:[24,24], iconAnchor:[12,12] }); }
+          function poiDot(){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-dot" style="background:#f58231"></div>', iconSize:[14,14], iconAnchor:[7,7] }); }
           function ensureMap(){
             if (smap) return;
             smap = L.map('stage-map', { scrollWheelZoom:true });
@@ -428,6 +444,7 @@ public enum HTMLReportRenderer {
             slayers.forEach(function(l){ smap.removeLayer(l); }); slayers = [];
             S.forEach(function(s,k){ if (!s.coords.length) return; var a = k===i;
               slayers.push(L.polyline(s.coords, { color: a ? s.color : '#b9b9bd', weight: a ? 6 : 3, opacity: a ? 0.95 : 0.45 }).addTo(smap)); });
+            (S[i].pois||[]).forEach(function(p){ var m = L.marker([p.lat,p.lon], { icon: poiDot() }).addTo(smap); if (p.name) m.bindTooltip(p.name); slayers.push(m); });
             var c = S[i].coords;
             if (c.length){
               slayers.push(L.marker(c[0], { icon: pin('⚑','#3cb44b') }).addTo(smap));
@@ -441,6 +458,11 @@ public enum HTMLReportRenderer {
             document.getElementById('ed-title').textContent = s.name + (s.arr ? ' — ' + s.arr : '');
             var route = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : '';
             document.getElementById('ed-meta').textContent = [s.date, route, s.dist, s.gain].filter(Boolean).join(' · ');
+            var pe = document.getElementById('ed-pois'); pe.innerHTML = '';
+            if (s.pois && s.pois.length){
+              var t = document.createElement('div'); t.className = 'ed-poi-title'; t.textContent = 'Points d\\u2019intérêt'; pe.appendChild(t);
+              s.pois.forEach(function(p){ var d = document.createElement('div'); d.className = 'ed-poi'; d.textContent = '\\uD83D\\uDCCD ' + (p.name || ''); pe.appendChild(d); });
+            }
             var notes = document.getElementById('ed-notes'); notes.textContent = s.notes || ''; notes.style.display = s.notes ? '' : 'none';
             [].slice.call(document.querySelectorAll('.ed-chip')).forEach(function(c){ c.classList.toggle('active', +c.getAttribute('data-go') === i+1); });
             var p = document.getElementById('ed-prev'), n = document.getElementById('ed-next');
@@ -509,6 +531,10 @@ public enum HTMLReportRenderer {
     .ed-body { padding:18px 16px; flex:0 0 auto; }
     .ed-body h2 { margin:0 0 6px; font-size:22px; font-weight:700; letter-spacing:-.01em; }
     #ed-meta { margin:0 0 14px; color:var(--sec); font-size:15px; }
+    #ed-pois { margin:0 0 14px; }
+    .ed-poi-title { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--sec); margin:0 0 6px; }
+    .ed-poi { padding:4px 0; border-bottom:1px solid var(--line); }
+    .ed-poi:last-child { border-bottom:0; }
     .ed-nav { position:sticky; bottom:0; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 14px; background:var(--card); border-top:1px solid var(--line); min-height:22px; }
     .ed-navbtn { color:var(--accent); cursor:pointer; font-weight:600; padding:6px 8px; }
     @media (min-width:920px) {
