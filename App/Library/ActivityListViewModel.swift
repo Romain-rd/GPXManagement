@@ -289,6 +289,7 @@ final class ActivityListViewModel {
             if let idx = allActivities.firstIndex(where: { $0.id == id }) {
                 allActivities[idx] = allActivities[idx].updatingTitle(title)
             }
+            AppServices.shared.libraryRevision += 1   // propage aux autres fenêtres
         } catch {
             self.error = "Échec du renommage : \(error.localizedDescription)"
         }
@@ -300,6 +301,7 @@ final class ActivityListViewModel {
             if let idx = allActivities.firstIndex(where: { $0.id == id }) {
                 allActivities[idx] = allActivities[idx].updatingActivityType(type)
             }
+            AppServices.shared.libraryRevision += 1   // propage aux autres fenêtres
         } catch {
             self.error = "Échec du changement de type : \(error.localizedDescription)"
         }

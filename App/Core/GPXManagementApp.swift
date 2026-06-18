@@ -154,7 +154,7 @@ struct ActivityDetailWindowView: View {
         // et son activité est marquée « sélectionnée » pour activer ces commandes.
         .focusedSceneValue(\.windowModel, model)
         .onAppear { model.navigation.listSelection = [activityId] }
-        .task { await model.listVM.reload() }
+        .task(id: AppServices.shared.libraryRevision) { await model.listVM.reload() }   // resync sur toute modif (titre, type…)
     }
 }
 
