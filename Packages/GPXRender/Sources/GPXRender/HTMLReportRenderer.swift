@@ -195,6 +195,222 @@ public enum HTMLReportRenderer {
         return "jpg"
     }
 
+    // MARK: - Parcours en étapes (page web mono-page, style app iPhone)
+
+    private struct RouteStageVM {
+        let index: Int; let name: String; let arrival: String; let dateText: String
+        let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
+    }
+    private struct RouteMarkerVM {
+        let lat: Double; let lon: Double; let kind: String; let label: String; let name: String
+    }
+
+    /// Génère la page web d'un parcours en étapes : un seul `index.html`, tab bar fixe (Carte/Étapes/Profil/Infos),
+    /// carte interactive colorée par étape. Phase 1 : onglet Carte complet ; Étapes/Infos basiques ; Profil à venir.
+    public static func renderRoute(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]] = [:], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
+        guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty,
+              let points = try? TrackPointCodec.decode(data), points.count >= 2 else {
+            throw HTMLReportError.noTrackData
+        }
+        onProgress?(0.2, "Étapes…")
+        let stages = ((try? await repository.fetchStagesResolved(activityId: activity.id, points: points)) ?? []).sorted { $0.order < $1.order }
+        let waypoints = RouteWaypointCodec.decode(try await repository.fetchRouteWaypointsData(id: activity.id))
+        let tile = webTileLayer(for: layer)
+        let accent = hex(activity.activityType.trackColor)
+
+        let maxPerStage = max(200, 1800 / max(stages.count, 1))
+        var stageVMs: [RouteStageVM] = []
+        if stages.isEmpty {
+            stageVMs.append(RouteStageVM(index: 1, name: activity.title, arrival: "", dateText: fmtDateShort(activity.startDate),
+                                         distance: activity.distance, gain: activity.elevationGain,
+                                         coords: decimatedCoords(points, max: 1800), color: raidPalette[0]))
+        } else {
+            let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            for (i, s) in stages.enumerated() {
+                let lo = max(0, min(s.startIndex, points.count - 1)), hi = max(0, min(s.endIndex, points.count - 1))
+                let slice = lo <= hi ? Array(points[lo...hi]) : []
+                let st = s.stats(in: points)
+                let arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
+                stageVMs.append(RouteStageVM(index: i + 1, name: s.name.isEmpty ? "Étape \(i + 1)" : s.name, arrival: arrival,
+                                             dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
+                                             distance: st.distance, gain: st.elevationGain,
+                                             coords: decimatedCoords(slice, max: maxPerStage), color: raidPalette[i % raidPalette.count]))
+            }
+        }
+
+        // Marqueurs : départ/arrivée/arrêts/POI (les points de tracé « shaping » ne sont pas montrés).
+        var markers: [RouteMarkerVM] = []
+        for (i, wp) in waypoints.enumerated() {
+            let isFirst = i == 0, isLast = i == waypoints.count - 1
+            let kind: String
+            if isLast { kind = "arrival" } else if isFirst { kind = "departure" }
+            else if wp.role == .stageStop { kind = "stop" } else if wp.role == .poi { kind = "poi" } else { continue }
+            markers.append(RouteMarkerVM(lat: wp.latitude, lon: wp.longitude, kind: kind, label: "\(i + 1)", name: wp.name ?? ""))
+        }
+
+        onProgress?(0.6, "Page web…")
+        let html = buildRouteHTML(activity: activity, stages: stageVMs, markers: markers, tile: tile, accent: accent)
+        return ["index.html": html.data(using: .utf8) ?? Data()]
+    }
+
+    private static func buildRouteHTML(activity: ActivitySummary, stages: [RouteStageVM], markers: [RouteMarkerVM], tile: WebTileLayer, accent: String) -> String {
+        let totalKm = fmtDistance(activity.distance)
+        let totalGain = "\(Int(activity.elevationGain.rounded())) m"
+        let n = stages.count
+        let dates = stages.compactMap { $0.dateText.isEmpty ? nil : $0.dateText }
+        let dateRange = dates.first.map { f in dates.count > 1 ? "\(f) → \(dates.last!)" : f } ?? fmtDateShort(activity.startDate)
+        let summary = "\(totalKm) · +\(totalGain) · \(n) étape\(n > 1 ? "s" : "")" + (dateRange.isEmpty ? "" : " · " + dateRange)
+
+        let stageRows = stages.map { s -> String in
+            let meta = [s.dateText, fmtDistance(s.distance), "+\(Int(s.gain.rounded())) m"].filter { !$0.isEmpty }.joined(separator: " · ")
+            let route = s.arrival.isEmpty ? esc(s.name) : "\(esc(s.name)) — \(esc(s.arrival))"
+            return "<a class=\"st-row\" data-stage=\"\(s.index)\"><span class=\"st-badge\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"st-info\"><span class=\"st-title\">\(route)</span><span class=\"st-meta\">\(esc(meta))</span></div><span class=\"st-chev\">›</span></a>"
+        }.joined()
+
+        let infoCards = [
+            metricCard("📏", "Distance", totalKm),
+            metricCard("⬆️", "Dénivelé +", totalGain),
+            metricCard("📍", "Étapes", "\(n)"),
+            metricCard("📅", "Dates", dateRange.isEmpty ? "—" : dateRange)
+        ].joined()
+
+        return """
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <title>\(esc(activity.title))</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+        <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>\(css(accent: accent))\(routeCSS)</style>
+        </head>
+        <body>
+        <div class="route-app">
+          <div class="tab-views">
+            <section class="tabview active" id="tab-carte">
+              <div id="map" class="route-map"></div>
+              <div class="map-banner"><strong>\(esc(activity.title))</strong><span>\(esc(summary))</span></div>
+            </section>
+            <section class="tabview" id="tab-etapes">
+              <header class="tv-head"><h1>Étapes</h1></header>
+              <div class="st-list">\(stageRows)</div>
+            </section>
+            <section class="tabview" id="tab-profil">
+              <header class="tv-head"><h1>Profil</h1></header>
+              <p class="tv-empty">Le profil altimétrique arrive bientôt.</p>
+            </section>
+            <section class="tabview" id="tab-infos">
+              <header class="tv-head"><h1>\(esc(activity.title))</h1><p class="tv-sub">\(esc(summary))</p></header>
+              <section class="metrics">\(infoCards)</section>
+            </section>
+          </div>
+          <nav class="tabbar">
+            <a class="tabitem active" data-tab="carte"><span class="ti-ic">🗺️</span><span class="ti-l">Carte</span></a>
+            <a class="tabitem" data-tab="etapes"><span class="ti-ic">📋</span><span class="ti-l">Étapes</span></a>
+            <a class="tabitem" data-tab="profil"><span class="ti-ic">📈</span><span class="ti-l">Profil</span></a>
+            <a class="tabitem" data-tab="infos"><span class="ti-ic">ℹ️</span><span class="ti-l">Infos</span></a>
+          </nav>
+        </div>
+        \(routeMapScript(stages: stages, markers: markers, tile: tile, accent: accent))
+        <script>
+        (function(){
+          var items = [].slice.call(document.querySelectorAll('.tabitem'));
+          var views = {};
+          [].slice.call(document.querySelectorAll('.tabview')).forEach(function(v){ views[v.id.replace('tab-','')] = v; });
+          function show(tab){
+            items.forEach(function(it){ it.classList.toggle('active', it.getAttribute('data-tab') === tab); });
+            Object.keys(views).forEach(function(k){ views[k].classList.toggle('active', k === tab); });
+            if (tab === 'carte' && window.__routeMap) { setTimeout(function(){ window.__routeMap.invalidateSize(); }, 60); }
+          }
+          items.forEach(function(it){ it.addEventListener('click', function(){ show(it.getAttribute('data-tab')); }); });
+          [].slice.call(document.querySelectorAll('.st-row')).forEach(function(r){ r.addEventListener('click', function(){ show('carte'); }); });
+        })();
+        </script>
+        </body>
+        </html>
+        """
+    }
+
+    private static func routeMapScript(stages: [RouteStageVM], markers: [RouteMarkerVM], tile: WebTileLayer, accent: String) -> String {
+        let groups = stages.map { s -> String in
+            let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
+            return "{color:\(jsString(s.color)),coords:\(coords)}"
+        }.joined(separator: ",")
+        let mk = markers.map { m in
+            "{lat:\(String(format: "%.6f", m.lat)),lon:\(String(format: "%.6f", m.lon)),kind:\(jsString(m.kind)),label:\(jsString(m.label)),name:\(jsString(m.name))}"
+        }.joined(separator: ",")
+        return """
+        <script>
+        (function(){
+          var groups = [\(groups)];
+          var markers = [\(mk)];
+          var map = L.map('map', { scrollWheelZoom: true });
+          window.__routeMap = map;
+          L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom: \(tile.maxZoom), attribution: \(jsString(tile.attribution)) }).addTo(map);
+          var lines = [];
+          groups.forEach(function(g){ if (g.coords.length) { lines.push(L.polyline(g.coords, { color:g.color, weight:5, opacity:0.95 }).addTo(map)); } });
+          function pin(m){
+            var bg = m.kind==='poi' ? '#f58231' : (m.kind==='departure'||m.kind==='arrival'||m.kind==='stop' ? '#3cb44b' : '#888');
+            var glyph = m.kind==='arrival' ? '🏁' : (m.kind==='departure' ? '⚑' : (m.kind==='poi' ? '•' : m.label));
+            return L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:'+bg+'">'+glyph+'</div>', iconSize:[24,24], iconAnchor:[12,12] });
+          }
+          markers.forEach(function(m){ var mk = L.marker([m.lat, m.lon], { icon: pin(m) }).addTo(map); if (m.name) mk.bindPopup(m.name); });
+          if (lines.length) map.fitBounds(L.featureGroup(lines).getBounds(), { padding:[28,28] });
+          var el = document.getElementById('map'), pseudo=false, fsBtn=null;
+          function nat(){ return !!(el.requestFullscreen||el.webkitRequestFullscreen); }
+          function isFs(){ return document.fullscreenElement===el||document.webkitFullscreenElement===el; }
+          function refresh(){ setTimeout(function(){ map.invalidateSize(); if(fsBtn) fsBtn.innerHTML=(pseudo||isFs())?'✕':'⤢'; },160); }
+          function toggle(){ if(nat()){ if(!isFs()){(el.requestFullscreen||el.webkitRequestFullscreen).call(el);} else {(document.exitFullscreen||document.webkitExitFullscreen).call(document);} } else { pseudo=!pseudo; el.classList.toggle('gpx-pseudo-fs',pseudo); document.body.classList.toggle('gpx-fs-lock',pseudo); refresh(); } }
+          var Fs=L.Control.extend({ options:{position:'topright'}, onAdd:function(){ fsBtn=L.DomUtil.create('a','leaflet-bar leaflet-control gpx-fs'); fsBtn.href='#'; fsBtn.innerHTML='⤢'; L.DomEvent.on(fsBtn,'click',function(e){ L.DomEvent.stop(e); toggle(); }); return fsBtn; } });
+          map.addControl(new Fs());
+          document.addEventListener('fullscreenchange',refresh); document.addEventListener('webkitfullscreenchange',refresh);
+        })();
+        </script>
+        """
+    }
+
+    private static let routeCSS = """
+    html, body { height:100%; }
+    .route-app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+    .tab-views { flex:1; position:relative; min-height:0; }
+    .tabview { position:absolute; inset:0; overflow-y:auto; display:none; -webkit-overflow-scrolling:touch; }
+    .tabview.active { display:block; }
+    #tab-carte { display:none; flex-direction:column; }
+    #tab-carte.active { display:flex; }
+    .route-map { flex:1; min-height:0; width:100%; background:var(--card); z-index:0; }
+    .map-banner { flex:0 0 auto; background:var(--card); border-top:1px solid var(--line); padding:10px 16px; display:flex; flex-direction:column; gap:1px; }
+    .map-banner strong { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+    .map-banner span { font-size:13px; color:var(--sec); }
+    .tv-head { padding:18px 16px 6px; }
+    .tv-head h1 { margin:0; font-size:24px; font-weight:800; letter-spacing:-.02em; }
+    .tv-sub { margin:5px 0 0; color:var(--sec); font-size:14px; }
+    .tv-empty { padding:24px 16px; color:var(--sec); }
+    .metrics { padding:10px 16px 28px; }
+    .st-list { padding:4px 12px 28px; }
+    .st-row { display:flex; align-items:center; gap:12px; padding:13px 8px; text-decoration:none; color:var(--fg); border-bottom:1px solid var(--line); cursor:pointer; }
+    .st-row:active { background:var(--card); }
+    .st-badge { flex:0 0 auto; width:38px; height:38px; border-radius:10px; color:#fff; font-weight:700; display:inline-flex; align-items:center; justify-content:center; font-size:13px; }
+    .st-info { display:flex; flex-direction:column; min-width:0; flex:1; }
+    .st-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .st-meta { font-size:13px; color:var(--sec); }
+    .st-chev { color:var(--sec); font-size:22px; flex:0 0 auto; }
+    .tabbar { flex:0 0 auto; display:flex; background:var(--card); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); }
+    .tabitem { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 0 6px; color:var(--sec); text-decoration:none; font-size:11px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .tabitem.active { color:var(--accent); }
+    .tabitem .ti-ic { font-size:20px; line-height:1; filter:grayscale(1) opacity(.7); }
+    .tabitem.active .ti-ic { filter:none; }
+    .rm-wrap { background:transparent; border:0; }
+    .rm-pin { width:24px; height:24px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    @media (min-width:920px) {
+      .route-app { flex-direction:row; }
+      .tabbar { order:-1; flex-direction:column; width:210px; flex:0 0 auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
+      .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
+      .tabitem.active { background:var(--bg); }
+      .tabitem .ti-ic { font-size:18px; }
+    }
+    """
+
     private static func buildRaidOverviewHTML(raid: Raid, members: [ActivitySummary], layer: MapLayer, coverRef: String?, avatarRefs: [String], stages: [RaidStage]) -> String {
         let accent = hex(members.first?.activityType.trackColor ?? .systemBlue)
         let tile = webTileLayer(for: layer)

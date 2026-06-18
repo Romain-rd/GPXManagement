@@ -280,6 +280,34 @@ struct ParcoursDetailView: View {
                 Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
                             totalGainWithConnectors, stages.count))
                     .foregroundStyle(.secondary)
+                Spacer()
+                Button { previewWeb() } label: { Label("Aperçu web", systemImage: "safari") }
+                    .disabled(webPreviewBusy)
+                    .help("Génère la page web du parcours et l'ouvre dans le navigateur (test)")
+            }
+        }
+    }
+
+    @State private var webPreviewBusy = false
+    /// Test phase 1 : génère la page web mono-page du parcours dans un dossier temporaire et l'ouvre dans le navigateur.
+    private func previewWeb() {
+        guard !webPreviewBusy else { return }
+        webPreviewBusy = true
+        let act = activity, repo = repository, layer = MapLayer.base(fromRawValue: layerRaw)
+        Task { @MainActor in
+            defer { webPreviewBusy = false }
+            do {
+                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: WebExportOptions())
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("route-preview-\(act.id.uuidString)", isDirectory: true)
+                try? FileManager.default.removeItem(at: dir)
+                for (rel, data) in files {
+                    let url = dir.appendingPathComponent(rel)
+                    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try data.write(to: url)
+                }
+                NSWorkspace.shared.open(dir.appendingPathComponent("index.html"))
+            } catch {
+                NSLog("Aperçu web parcours — échec : \(error)")
             }
         }
     }
