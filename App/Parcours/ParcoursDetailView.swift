@@ -21,6 +21,7 @@ struct ParcoursDetailView: View {
     let listVM: ActivityListViewModel
     let repository: CoreDataActivityRepository
     @Bindable var navigation: AppNavigationModel
+    var window: WindowModel? = nil
     /// En fenêtre autonome (pas de 3ᵉ colonne) : l'inspecteur d'étape s'affiche en panneau flottant interne.
     var showsInlineInspector: Bool = false
     @Environment(\.openWindow) private var openWindow
@@ -44,11 +45,12 @@ struct ParcoursDetailView: View {
     @FocusState private var searchFocused: Bool
 
     init(activity: ActivitySummary, listVM: ActivityListViewModel, repository: CoreDataActivityRepository,
-         navigation: AppNavigationModel, showsInlineInspector: Bool = false) {
+         navigation: AppNavigationModel, window: WindowModel? = nil, showsInlineInspector: Bool = false) {
         self.activity = activity
         self.listVM = listVM
         self.repository = repository
         self.navigation = navigation
+        self.window = window
         self.showsInlineInspector = showsInlineInspector
         _routeModel = State(initialValue: RouteEditingModel(repository: repository))
     }
@@ -194,6 +196,9 @@ struct ParcoursDetailView: View {
         }
         .navigationTitle(activity.title)
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
+        .onChange(of: window?.duplicateToken ?? 0) { _, _ in
+            Task { await AppServices.shared.duplicateParcours(parent: activity) }
+        }
         .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load(); await loadWebState() }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
@@ -404,6 +409,7 @@ struct ParcoursDetailView: View {
                 let configJSON = (try? JSONEncoder().encode(opts)).flatMap { String(data: $0, encoding: .utf8) }
                 try await repo.setWebPublished(id: act.id, url: url, configJSON: configJSON)
                 webPublishedURL = url; webPublishConfig = configJSON
+                AppServices.shared.libraryRevision += 1   // rafraîchit l'icône « publié » dans la liste
                 NSWorkspace.shared.open(URL(string: url)!)
             } catch { webError = error.localizedDescription }
         }
@@ -417,6 +423,7 @@ struct ParcoursDetailView: View {
                 try await BunnyStorageService.unpublish(folder: "routes/\(uuid)")
                 try await repo.clearWebPublished(id: act.id)
                 webPublishedURL = nil; webPublishConfig = nil
+                AppServices.shared.libraryRevision += 1
             } catch { webError = error.localizedDescription }
         }
     }

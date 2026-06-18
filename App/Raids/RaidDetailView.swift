@@ -135,6 +135,9 @@ struct RaidDetailView: View {
         .sheet(isPresented: $showWebExportOptions) { webExportOptionsSheet }
         .onAppear { layer = MapLayer.base(fromRawValue: defaultLayerRaw) }
         .onChange(of: layer) { _, newValue in defaultLayerRaw = newValue.rawValue }
+        .onChange(of: window.duplicateToken) { _, _ in
+            Task { await AppServices.shared.duplicateRaid(raid, members: members) }
+        }
         .onChange(of: coverPickerItem) { _, item in
             guard let item else { return }
             Task {

@@ -251,7 +251,7 @@ struct ContentView: View {
     private var activitiesDetail: some View {
         if let course = selectedCourse, let repository {
             // Parcours : même emplacement qu'un détail d'activité (3ᵉ colonne), avec inspecteur d'étape glissant.
-            ParcoursDetailView(activity: course, listVM: listVM, repository: repository, navigation: navigation, showsInlineInspector: true)
+            ParcoursDetailView(activity: course, listVM: listVM, repository: repository, navigation: navigation, window: window, showsInlineInspector: true)
                 .id(course.id)
         } else if let raidId = navigation.selectedRaidInListId,
                   let raid = listVM.raids.first(where: { $0.id == raidId }),

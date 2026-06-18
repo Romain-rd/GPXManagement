@@ -122,7 +122,7 @@ struct ActivityDetailWindowView: View {
             if let activity = model.listVM.allActivities.first(where: { $0.id == activityId }),
                let repo = AppServices.shared.repository as? CoreDataActivityRepository {
                 if activity.isCourse || activity.isStagedRoute {
-                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation, showsInlineInspector: true)
+                    ParcoursDetailView(activity: activity, listVM: model.listVM, repository: repo, navigation: model.navigation, window: model, showsInlineInspector: true)
                         .navigationTitle(activity.title)
                         .toolbar {
                             if model.navigation.selectedStageId != nil {

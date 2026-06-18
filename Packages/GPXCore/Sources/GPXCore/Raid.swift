@@ -24,6 +24,7 @@ public struct Raid: Identifiable, Sendable, Hashable {
     public var participants: [RaidParticipant]
     public var createdAt: Date
     public var updatedAt: Date
+    public var isPublished: Bool   // une page web a été publiée (webPublishedURL non vide)
 
     public init(
         id: UUID = UUID(),
@@ -36,7 +37,8 @@ public struct Raid: Identifiable, Sendable, Hashable {
         coverImageData: Data? = nil,
         participants: [RaidParticipant] = [],
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        isPublished: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -49,5 +51,6 @@ public struct Raid: Identifiable, Sendable, Hashable {
         self.participants = participants
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.isPublished = isPublished
     }
 }

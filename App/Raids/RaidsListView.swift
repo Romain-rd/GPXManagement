@@ -70,7 +70,12 @@ struct RaidsListView: View {
                     .overlay(Image(systemName: "flag.2.crossed").foregroundStyle(.orange))
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(raid.name).fontWeight(.medium)
+                HStack(spacing: 6) {
+                    Text(raid.name).fontWeight(.medium)
+                    if raid.isPublished {
+                        Image(systemName: "globe").font(.caption2).foregroundStyle(.tint).help("Publié sur le web")
+                    }
+                }
                 Text("\(count) activité(s)").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

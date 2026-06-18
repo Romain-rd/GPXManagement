@@ -31,7 +31,16 @@ final class WindowModel {
 
     var hasSelection: Bool { !navigation.listSelection.isEmpty }
     var canExportMap: Bool { navigation.visualizationMode == .mapOverview }
-    var canMerge: Bool { selectedSummaries.count >= 2 }
+    var canMerge: Bool { selectedSummaries.count >= 2 && canEditTrack }
+
+    /// Libellé de duplication selon le type sélectionné (activité / parcours / raid).
+    var duplicateLabel: String {
+        if navigation.isRaidsScope { return "Dupliquer le raid" }
+        if navigation.isCoursesScope { return "Dupliquer le parcours" }
+        return "Dupliquer l'activité"
+    }
+    /// L'édition de trace (découper, simplifier, nettoyer, inverser, fusionner) ne vaut que pour les activités.
+    var canEditTrack: Bool { hasSelection && !navigation.isRaidsScope && !navigation.isCoursesScope }
 
     var selectedSummaries: [ActivitySummary] {
         listVM.visibleActivities.filter { navigation.listSelection.contains($0.id) }

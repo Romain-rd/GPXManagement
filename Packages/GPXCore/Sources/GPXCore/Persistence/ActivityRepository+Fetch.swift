@@ -875,7 +875,8 @@ enum RaidMapper {
             coverImageData: object.value(forKey: "coverImageData") as? Data,
             participants: participants,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
-            updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date()
+            updatedAt: object.value(forKey: "updatedAt") as? Date ?? Date(),
+            isPublished: (object.value(forKey: "webPublishedURL") as? String)?.isEmpty == false
         )
     }
 

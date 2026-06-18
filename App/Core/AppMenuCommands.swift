@@ -144,7 +144,7 @@ struct AppMenuCommands: Commands {
         // Actions d'édition de trace : rattachées au menu « Édition » standard de macOS.
         CommandGroup(after: .pasteboard) {
             Divider()
-            Button("Dupliquer la trace") {
+            Button(window?.duplicateLabel ?? "Dupliquer") {
                 window?.requestDuplicate()
             }
             .disabled(!(window?.hasSelection ?? false))
@@ -152,22 +152,22 @@ struct AppMenuCommands: Commands {
             Button("Découper la trace…") {
                 window?.requestSplit()
             }
-            .disabled(!(window?.hasSelection ?? false))
+            .disabled(!(window?.canEditTrack ?? false))
 
             Button("Simplifier la trace…") {
                 window?.requestSimplify()
             }
-            .disabled(!(window?.hasSelection ?? false))
+            .disabled(!(window?.canEditTrack ?? false))
 
             Button("Nettoyer les points aberrants…") {
                 window?.requestClean()
             }
-            .disabled(!(window?.hasSelection ?? false))
+            .disabled(!(window?.canEditTrack ?? false))
 
             Button("Inverser le sens de la trace") {
                 window?.requestReverse()
             }
-            .disabled(!(window?.hasSelection ?? false))
+            .disabled(!(window?.canEditTrack ?? false))
 
             Button("Fusionner les traces…") {
                 window?.requestMerge()

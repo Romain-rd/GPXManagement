@@ -346,6 +346,9 @@ struct ActivityRow: View {
                     Text(activity.title)
                         .font(.headline)
                         .lineLimit(1)
+                    if activity.isPublished {
+                        Image(systemName: "globe").font(.caption2).foregroundStyle(.tint).help("Publié sur le web")
+                    }
                     Spacer(minLength: 4)
                     Text(Self.dateFormatter.string(from: activity.startDate))
                         .font(.caption)

@@ -373,6 +373,58 @@ extension AppServices {
         }
     }
 
+    /// Duplique un parcours : trace + points de passage typés + étapes (re-clés sur la copie) + drapeaux parcours.
+    func duplicateParcours(parent: ActivitySummary) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            let points = try await (repo.fetchTrackData(id: parent.id).map { try TrackPointCodec.decode($0) }) ?? []
+            guard points.count >= 2 else { importError = "Parcours sans tracé à dupliquer."; return false }
+            let newId = try await createDerivedActivity(parent: parent, title: "\(parent.title) (copie)", points: points, repo: repo, linkToParent: false)
+            if parent.isEditableRoute { try await repo.setEditableRoute(id: newId, true) }
+            if let wp = try await repo.fetchRouteWaypointsData(id: parent.id) { try await repo.updateRouteWaypointsData(id: newId, data: wp) }
+            let stages = try await repo.fetchStages(activityId: parent.id)
+            if !stages.isEmpty || parent.isStagedRoute {
+                try await repo.setStagedRoute(activityId: newId, true)
+                let copies = stages.map { s in
+                    Stage(activityId: newId, order: s.order, name: s.name, notes: s.notes, startIndex: s.startIndex, endIndex: s.endIndex,
+                          stopWaypointId: s.stopWaypointId, coverImageData: s.coverImageData,
+                          endOffTrackLatitude: s.endOffTrackLatitude, endOffTrackLongitude: s.endOffTrackLongitude,
+                          endConnectorData: s.endConnectorData, startConnectorData: s.startConnectorData, plannedDate: s.plannedDate)
+                }
+                try await repo.replaceStages(activityId: newId, with: copies)
+            }
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la duplication : \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Duplique un raid : nouveau raid (mêmes métadonnées/participants/couverture) + copies de chaque activité membre.
+    func duplicateRaid(_ raid: Raid, members: [ActivitySummary]) async -> Bool {
+        guard let repo = coreDataRepository else { importError = "Stockage indisponible."; return false }
+        do {
+            let newRaid = Raid(name: "\(raid.name) (copie)", subtitle: raid.subtitle, place: raid.place, notes: raid.notes,
+                               startDate: raid.startDate, endDate: raid.endDate, coverImageData: raid.coverImageData,
+                               participants: raid.participants)
+            try await repo.createRaid(newRaid)
+            var newMemberIds: [UUID] = []
+            for m in members {
+                guard let data = try? await repo.fetchTrackData(id: m.id),
+                      let pts = try? TrackPointCodec.decode(data), pts.count >= 2 else { continue }
+                let newId = try await createDerivedActivity(parent: m, title: m.title, points: pts, repo: repo, linkToParent: false)
+                newMemberIds.append(newId)
+            }
+            if !newMemberIds.isEmpty { try await repo.setRaid(activityIds: newMemberIds, raidId: newRaid.id) }
+            libraryRevision += 1
+            return true
+        } catch {
+            importError = "Échec de la duplication du raid : \(error.localizedDescription)"
+            return false
+        }
+    }
+
     /// Crée un parcours en étapes à partir d'une trace : **duplique** la trace (l'originale reste intacte),
     /// passe la copie en mode étapes et l'initialise avec une étape couvrant tout le tracé.
     @discardableResult
