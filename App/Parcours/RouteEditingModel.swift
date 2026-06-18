@@ -23,8 +23,54 @@ final class RouteEditingModel {
     var profileRaw = UserDefaults.standard.string(forKey: "routeProfile") ?? "car"
     let proxy = MapViewProxy()
 
+    private(set) var activityId: UUID?
+    private var autoSaveTask: Task<Void, Never>?
+
     private let repository: CoreDataActivityRepository
     init(repository: CoreDataActivityRepository) { self.repository = repository }
+
+    /// Marque une modification et planifie un enregistrement automatique (débounce) après une pause d'édition.
+    private func markDirty() {
+        dirty = true
+        scheduleAutoSave()
+    }
+
+    // MARK: Annuler / Rétablir
+    private struct Snapshot { let waypoints: [RouteWaypoint]; let segments: [[CLLocationCoordinate2D]?]; let selected: UUID? }
+    private var undoStack: [Snapshot] = []
+    private var redoStack: [Snapshot] = []
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+
+    /// À appeler AVANT une modification de géométrie pour la rendre annulable.
+    private func snapshot() {
+        undoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
+        if undoStack.count > 50 { undoStack.removeFirst() }
+        redoStack.removeAll()
+    }
+
+    func undo() {
+        guard !busy, let snap = undoStack.popLast() else { return }
+        redoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
+        waypoints = snap.waypoints; segments = snap.segments; selectedWaypointId = snap.selected
+        markDirty()
+    }
+    func redo() {
+        guard !busy, let snap = redoStack.popLast() else { return }
+        undoStack.append(Snapshot(waypoints: waypoints, segments: segments, selected: selectedWaypointId))
+        waypoints = snap.waypoints; segments = snap.segments; selectedWaypointId = snap.selected
+        markDirty()
+    }
+
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self, !Task.isCancelled, self.dirty, self.waypoints.count >= 2, let id = self.activityId else { return }
+            if self.busy { self.scheduleAutoSave(); return }   // routage/sauvegarde en cours : on réessaie plus tard
+            self.save(activityId: id)
+        }
+    }
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
     var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId) } }
@@ -49,20 +95,21 @@ final class RouteEditingModel {
         guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
         let t = value.trimmingCharacters(in: .whitespaces)
         waypoints[j].name = t.isEmpty ? nil : value
-        dirty = true
+        markDirty()
     }
 
     /// Fait défiler le rôle d'un point : tracé muet → point d'intérêt → arrêt d'étape.
     func cycleRole(_ id: UUID) {
         guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        snapshot()
         let order: [RouteWaypoint.Role] = [.shaping, .poi, .stageStop]
         waypoints[j].role = order[((order.firstIndex(of: waypoints[j].role) ?? 0) + 1) % order.count]
-        dirty = true
+        markDirty()
     }
 
     func invalidateAll() {
         segments = Array(repeating: nil, count: max(0, waypoints.count - 1))
-        dirty = true
+        markDirty()
     }
 
     private func touch(_ k: Int) {
@@ -72,16 +119,18 @@ final class RouteEditingModel {
 
     func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
         guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        snapshot()
         waypoints[i].latitude = c.latitude
         waypoints[i].longitude = c.longitude
         touch(i)
-        dirty = true
+        markDirty()
     }
 
     /// Insère le point à sa place le long du tracé : juste après le segment routé qui passe le plus près de `c`
     /// (au-delà de la fin → ajout en bout ; au-delà du début → en tête). Cohérent pour le clic ET la recherche.
     func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
         guard !busy else { return }
+        snapshot()
         let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
         let p = bestInsertionIndex(for: c)
         waypoints.insert(wp, at: p)
@@ -90,12 +139,13 @@ final class RouteEditingModel {
         else if p >= waypoints.count - 1 { segments.append(nil) }
         else { segments.replaceSubrange((p - 1)...(p - 1), with: [nil, nil]) }
         selectedWaypointId = wp.id
-        dirty = true
+        markDirty()
     }
 
     /// Réordonne les points (glisser dans la liste) ; l'ordre change → on recalcule tout le tracé.
     func moveWaypoints(fromOffsets: IndexSet, toOffset: Int) {
         guard !busy else { return }
+        snapshot()
         waypoints.move(fromOffsets: fromOffsets, toOffset: toOffset)
         invalidateAll()
     }
@@ -124,12 +174,13 @@ final class RouteEditingModel {
 
     func delete(_ id: UUID) {
         guard !busy, let k = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
+        snapshot()
         if k == 0 { if !segments.isEmpty { segments.removeFirst() } }
         else if k == waypoints.count - 1 { if !segments.isEmpty { segments.removeLast() } }
         else if k - 1 < segments.count, k < segments.count { segments.replaceSubrange((k - 1)...k, with: [nil]) }
         waypoints.remove(at: k)
         if selectedWaypointId == id { selectedWaypointId = nil }
-        dirty = true
+        markDirty()
     }
 
     func reroute() {
@@ -138,7 +189,7 @@ final class RouteEditingModel {
         Task {
             await routeMissing()
             isRouting = false
-            dirty = true
+            markDirty()
             await nameWaypoints()
         }
     }
@@ -178,13 +229,15 @@ final class RouteEditingModel {
             if let label, let j = waypoints.firstIndex(where: { $0.id == wp.id }),
                (waypoints[j].name ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
                 waypoints[j].name = label
-                dirty = true
+                markDirty()
             }
         }
     }
 
-    func save(activityId: UUID, onSaved: @escaping () -> Void) {
+    func save(activityId: UUID, onSaved: @escaping () -> Void = {}) {
         guard waypoints.count >= 2, !busy else { return }
+        self.activityId = activityId
+        autoSaveTask?.cancel()
         dirty = false
         isSaving = true
         Task {
@@ -202,6 +255,7 @@ final class RouteEditingModel {
     }
 
     func load(activityId: UUID) async {
+        self.activityId = activityId
         waypoints = await AppServices.shared.initialWaypoints(activityId: activityId)
         if let data = try? await repository.fetchTrackData(id: activityId), let pts = try? TrackPointCodec.decode(data), pts.count >= 2 {
             let track = pts.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }

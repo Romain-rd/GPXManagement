@@ -195,9 +195,9 @@ struct ParcoursDetailView: View {
         .navigationTitle(activity.title)
         .task(id: activity.id) { await load() }
         .task(id: AppServices.shared.libraryRevision) {
-            guard !points.isEmpty, grabbed == nil else { return }
-            let loaded = ((try? await repository.fetchStagesResolved(activityId: activity.id, points: points)) ?? []).sorted { $0.order < $1.order }
-            if !loaded.isEmpty { stages = loaded }
+            // Après un enregistrement (manuel ou automatique), recharge profil + étapes depuis le tracé sauvegardé.
+            guard initialToolSet, grabbed == nil, !routeModel.busy else { return }
+            await load()
         }
         .alert("Ajouter une étape", isPresented: $showAddDialog) {
             TextField("Distance (km)", text: $addKmRaw)
@@ -256,12 +256,12 @@ struct ParcoursDetailView: View {
                 // Barre adaptative : une ligne si la largeur suffit, sinon deux lignes (écran étroit).
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 10) {
-                        toolsGroup; Divider().frame(height: 18); lockButton; Divider().frame(height: 18)
+                        toolsGroup; Divider().frame(height: 18); undoRedoButtons; Divider().frame(height: 18); lockButton; Divider().frame(height: 18)
                         searchField; enginePicker; recalcButton; fitButton
                         Spacer(); pointCount; saveButton
                     }
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 10) { toolsGroup; Divider().frame(height: 18); lockButton; Spacer(); pointCount; saveButton }
+                        HStack(spacing: 10) { toolsGroup; Divider().frame(height: 18); undoRedoButtons; Divider().frame(height: 18); lockButton; Spacer(); pointCount; saveButton }
                         HStack(spacing: 8) { searchField; enginePicker; recalcButton; fitButton; Spacer() }
                     }
                 }
@@ -370,6 +370,18 @@ struct ParcoursDetailView: View {
         }
         .labelsHidden().pickerStyle(.menu).fixedSize()
         .help("Profil de déplacement. Le fournisseur de routage se choisit dans Réglages › Itinéraire.")
+    }
+
+    private var undoRedoButtons: some View {
+        HStack(spacing: 2) {
+            Button { routeModel.undo() } label: { Image(systemName: "arrow.uturn.backward").frame(width: 26, height: 24) }
+                .help("Annuler (⌘Z)").disabled(!routeModel.canUndo || routeModel.busy)
+                .keyboardShortcut("z", modifiers: .command)
+            Button { routeModel.redo() } label: { Image(systemName: "arrow.uturn.forward").frame(width: 26, height: 24) }
+                .help("Rétablir (⇧⌘Z)").disabled(!routeModel.canRedo || routeModel.busy)
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+        }
+        .buttonStyle(.borderless)
     }
 
     private var recalcButton: some View {
