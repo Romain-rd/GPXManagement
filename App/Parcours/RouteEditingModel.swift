@@ -68,7 +68,7 @@ final class RouteEditingModel {
     }
 
     private func coord(_ w: RouteWaypoint) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: w.latitude, longitude: w.longitude) }
-    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId, isArrival: $0 == waypoints.count - 1 && waypoints.count >= 2) } }
+    var markers: [WaypointMarker] { waypoints.enumerated().map { WaypointMarker(id: $1.id, coordinate: coord($1), index: $0, role: $1.role, name: $1.name, label: "\($0 + 1)", isSelected: $1.id == selectedWaypointId, isArrival: $0 == waypoints.count - 1 && waypoints.count >= 2, isDeparture: $0 == 0 && waypoints.count >= 2) } }
     var hasPending: Bool { segments.contains(where: { $0 == nil }) }
     var busy: Bool { isRouting || isSaving }
 
