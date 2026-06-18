@@ -198,7 +198,7 @@ public enum HTMLReportRenderer {
     // MARK: - Parcours en étapes (page web mono-page, style app iPhone)
 
     private struct RouteStageVM {
-        let index: Int; let name: String; let arrival: String; let dateText: String
+        let index: Int; let name: String; let departure: String; let arrival: String; let dateText: String; let notes: String
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
     }
     private struct RouteMarkerVM {
@@ -221,20 +221,24 @@ public enum HTMLReportRenderer {
         let maxPerStage = max(200, 1800 / max(stages.count, 1))
         var stageVMs: [RouteStageVM] = []
         if stages.isEmpty {
-            stageVMs.append(RouteStageVM(index: 1, name: activity.title, arrival: "", dateText: fmtDateShort(activity.startDate),
-                                         distance: activity.distance, gain: activity.elevationGain,
+            stageVMs.append(RouteStageVM(index: 1, name: activity.title, departure: "", arrival: "", dateText: fmtDateShort(activity.startDate),
+                                         notes: "", distance: activity.distance, gain: activity.elevationGain,
                                          coords: decimatedCoords(points, max: 1800), color: raidPalette[0]))
         } else {
             let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            var prevArrival = waypoints.first?.name ?? ""
             for (i, s) in stages.enumerated() {
                 let lo = max(0, min(s.startIndex, points.count - 1)), hi = max(0, min(s.endIndex, points.count - 1))
                 let slice = lo <= hi ? Array(points[lo...hi]) : []
                 let st = s.stats(in: points)
                 let arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
-                stageVMs.append(RouteStageVM(index: i + 1, name: s.name.isEmpty ? "Étape \(i + 1)" : s.name, arrival: arrival,
+                stageVMs.append(RouteStageVM(index: i + 1, name: s.name.isEmpty ? "Étape \(i + 1)" : s.name,
+                                             departure: prevArrival, arrival: arrival,
                                              dateText: s.plannedDate.map { fmtDateShort($0) } ?? "",
+                                             notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                                              distance: st.distance, gain: st.elevationGain,
                                              coords: decimatedCoords(slice, max: maxPerStage), color: raidPalette[i % raidPalette.count]))
+                if !arrival.isEmpty { prevArrival = arrival }
             }
         }
 
@@ -266,6 +270,11 @@ public enum HTMLReportRenderer {
             let route = s.arrival.isEmpty ? esc(s.name) : "\(esc(s.name)) — \(esc(s.arrival))"
             return "<a class=\"st-row\" data-stage=\"\(s.index)\"><span class=\"st-badge\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"st-info\"><span class=\"st-title\">\(route)</span><span class=\"st-meta\">\(esc(meta))</span></div><span class=\"st-chev\">›</span></a>"
         }.joined()
+        let chips = stages.map { "<a class=\"ed-chip\" data-go=\"\($0.index)\">J\($0.index)</a>" }.joined()
+        let stagesJS = stages.map { s -> String in
+            let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
+            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords)}"
+        }.joined(separator: ",")
 
         let infoCards = [
             metricCard("📏", "Distance", totalKm),
@@ -293,8 +302,23 @@ public enum HTMLReportRenderer {
               <div class="map-banner"><strong>\(esc(activity.title))</strong><span>\(esc(summary))</span></div>
             </section>
             <section class="tabview" id="tab-etapes">
-              <header class="tv-head"><h1>Étapes</h1></header>
-              <div class="st-list">\(stageRows)</div>
+              <div id="etapes-list">
+                <header class="tv-head"><h1>Étapes</h1></header>
+                <div class="st-list">\(stageRows)</div>
+              </div>
+              <div id="etape-detail" hidden>
+                <header class="ed-head">
+                  <a class="ed-back">‹ Étapes</a>
+                  <div class="ed-chips">\(chips)</div>
+                </header>
+                <div id="stage-map" class="ed-map"></div>
+                <div class="ed-body">
+                  <h2 id="ed-title"></h2>
+                  <p id="ed-meta"></p>
+                  <p id="ed-notes" class="notes"></p>
+                </div>
+                <div class="ed-nav"><a id="ed-prev" class="ed-navbtn"></a><a id="ed-next" class="ed-navbtn"></a></div>
+              </div>
             </section>
             <section class="tabview" id="tab-profil">
               <header class="tv-head"><h1>Profil</h1></header>
@@ -312,7 +336,9 @@ public enum HTMLReportRenderer {
             <a class="tabitem" data-tab="infos"><span class="ti-ic">ℹ️</span><span class="ti-l">Infos</span></a>
           </nav>
         </div>
+        <script>window.__stages=[\(stagesJS)];</script>
         \(routeMapScript(stages: stages, markers: markers, tile: tile, accent: accent))
+        \(stageDetailScript(tile: tile))
         <script>
         (function(){
           var items = [].slice.call(document.querySelectorAll('.tabitem'));
@@ -321,10 +347,11 @@ public enum HTMLReportRenderer {
           function show(tab){
             items.forEach(function(it){ it.classList.toggle('active', it.getAttribute('data-tab') === tab); });
             Object.keys(views).forEach(function(k){ views[k].classList.toggle('active', k === tab); });
+            if (tab === 'etapes' && window.__closeStage) window.__closeStage();
             if (tab === 'carte' && window.__routeMap) { setTimeout(function(){ window.__routeMap.invalidateSize(); }, 60); }
           }
           items.forEach(function(it){ it.addEventListener('click', function(){ show(it.getAttribute('data-tab')); }); });
-          [].slice.call(document.querySelectorAll('.st-row')).forEach(function(r){ r.addEventListener('click', function(){ show('carte'); }); });
+          [].slice.call(document.querySelectorAll('.st-row')).forEach(function(r){ r.addEventListener('click', function(){ if (window.__openStage) window.__openStage(+r.getAttribute('data-stage') - 1); }); });
         })();
         </script>
         </body>
@@ -370,6 +397,61 @@ public enum HTMLReportRenderer {
         """
     }
 
+    private static func stageDetailScript(tile: WebTileLayer) -> String {
+        return """
+        <script>
+        (function(){
+          var S = window.__stages || [];
+          var detail = document.getElementById('etape-detail'), list = document.getElementById('etapes-list');
+          if (!detail || !list) return;
+          var smap = null, slayers = [], cur = 0;
+          function pin(glyph,bg){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:'+bg+'">'+glyph+'</div>', iconSize:[24,24], iconAnchor:[12,12] }); }
+          function ensureMap(){
+            if (smap) return;
+            smap = L.map('stage-map', { scrollWheelZoom:true });
+            L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom:\(tile.maxZoom), attribution:\(jsString(tile.attribution)) }).addTo(smap);
+          }
+          function draw(i){
+            ensureMap();
+            slayers.forEach(function(l){ smap.removeLayer(l); }); slayers = [];
+            S.forEach(function(s,k){ if (!s.coords.length) return; var a = k===i;
+              slayers.push(L.polyline(s.coords, { color: a ? s.color : '#b9b9bd', weight: a ? 6 : 3, opacity: a ? 0.95 : 0.45 }).addTo(smap)); });
+            var c = S[i].coords;
+            if (c.length){
+              slayers.push(L.marker(c[0], { icon: pin('⚑','#3cb44b') }).addTo(smap));
+              slayers.push(L.marker(c[c.length-1], { icon: pin(i===S.length-1?'🏁':String(i+1),'#3cb44b') }).addTo(smap));
+              setTimeout(function(){ smap.invalidateSize(); smap.fitBounds(L.latLngBounds(c), { padding:[26,26] }); }, 30);
+            }
+          }
+          function open(i){
+            if (i<0 || i>=S.length) return;
+            cur = i; var s = S[i];
+            document.getElementById('ed-title').textContent = s.name + (s.arr ? ' — ' + s.arr : '');
+            var route = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : '';
+            document.getElementById('ed-meta').textContent = [s.date, route, s.dist, s.gain].filter(Boolean).join(' · ');
+            var notes = document.getElementById('ed-notes'); notes.textContent = s.notes || ''; notes.style.display = s.notes ? '' : 'none';
+            [].slice.call(document.querySelectorAll('.ed-chip')).forEach(function(c){ c.classList.toggle('active', +c.getAttribute('data-go') === i+1); });
+            var p = document.getElementById('ed-prev'), n = document.getElementById('ed-next');
+            p.textContent = i>0 ? '‹ J'+i : ''; p.style.visibility = i>0 ? 'visible' : 'hidden';
+            n.textContent = i<S.length-1 ? 'J'+(i+2)+' ›' : ''; n.style.visibility = i<S.length-1 ? 'visible' : 'hidden';
+            list.hidden = true; detail.hidden = false;
+            var tv = document.getElementById('tab-etapes'); if (tv) tv.scrollTop = 0;
+            draw(i);
+          }
+          window.__openStage = open;
+          window.__closeStage = function(){ detail.hidden = true; list.hidden = false; };
+          var back = document.querySelector('.ed-back'); if (back) back.addEventListener('click', window.__closeStage);
+          document.getElementById('ed-prev').addEventListener('click', function(){ if (cur>0) open(cur-1); });
+          document.getElementById('ed-next').addEventListener('click', function(){ if (cur<S.length-1) open(cur+1); });
+          [].slice.call(document.querySelectorAll('.ed-chip')).forEach(function(c){ c.addEventListener('click', function(){ open(+c.getAttribute('data-go')-1); }); });
+          var sx=0, sy=0;
+          detail.addEventListener('touchstart', function(e){ sx=e.touches[0].clientX; sy=e.touches[0].clientY; }, {passive:true});
+          detail.addEventListener('touchend', function(e){ var dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy; if (Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)){ if (dx<0) open(cur+1); else open(cur-1); } }, {passive:true});
+        })();
+        </script>
+        """
+    }
+
     private static let routeCSS = """
     html, body { height:100%; }
     .route-app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
@@ -402,7 +484,21 @@ public enum HTMLReportRenderer {
     .tabitem.active .ti-ic { filter:none; }
     .rm-wrap { background:transparent; border:0; }
     .rm-pin { width:24px; height:24px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+    /* Détail d'étape */
+    #etape-detail:not([hidden]) { display:flex; flex-direction:column; min-height:100%; }
+    .ed-head { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:3; }
+    .ed-back { color:var(--accent); cursor:pointer; font-weight:600; white-space:nowrap; }
+    .ed-chips { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .ed-chip { flex:0 0 auto; padding:5px 12px; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--sec); cursor:pointer; font-size:13px; font-weight:600; text-decoration:none; }
+    .ed-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .ed-map { width:100%; height:300px; background:var(--card); z-index:0; }
+    .ed-body { padding:16px; flex:1; }
+    .ed-body h2 { margin:0 0 4px; font-size:21px; font-weight:700; letter-spacing:-.01em; }
+    #ed-meta { margin:0 0 14px; color:var(--sec); }
+    .ed-nav { position:sticky; bottom:0; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 14px; background:var(--card); border-top:1px solid var(--line); min-height:22px; }
+    .ed-navbtn { color:var(--accent); cursor:pointer; font-weight:600; padding:6px 8px; }
     @media (min-width:920px) {
+      .ed-map { height:440px; }
       .route-app { flex-direction:row; }
       .tabbar { order:-1; flex-direction:column; width:210px; flex:0 0 auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
       .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
