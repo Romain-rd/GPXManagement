@@ -35,3 +35,4 @@ build/
 
 # DMG de release placé pour déploiement (binaire, non versionné)
 web/download/*.dmg
+build-release.log
