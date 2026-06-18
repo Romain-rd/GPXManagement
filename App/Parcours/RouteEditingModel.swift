@@ -249,6 +249,13 @@ final class RouteEditingModel {
         save(activityId: activityId, onSaved: onSaved)
     }
 
+    /// Enregistre tout de suite s'il y a des modifications en attente (fermeture de fenêtre, navigation).
+    func saveIfDirty() {
+        guard dirty, waypoints.count >= 2, let id = activityId else { return }
+        autoSaveTask?.cancel()
+        save(activityId: id)
+    }
+
     func load(activityId: UUID) async {
         self.activityId = activityId
         waypoints = await AppServices.shared.initialWaypoints(activityId: activityId)

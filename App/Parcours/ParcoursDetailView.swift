@@ -196,6 +196,7 @@ struct ParcoursDetailView: View {
         .navigationTitle(activity.title)
         .task(id: activity.id) { routeModel.undoManager = undoManager; await load() }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
+        .onDisappear { routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
         .task(id: AppServices.shared.libraryRevision) {
             // Après un enregistrement (manuel ou automatique), recharge profil + étapes depuis le tracé sauvegardé.
             guard initialToolSet, grabbed == nil, !routeModel.busy else { return }
@@ -395,9 +396,17 @@ struct ParcoursDetailView: View {
     private var pointCount: some View {
         Text("\(routeModel.waypoints.count) pt").font(.caption).foregroundStyle(.secondary).monospacedDigit()
     }
-    private var saveButton: some View {
-        Button { routeModel.save(activityId: activity.id) { Task { await load() } } } label: { Label("Enregistrer", systemImage: "checkmark") }
-            .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.waypoints.count < 2 || routeModel.busy)
+    /// État d'enregistrement (auto-save) : en cours / modifié (enregistrer maintenant) / enregistré.
+    @ViewBuilder private var saveButton: some View {
+        if routeModel.isSaving {
+            HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Enregistrement…").font(.caption).foregroundStyle(.secondary) }
+        } else if routeModel.dirty {
+            Button { routeModel.save(activityId: activity.id) } label: { Label("Enregistrer", systemImage: "checkmark") }
+                .buttonStyle(.borderedProminent).controlSize(.small).disabled(routeModel.waypoints.count < 2)
+                .help("Enregistrer maintenant (sinon automatique après quelques secondes)")
+        } else {
+            Label("Enregistré", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+        }
     }
 
     private func toolButton(_ t: ParcoursTool, _ icon: String, _ help: String) -> some View {
