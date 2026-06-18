@@ -44,6 +44,7 @@
         <attribute name="webPublishConfig" optional="YES" attributeType="String"/>
         <attribute name="webPublishedURL" optional="YES" attributeType="String"/>
         <attribute name="filmPublishedURL" optional="YES" attributeType="String"/>
+        <relationship name="stages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Stage" inverseName="activity" inverseEntity="Stage"/>
     </entity>
     <entity name="Raid" representedClassName="NSManagedObject" syncable="YES" codeGenerationType="none">
         <attribute name="coverImageData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
@@ -76,6 +77,7 @@
         <attribute name="startConnectorData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <attribute name="stopWaypointId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="updatedAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>
+        <relationship name="activity" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Activity" inverseName="stages" inverseEntity="Activity"/>
     </entity>
     <entity name="SmartFilter" representedClassName="NSManagedObject" syncable="YES" codeGenerationType="none">
         <attribute name="createdAt" attributeType="Date" defaultDateTimeInterval="0" usesScalarValueType="NO"/>

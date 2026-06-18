@@ -417,9 +417,16 @@ extension CoreDataActivityRepository {
             let fetch = NSFetchRequest<NSManagedObject>(entityName: "Stage")
             fetch.predicate = NSPredicate(format: "activityId == %@", activityId as CVarArg)
             for obj in try context.fetch(fetch) { context.delete(obj) }
+            // Relation vers l'activité parente : indispensable pour que les étapes voyagent avec
+            // le parcours lors d'un partage CloudKit (CKShare partage le graphe via les relations).
+            let activityFetch = NSFetchRequest<NSManagedObject>(entityName: "Activity")
+            activityFetch.predicate = NSPredicate(format: "id == %@", activityId as CVarArg)
+            activityFetch.fetchLimit = 1
+            let activity = try context.fetch(activityFetch).first
             for stage in stages {
                 let obj = NSEntityDescription.insertNewObject(forEntityName: "Stage", into: context)
                 StageMapper.apply(stage, to: obj)
+                obj.setValue(activity, forKey: "activity")
             }
             try context.save()
         }

@@ -252,6 +252,12 @@ struct ParcoursDetailView: View {
                 Button { showWebSheet = true } label: { Image(systemName: "globe") }
                     .help("Page web du parcours (aperçu / publication)")
             }
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    Task { await ParcoursSharingController.shared.shareParcours(activityId: activity.id) }
+                } label: { Image(systemName: "person.crop.circle.badge.plus") }
+                    .help("Partager ce parcours avec un autre utilisateur (iCloud)")
+            }
         }
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in

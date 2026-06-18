@@ -4,6 +4,7 @@ import Sparkle
 
 @main
 struct GPXManagementApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var services = AppServices.shared
     @State private var updateGate = UpdateGate.shared
     // Sparkle : démarre les vérifications automatiques (appcast SUFeedURL) dès le lancement.
