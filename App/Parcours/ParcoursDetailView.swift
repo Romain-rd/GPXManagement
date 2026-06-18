@@ -192,7 +192,6 @@ struct ParcoursDetailView: View {
             }
         }
         .navigationTitle(activity.title)
-        .sheet(item: $webPreviewDir) { RouteWebPreviewSheet(dir: $0.url) }
         .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load() }
         .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
@@ -290,10 +289,7 @@ struct ParcoursDetailView: View {
     }
 
     @State private var webPreviewBusy = false
-    @State private var webPreviewDir: PreviewDir?
-    private struct PreviewDir: Identifiable { let id = UUID(); let url: URL }
-    /// Test phases 1-3 : génère la page web mono-page du parcours dans un dossier temporaire et l'affiche dans l'app
-    /// (WKWebView) — Safari ne peut pas lire le container sandbox de l'app.
+    /// Test phases 1-3 : génère la page web mono-page dans le dossier Téléchargements et l'ouvre dans le navigateur.
     private func previewWeb() {
         guard !webPreviewBusy else { return }
         webPreviewBusy = true
@@ -302,14 +298,15 @@ struct ParcoursDetailView: View {
             defer { webPreviewBusy = false }
             do {
                 let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: WebExportOptions())
-                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("route-preview-\(act.id.uuidString)", isDirectory: true)
+                let downloads = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                let dir = downloads.appendingPathComponent("GPXManagement-apercu/\(act.id.uuidString)", isDirectory: true)
                 try? FileManager.default.removeItem(at: dir)
                 for (rel, data) in files {
                     let url = dir.appendingPathComponent(rel)
                     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                     try data.write(to: url)
                 }
-                webPreviewDir = PreviewDir(url: dir)
+                NSWorkspace.shared.open(dir.appendingPathComponent("index.html"))
             } catch {
                 NSLog("Aperçu web parcours — échec : \(error)")
             }
