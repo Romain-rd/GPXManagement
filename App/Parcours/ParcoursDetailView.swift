@@ -37,6 +37,7 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
     @State private var titleDraft = ""
+    @State private var contentWidth: CGFloat = 0
     @State private var hasStoredWaypoints = false
     @State private var placeSearch = PlaceSearchModel()
     @State private var searchResult: (name: String, coordinate: CLLocationCoordinate2D)?
@@ -163,7 +164,6 @@ struct ParcoursDetailView: View {
                         if activity.isEditableRoute {
                             routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 200, max: 900)
-                            if !routeModel.waypoints.isEmpty { pointsList }
                         } else {
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 140, max: 700)
@@ -175,16 +175,10 @@ struct ParcoursDetailView: View {
                             profileChart.frame(height: profileHeight)
                             resizeHandle($profileHeight, min: 90, max: 500)
                         }
-                        // Détail des étapes : EN DIRECT en mode modifiable (dès qu'un itinéraire existe, sans
-                        // enregistrer) ; sur le tracé sauvegardé en mode fidèle.
-                        if activity.isEditableRoute {
-                            if routeModel.waypoints.count >= 2 { parcoursOutline }
-                        } else if !points.isEmpty {
-                            parcoursOutline
-                            actions
-                        }
+                        listsSection
                     }
                     .padding()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 }
             }
         }
@@ -244,6 +238,25 @@ struct ParcoursDetailView: View {
         stages[k].name = renameText.trimmingCharacters(in: .whitespaces)
         renamingStageId = nil
         persist()
+    }
+
+    /// Listes points + étapes : côte à côte si la fenêtre est large (carte/profil restent pleine largeur), empilées sinon.
+    @ViewBuilder private var listsSection: some View {
+        if activity.isEditableRoute {
+            let showStages = routeModel.waypoints.count >= 2
+            if contentWidth > 1100 {
+                HStack(alignment: .top, spacing: 24) {
+                    if !routeModel.waypoints.isEmpty { pointsList.frame(width: 360) }
+                    if showStages { parcoursOutline.frame(maxWidth: .infinity, alignment: .topLeading) }
+                }
+            } else {
+                if !routeModel.waypoints.isEmpty { pointsList }
+                if showStages { parcoursOutline }
+            }
+        } else if !points.isEmpty {
+            parcoursOutline
+            actions
+        }
     }
 
     private var header: some View {
