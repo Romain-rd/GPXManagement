@@ -36,6 +36,7 @@ struct ParcoursDetailView: View {
     @State private var showEditableRouteDialog = false
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
+    @State private var titleDraft = ""
     @State private var hasStoredWaypoints = false
     @State private var placeSearch = PlaceSearchModel()
     @State private var searchResult: (name: String, coordinate: CLLocationCoordinate2D)?
@@ -194,7 +195,8 @@ struct ParcoursDetailView: View {
             }
         }
         .navigationTitle(activity.title)
-        .task(id: activity.id) { routeModel.undoManager = undoManager; await load() }
+        .task(id: activity.id) { titleDraft = activity.title; routeModel.undoManager = undoManager; await load() }
+        .onChange(of: activity.title) { titleDraft = $1 }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
         .onDisappear { routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
         .task(id: AppServices.shared.libraryRevision) {
@@ -245,12 +247,30 @@ struct ParcoursDetailView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(activity.title).font(.title2.bold())
-            Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
-                        totalGainWithConnectors, stages.count))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Titre du parcours", text: $titleDraft)
+                .font(.title2.bold()).textFieldStyle(.plain)
+                .onSubmit { commitTitle() }
+            HStack(spacing: 10) {
+                Menu {
+                    activityTypeMenuItems(selected: activity.activityType) { type in
+                        Task { await listVM.updateType(id: activity.id, type: type) }
+                    }
+                } label: {
+                    Label(activity.activityType.displayName, systemImage: "tag")
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                Text(String(format: "%.0f km · +%d m · %d étape(s)", totalKmWithConnectors,
+                            totalGainWithConnectors, stages.count))
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    private func commitTitle() {
+        let t = titleDraft.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, t != activity.title else { return }
+        Task { await listVM.updateTitle(id: activity.id, title: t) }
     }
 
     private var toolPalette: some View {
