@@ -87,6 +87,10 @@ struct ParcoursDetailView: View {
     @State private var showReverseConfirm = false
     @State private var showSplitConfirm = false
     @State private var showSplitSheet = false
+    @AppStorage("parcSecInfo") private var secInfoExpanded = true
+    @AppStorage("parcSecMap") private var secMapExpanded = true
+    @AppStorage("parcSecProfile") private var secProfileExpanded = true
+    @AppStorage("parcSecStages") private var secStagesExpanded = true
     @AppStorage("parcoursRecalcKm") private var recalcKmRaw = "20"
     @AppStorage("parcoursRecalcGain") private var recalcGainRaw = ""
 
@@ -176,31 +180,13 @@ struct ParcoursDetailView: View {
                 ProgressView("Chargement…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 18) {
                         header
                         webPublishedSection
-                        toolPalette
-                        // Parcours modifiable : UNE carte d'itinéraire pour TOUS les outils (✚ ajoute un point de
-                        // route, 📍 un POI, 🚩 un arrêt d'étape, 🖐 sélectionne) — pas de bascule de carte.
-                        // Parcours fidèle : carte d'annotation (tracé verrouillé).
-                        if activity.isEditableRoute {
-                            routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
-                            resizeHandle($mapHeight, min: 200, max: 900)
-                        } else {
-                            overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
-                            resizeHandle($mapHeight, min: 140, max: 700)
-                        }
-                        // Écran large + parcours modifiable avec profil : profil à GAUCHE, liste des points à DROITE.
-                        if activity.isEditableRoute, contentWidth > 1100, !points.isEmpty, !routeModel.waypoints.isEmpty {
-                            HStack(alignment: .top, spacing: 24) {
-                                VStack(alignment: .leading, spacing: 12) { profileSection }
-                                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                                pointsList.frame(width: 420)
-                            }
-                        } else {
-                            profileSection
-                            listsSection
-                        }
+                        infoSection
+                        mapSection
+                        profileCollapsible
+                        stagesCollapsible
                     }
                     .padding()
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
@@ -531,6 +517,89 @@ struct ParcoursDetailView: View {
         guard !t.isEmpty, t != activity.title else { return }
         Task { await listVM.updateTitle(id: activity.id, title: t) }
     }
+
+    // MARK: Sections repliables (même présentation que l'activité/le raid)
+
+    @ViewBuilder private func sectionChevron(_ expanded: Binding<Bool>) -> some View {
+        Button { withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() } } label: {
+            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0)).frame(width: 14, height: 14).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sectionHeader(_ title: String, _ icon: String, _ expanded: Binding<Bool>) -> some View {
+        HStack(spacing: 6) {
+            sectionChevron(expanded)
+            Label(title, systemImage: icon).font(.headline)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.snappy(duration: 0.2)) { expanded.wrappedValue.toggle() } }
+    }
+
+    private func statCard(_ icon: String, _ tint: Color, _ value: String, _ label: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(tint).font(.system(size: 16)).frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value).font(.callout.weight(.semibold))
+                Text(label).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
+    }
+
+    @ViewBuilder private var infoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Informations", "info.circle", $secInfoExpanded)
+            if secInfoExpanded {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 10)], spacing: 10) {
+                    statCard("ruler", .blue, String(format: "%.1f km", totalKmWithConnectors), "Distance")
+                    statCard("arrow.up.right", .green, "+\(totalGainWithConnectors) m", "Dénivelé +")
+                    statCard("flag.fill", .orange, "\(stages.count)", "Étapes")
+                    if let d = baseDate { statCard("calendar", .purple, Self.infoDateFormatter.string(from: d), "Départ") }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var mapSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Carte", "map", $secMapExpanded)
+            if secMapExpanded {
+                toolPalette
+                if activity.isEditableRoute {
+                    routeMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                    resizeHandle($mapHeight, min: 200, max: 900)
+                } else {
+                    overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
+                    resizeHandle($mapHeight, min: 140, max: 700)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var profileCollapsible: some View {
+        if !points.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionHeader("Profil", "chart.xyaxis.line", $secProfileExpanded)
+                if secProfileExpanded { profileSection }
+            }
+        }
+    }
+
+    @ViewBuilder private var stagesCollapsible: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(activity.isEditableRoute ? "Le long du parcours" : "Étapes", "flag.fill", $secStagesExpanded)
+            if secStagesExpanded { listsSection }
+        }
+    }
+
+    private static let infoDateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .medium; return f
+    }()
 
     private var toolPalette: some View {
         Group {
@@ -1034,7 +1103,7 @@ struct ParcoursDetailView: View {
         let info = stageInfoByStop()
         let count = routeModel.waypoints.count
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Le long du parcours · glisser pour réordonner, cliquer la pastille pour le rôle")
+            Text("Glisser pour réordonner, cliquer la pastille pour le rôle")
                 .font(.caption).foregroundStyle(.secondary)
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
