@@ -576,8 +576,11 @@ public enum HTMLReportRenderer {
     .tabview { display:none; }
     .tabview.active { display:block; padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
     #tab-carte.active { display:block; }
-    .route-map { width:100%; height:calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom)); min-height:300px; background:var(--card); z-index:0; }
-    .map-banner { background:var(--card); border-top:1px solid var(--line); padding:10px 16px; display:flex; flex-direction:column; gap:1px; }
+    /* Carte d'accueil : plein écran immersif, sous le notch en haut, jusqu'à la tab bar en bas. */
+    .route-map { position:fixed; top:0; left:0; right:0; bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom)); width:auto; height:auto; background:var(--card); z-index:0; }
+    .route-map .leaflet-top { padding-top:env(safe-area-inset-top); }
+    .route-map .leaflet-bottom { margin-bottom:52px; }
+    .map-banner { position:fixed; left:0; right:0; bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom)); z-index:5; background:color-mix(in srgb, var(--card) 82%, transparent); -webkit-backdrop-filter:saturate(180%) blur(16px); backdrop-filter:saturate(180%) blur(16px); border-top:1px solid color-mix(in srgb, var(--line) 55%, transparent); padding:10px 16px; display:flex; flex-direction:column; gap:1px; }
     .map-banner strong { font-size:16px; font-weight:700; letter-spacing:-.01em; }
     .map-banner span { font-size:13px; color:var(--sec); }
     .tv-head { padding:18px 16px 6px; }
@@ -641,7 +644,10 @@ public enum HTMLReportRenderer {
       .tabview { position:absolute; inset:0; overflow-y:auto; }
       .tabview.active { padding-bottom:0; }
       #tab-carte.active { display:flex; flex-direction:column; }
-      .route-map { flex:1; height:auto; min-height:0; }
+      .route-map { position:static; inset:auto; flex:1; width:100%; height:auto; min-height:0; }
+      .route-map .leaflet-top { padding-top:0; }
+      .route-map .leaflet-bottom { margin-bottom:0; }
+      .map-banner { position:static; }
       .tabbar { position:static; order:-1; flex-direction:column; width:210px; flex:0 0 auto; height:auto; border-top:0; border-right:1px solid var(--line); padding:18px 10px; gap:4px; align-content:flex-start; }
       .tabitem { flex:0 0 auto; flex-direction:row; gap:12px; justify-content:flex-start; padding:12px 16px; font-size:15px; border-radius:10px; }
       .tabitem.active { background:var(--bg); }
