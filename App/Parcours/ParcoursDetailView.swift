@@ -157,6 +157,7 @@ struct ParcoursDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
+                        webPublishedSection
                         toolPalette
                         // Parcours modifiable : UNE carte d'itinéraire pour TOUS les outils (✚ ajoute un point de
                         // route, 📍 un POI, 🚩 un arrêt d'étape, 🖐 sélectionne) — pas de bascule de carte.
@@ -337,6 +338,43 @@ struct ParcoursDetailView: View {
             }
         }
         .padding(24).frame(width: 560)
+    }
+
+    /// Indicateur « Publié sur le web » dans la fiche (même pattern que trace/raid) : republier, ouvrir, copier, supprimer.
+    @ViewBuilder private var webPublishedSection: some View {
+        if let urlString = webPublishedURL, let url = URL(string: urlString) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "globe").foregroundStyle(.tint)
+                    Text("Publié sur le web").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button { republishRoute() } label: {
+                        if isPublishing { ProgressView().controlSize(.small) } else { Label("Republier", systemImage: "arrow.clockwise") }
+                    }
+                    .disabled(isPublishing || !BunnyStorageService.isConfigured).help("Republier avec les mêmes paramètres")
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Ouvrir", systemImage: "arrow.up.right.square") }
+                    Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(urlString, forType: .string) } label: { Image(systemName: "doc.on.doc") }
+                        .help("Copier le lien")
+                    Button(role: .destructive) { unpublishRoute() } label: { Label("Supprimer", systemImage: "trash") }
+                        .disabled(!BunnyStorageService.isConfigured).help("Retire la page publiée du web")
+                }
+                .controlSize(.small)
+                Link(destination: url) {
+                    Text(urlString).lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.callout)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
+        }
+    }
+
+    private func republishRoute() {
+        if let json = webPublishConfig, let d = json.data(using: .utf8), let opts = try? JSONDecoder().decode(WebExportOptions.self, from: d) {
+            webOptions = opts
+        }
+        publishRoute()
     }
 
     private func loadWebState() async {
