@@ -123,10 +123,10 @@ final class RouteEditingModel {
 
     /// Insère le point à sa place le long du tracé : juste après le segment routé qui passe le plus près de `c`
     /// (au-delà de la fin → ajout en bout ; au-delà du début → en tête). Cohérent pour le clic ET la recherche.
-    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping) {
+    func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping, name: String? = nil) {
         guard !busy else { return }
         snapshot("Ajouter un point")
-        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, role: role)
+        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, name: name, role: role)
         let p = bestInsertionIndex(for: c)
         waypoints.insert(wp, at: p)
         if waypoints.count == 2 { segments = [nil] }

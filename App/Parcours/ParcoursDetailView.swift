@@ -379,7 +379,7 @@ struct ParcoursDetailView: View {
     /// Ajoute le lieu trouvé comme point de passage (rôle selon l'outil actif, POI par défaut).
     private func addSearchResult() {
         guard let r = searchResult else { return }
-        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi)
+        routeModel.addWaypoint(at: r.coordinate, role: roleForTool ?? .poi, name: r.name)
         searchResult = nil
         placeSearch.clear()
     }
