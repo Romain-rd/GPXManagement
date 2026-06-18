@@ -668,9 +668,12 @@ public struct TrackMapView: NSViewRepresentable {
             if let photo = view.annotation as? PhotoAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: false)
                 onSelectPhoto?(photo.id)
-            } else if view.annotation is WaypointAnnotation {
-                // Sélection gérée par WaypointInteractionRecognizer ; on annule la sélection native.
+            } else if let wp = view.annotation as? WaypointAnnotation {
+                // Clic sur la pastille = sélection native ; clic sur le nom / glissement = reconnaisseur.
+                // Les deux appellent onWaypointTapped (affectation, pas bascule) → aucun conflit.
                 mapView.deselectAnnotation(view.annotation, animated: false)
+                onWaypointTapped?(wp.waypointId)
+                NSLog("🟦MAP didSelect → select wp \(wp.index + 1)")
             }
         }
 
