@@ -91,6 +91,9 @@ struct ParcoursDetailView: View {
     @State private var coverData: Data?
     @State private var coverPickerItem: PhotosPickerItem?
     @State private var fullscreenMap = false
+    @AppStorage("parcShowStages") private var showStages = true
+    @AppStorage("parcShowPOI") private var showPOI = true
+    @AppStorage("parcShowShaping") private var showShaping = false   // points de tracé masqués par défaut (lisibilité)
     @AppStorage("parcSecInfo") private var secInfoExpanded = true
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
@@ -651,6 +654,7 @@ struct ParcoursDetailView: View {
                     overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                     resizeHandle($mapHeight, min: 140, max: 700)
                 }
+                layersLegend
             }
         }
     }
@@ -661,7 +665,7 @@ struct ParcoursDetailView: View {
             StageColoredMap(activityId: activity.id, activityType: activity.activityType,
                             coords: activity.isEditableRoute ? routeModel.displayCoords : coords,
                             stages: activity.isEditableRoute ? displayStages() : stages,
-                            waypoints: activity.isEditableRoute ? routeModel.markers : (poiMarkers + boundaryMarkers),
+                            waypoints: visibleMarkers(activity.isEditableRoute ? routeModel.markers : (poiMarkers + boundaryMarkers)),
                             showsLayerPicker: false, layer: layerBinding)
                 .ignoresSafeArea()
                 .overlay(alignment: .topTrailing) {
@@ -879,7 +883,7 @@ struct ParcoursDetailView: View {
 
     private var overviewMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages,
-                        highlight: dragCoord, waypoints: poiMarkers + boundaryMarkers,
+                        highlight: dragCoord, waypoints: visibleMarkers(poiMarkers + boundaryMarkers),
                         onWaypointMoved: { id, c in moveMarker(id: id, to: c) },
                         onWaypointTapped: { tapMarker($0) },
                         onMapClick: tool == .poi || tool == .stageStop ? { mapClick(at: $0) } : nil,
@@ -894,6 +898,46 @@ struct ParcoursDetailView: View {
         case .stageStop: return .stageStop
         case .select: return nil
         }
+    }
+
+    /// Filtre les marqueurs selon les calques actifs (départ/arrivée toujours visibles).
+    private func visibleMarkers(_ markers: [WaypointMarker]) -> [WaypointMarker] {
+        markers.filter { m in
+            if m.isDeparture || m.isArrival { return true }
+            if m.stageIndex != nil { return showStages }
+            switch m.role {
+            case .poi: return showPOI
+            case .shaping: return showShaping
+            case .stageStop: return showStages
+            }
+        }
+    }
+
+    /// Légende-calques : chips pour afficher/masquer chaque catégorie de points (lisibilité de la carte).
+    private var layersLegend: some View {
+        HStack(spacing: 8) {
+            legendChip("Étapes", "J", Color(nsColor: MapTrackPalette.colors[0]), $showStages)
+            legendChip("POI", "P", .orange, $showPOI)
+            if activity.isEditableRoute { legendChip("Tracé", "T", .gray, $showShaping) }
+            Spacer()
+        }
+    }
+
+    private func legendChip(_ title: String, _ letter: String, _ color: Color, _ on: Binding<Bool>) -> some View {
+        Button { on.wrappedValue.toggle() } label: {
+            HStack(spacing: 5) {
+                Text(letter).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 16, height: 16).background(RoundedRectangle(cornerRadius: 4).fill(color))
+                Text(title).font(.caption)
+                Image(systemName: on.wrappedValue ? "eye" : "eye.slash").font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Capsule().fill(on.wrappedValue ? color.opacity(0.16) : Color.secondary.opacity(0.08)))
+            .foregroundStyle(on.wrappedValue ? .primary : .secondary)
+            .opacity(on.wrappedValue ? 1 : 0.55)
+        }
+        .buttonStyle(.plain)
+        .help(on.wrappedValue ? "Masquer \(title)" : "Afficher \(title)")
     }
 
     /// Icône du type de point en cours de pose, affichée sur la croix de visée (même symboles que la barre d'outils).
@@ -933,7 +977,7 @@ struct ParcoursDetailView: View {
 
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
-                        coords: routeModel.displayCoords, stages: displayStages(), waypoints: routeModel.markers + searchPreviewMarkers,
+                        coords: routeModel.displayCoords, stages: displayStages(), waypoints: visibleMarkers(routeModel.markers) + searchPreviewMarkers,
                         onWaypointMoved: { id, c in
                             if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
