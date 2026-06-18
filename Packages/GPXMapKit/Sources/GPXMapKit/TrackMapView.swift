@@ -899,14 +899,33 @@ final class PhotoAnnotation: MKPointAnnotation {
     var isVideo = false
 }
 
-/// MKMapView avec curseur en croix optionnel (mode « poser un point »). MKMapView remet son curseur au survol,
-/// donc on passe par les cursor rects d'AppKit (réappliqués automatiquement).
+/// MKMapView avec curseur en croix optionnel (mode « poser un point »). Les sous-vues internes de MKMapView
+/// remettent leur curseur au survol, donc les cursor rects ne suffisent pas : on possède une tracking area
+/// `.cursorUpdate` (le propriétaire de la zone reçoit `cursorUpdate`, pas la sous-vue) et on force la croix.
 final class CursorMapView: MKMapView {
+    private var cursorTracking: NSTrackingArea?
     var wantsCrosshair = false {
-        didSet { if oldValue != wantsCrosshair { window?.invalidateCursorRects(for: self) } }
+        didSet {
+            guard oldValue != wantsCrosshair else { return }
+            if !wantsCrosshair { NSCursor.arrow.set() }
+            window?.invalidateCursorRects(for: self)
+        }
     }
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        if wantsCrosshair { addCursorRect(bounds, cursor: .crosshair) }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let cursorTracking { removeTrackingArea(cursorTracking) }
+        let area = NSTrackingArea(rect: bounds, options: [.activeInActiveApp, .inVisibleRect, .mouseMoved, .cursorUpdate], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        cursorTracking = area
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        if wantsCrosshair { NSCursor.crosshair.set() } else { super.cursorUpdate(with: event) }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        if wantsCrosshair { NSCursor.crosshair.set() }
     }
 }
