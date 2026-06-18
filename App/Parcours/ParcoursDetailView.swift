@@ -549,7 +549,10 @@ struct ParcoursDetailView: View {
                             if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
                         },
-                        onWaypointTapped: { routeModel.selectedWaypointId = $0 },
+                        onWaypointTapped: { wpId in
+                            routeModel.selectedWaypointId = wpId
+                            if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
+                        },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
@@ -1050,6 +1053,15 @@ struct ParcoursDetailView: View {
         guard let id else { return }
         navigation.selectedStageId = id
         navigation.showStageInspector = true
+    }
+
+    /// Étape correspondant à un arrêt tapé sur la carte : arrêt interne via `stopWaypointId`, arrivée → dernière étape.
+    private func stageId(forWaypoint wpId: UUID) -> UUID? {
+        if let s = stages.first(where: { $0.stopWaypointId == wpId }) { return s.id }
+        if routeModel.waypoints.last?.id == wpId {
+            return (stages.first { $0.stopWaypointId == nil } ?? stages.max(by: { $0.order < $1.order }))?.id
+        }
+        return nil
     }
 
     // MARK: Édition
