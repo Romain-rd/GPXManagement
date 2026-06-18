@@ -115,8 +115,12 @@ final class RouteEditingModel {
     func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
         guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
         snapshot("Déplacer un point")
+        // Changement de PLACE (> 400 m) → on efface le nom pour qu'il soit re-déduit ; un simple ajustement le conserve.
+        let moved = CLLocation(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
+            .distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
         waypoints[i].latitude = c.latitude
         waypoints[i].longitude = c.longitude
+        if moved > 400 { waypoints[i].name = nil }
         touch(i)
         markDirty()
     }

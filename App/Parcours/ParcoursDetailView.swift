@@ -168,14 +168,17 @@ struct ParcoursDetailView: View {
                             overviewMap.frame(height: mapHeight).clipShape(RoundedRectangle(cornerRadius: 12))
                             resizeHandle($mapHeight, min: 140, max: 700)
                         }
-                        // Profil + dates : nécessitent le tracé enrichi (altitude) → sur le tracé sauvegardé.
-                        if !points.isEmpty {
-                            dateBar
-                            zoomBar
-                            profileChart.frame(height: profileHeight)
-                            resizeHandle($profileHeight, min: 90, max: 500)
+                        // Écran large + parcours modifiable avec profil : profil à GAUCHE, liste des points à DROITE.
+                        if activity.isEditableRoute, contentWidth > 1100, !points.isEmpty, !routeModel.waypoints.isEmpty {
+                            HStack(alignment: .top, spacing: 24) {
+                                VStack(alignment: .leading, spacing: 12) { profileSection }
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                pointsList.frame(width: 420)
+                            }
+                        } else {
+                            profileSection
+                            listsSection
                         }
-                        listsSection
                     }
                     .padding()
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
@@ -238,6 +241,16 @@ struct ParcoursDetailView: View {
         stages[k].name = renameText.trimmingCharacters(in: .whitespaces)
         renamingStageId = nil
         persist()
+    }
+
+    /// Dates + profil altimétrique (sur le tracé sauvegardé).
+    @ViewBuilder private var profileSection: some View {
+        if !points.isEmpty {
+            dateBar
+            zoomBar
+            profileChart.frame(height: profileHeight)
+            resizeHandle($profileHeight, min: 90, max: 500)
+        }
     }
 
     /// Listes points + étapes : côte à côte si la fenêtre est large (carte/profil restent pleine largeur), empilées sinon.
