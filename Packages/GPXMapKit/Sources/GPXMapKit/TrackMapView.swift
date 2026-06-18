@@ -899,33 +899,45 @@ final class PhotoAnnotation: MKPointAnnotation {
     var isVideo = false
 }
 
-/// MKMapView avec curseur en croix optionnel (mode « poser un point »). Les sous-vues internes de MKMapView
-/// remettent leur curseur au survol, donc les cursor rects ne suffisent pas : on possède une tracking area
-/// `.cursorUpdate` (le propriétaire de la zone reçoit `cursorUpdate`, pas la sous-vue) et on force la croix.
+/// MKMapView avec croix de visée en mode « poser un point ». Le curseur système de MKMapView clignote
+/// (croix au mouvement, flèche au repos), donc on dessine une croix VISUELLE qui suit la souris — exactement
+/// comme lors du déplacement d'un point (`showCrosshair`). `CrosshairView` est transparente aux clics (hitTest=nil).
 final class CursorMapView: MKMapView {
-    private var cursorTracking: NSTrackingArea?
+    private var hoverTracking: NSTrackingArea?
+    private var placingCrosshair: CrosshairView?
     var wantsCrosshair = false {
-        didSet {
-            guard oldValue != wantsCrosshair else { return }
-            if !wantsCrosshair { NSCursor.arrow.set() }
-            window?.invalidateCursorRects(for: self)
-        }
+        didSet { if oldValue != wantsCrosshair, !wantsCrosshair { placingCrosshair?.isHidden = true } }
     }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let cursorTracking { removeTrackingArea(cursorTracking) }
-        let area = NSTrackingArea(rect: bounds, options: [.activeInActiveApp, .inVisibleRect, .mouseMoved, .cursorUpdate], owner: self, userInfo: nil)
+        if let hoverTracking { removeTrackingArea(hoverTracking) }
+        let area = NSTrackingArea(rect: bounds, options: [.activeInActiveApp, .inVisibleRect, .mouseEnteredAndExited, .mouseMoved], owner: self, userInfo: nil)
         addTrackingArea(area)
-        cursorTracking = area
+        hoverTracking = area
     }
 
-    override func cursorUpdate(with event: NSEvent) {
-        if wantsCrosshair { NSCursor.crosshair.set() } else { super.cursorUpdate(with: event) }
+    private func showCrosshair(at point: CGPoint) {
+        guard wantsCrosshair else { return }
+        if placingCrosshair == nil {
+            let v = CrosshairView(frame: NSRect(x: 0, y: 0, width: 48, height: 48))
+            addSubview(v)
+            placingCrosshair = v
+        }
+        placingCrosshair?.frame.origin = CGPoint(x: point.x - 24, y: point.y - 24)
+        placingCrosshair?.isHidden = false
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        if wantsCrosshair { NSCursor.crosshair.set() }
+        showCrosshair(at: convert(event.locationInWindow, from: nil))
+    }
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        showCrosshair(at: convert(event.locationInWindow, from: nil))
+    }
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        placingCrosshair?.isHidden = true
     }
 }
