@@ -203,6 +203,19 @@ public enum HTMLReportRenderer {
         let index: Int; let name: String; let departure: String; let arrival: String; let dateText: String; let notes: String
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
         let pois: [(name: String, lat: Double, lon: Double)]
+        let profile: [(d: Double, e: Double)]   // distance (m depuis le début de l'étape), altitude (m)
+    }
+
+    /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude).
+    private static func stageProfile(_ pts: [TrackPoint], max: Int = 140) -> [(d: Double, e: Double)] {
+        let prof = ElevationProfileBuilder.build(points: pts)
+        guard prof.count >= 2 else { return [] }
+        let step = prof.count > max ? Double(prof.count) / Double(max) : 1
+        var out: [(Double, Double)] = []
+        var i = 0.0
+        while Int(i) < prof.count { let p = prof[Int(i)]; out.append((p.distanceFromStart, p.altitude)); i += step }
+        if let last = prof.last { out.append((last.distanceFromStart, last.altitude)) }
+        return out
     }
     private struct RouteMarkerVM {
         let lat: Double; let lon: Double; let kind: String; let label: String; let name: String
@@ -238,7 +251,8 @@ public enum HTMLReportRenderer {
         if stages.isEmpty {
             stageVMs.append(RouteStageVM(index: 1, name: activity.title, departure: "", arrival: "", dateText: fmtDateShort(activity.startDate),
                                          notes: "", distance: activity.distance, gain: activity.elevationGain,
-                                         coords: decimatedCoords(points, max: 1800), color: routePalette[0], pois: poisByStage[1] ?? []))
+                                         coords: decimatedCoords(points, max: 1800), color: routePalette[0], pois: poisByStage[1] ?? [],
+                                         profile: stageProfile(points)))
         } else {
             let wpById = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             var prevArrival = waypoints.first?.name ?? ""
@@ -253,7 +267,7 @@ public enum HTMLReportRenderer {
                                              notes: s.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
                                              distance: st.distance, gain: st.elevationGain,
                                              coords: decimatedCoords(slice, max: maxPerStage), color: routePalette[i % routePalette.count],
-                                             pois: poisByStage[i + 1] ?? []))
+                                             pois: poisByStage[i + 1] ?? [], profile: stageProfile(slice)))
                 if !arrival.isEmpty { prevArrival = arrival }
             }
         }
@@ -290,7 +304,8 @@ public enum HTMLReportRenderer {
         let stagesJS = stages.map { s -> String in
             let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
             let pois = "[" + s.pois.map { "{name:\(jsString($0.name)),lat:\(String(format: "%.6f", $0.lat)),lon:\(String(format: "%.6f", $0.lon))}" }.joined(separator: ",") + "]"
-            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois)}"
+            let prof = "[" + s.profile.map { "[\(Int($0.d)),\(Int($0.e))]" }.joined(separator: ",") + "]"
+            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof)}"
         }.joined(separator: ",")
 
         let infoCards = [
@@ -332,6 +347,7 @@ public enum HTMLReportRenderer {
                 <div class="ed-body">
                   <h2 id="ed-title"></h2>
                   <p id="ed-meta"></p>
+                  <div id="ed-profile" class="prof"></div>
                   <div id="ed-pois"></div>
                   <p id="ed-notes" class="notes"></p>
                 </div>
@@ -339,8 +355,9 @@ public enum HTMLReportRenderer {
               </div>
             </section>
             <section class="tabview" id="tab-profil">
-              <header class="tv-head"><h1>Profil</h1></header>
-              <p class="tv-empty">Le profil altimétrique arrive bientôt.</p>
+              <header class="tv-head"><h1>Profil</h1><p class="tv-sub">\(esc("\(totalKm) · +\(totalGain)"))</p></header>
+              <div id="global-profile" class="prof prof-global"></div>
+              <div class="prof-legend">\(stages.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>J\($0.index)</span>" }.joined())</div>
             </section>
             <section class="tabview" id="tab-infos">
               <header class="tv-head"><h1>\(esc(activity.title))</h1><p class="tv-sub">\(esc(summary))</p></header>
@@ -357,6 +374,7 @@ public enum HTMLReportRenderer {
         <script>window.__stages=[\(stagesJS)];</script>
         \(routeMapScript(stages: stages, markers: markers, tile: tile, accent: accent))
         \(stageDetailScript(tile: tile))
+        \(profileScript())
         <script>
         (function(){
           var items = [].slice.call(document.querySelectorAll('.tabitem'));
@@ -459,6 +477,7 @@ public enum HTMLReportRenderer {
             document.getElementById('ed-title').textContent = s.name + (s.arr ? ' — ' + s.arr : '');
             var route = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : '';
             document.getElementById('ed-meta').textContent = [s.date, route, s.dist, s.gain].filter(Boolean).join(' · ');
+            if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [] }]);
             var pe = document.getElementById('ed-pois'); pe.innerHTML = '';
             if (s.pois && s.pois.length){
               var t = document.createElement('div'); t.className = 'ed-poi-title'; t.textContent = 'Points d\\u2019intérêt'; pe.appendChild(t);
@@ -482,6 +501,41 @@ public enum HTMLReportRenderer {
           var sx=0, sy=0;
           detail.addEventListener('touchstart', function(e){ sx=e.touches[0].clientX; sy=e.touches[0].clientY; }, {passive:true});
           detail.addEventListener('touchend', function(e){ var dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy; if (Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)){ if (dx<0) open(cur+1); else open(cur-1); } }, {passive:true});
+        })();
+        </script>
+        """
+    }
+
+    private static func profileScript() -> String {
+        return """
+        <script>
+        window.__buildProfile = function(container, segments){
+          if (!container) return;
+          var all = []; segments.forEach(function(s){ all = all.concat(s.pts || []); });
+          if (all.length < 2){ container.innerHTML = ''; return; }
+          var W = 1000, H = 200, pad = 16;
+          var minX = all[0][0], maxX = all[all.length-1][0];
+          var minE = Infinity, maxE = -Infinity;
+          all.forEach(function(p){ if (p[1] < minE) minE = p[1]; if (p[1] > maxE) maxE = p[1]; });
+          if (maxE - minE < 1) maxE = minE + 1; if (maxX - minX < 1) maxX = minX + 1;
+          function X(x){ return (pad + (x - minX) / (maxX - minX) * (W - 2*pad)); }
+          function Y(e){ return (H - pad - (e - minE) / (maxE - minE) * (H - 2*pad)); }
+          var svg = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="prof-svg">';
+          segments.forEach(function(s){ var pts = s.pts || []; if (pts.length < 2) return;
+            var area = 'M' + X(pts[0][0]).toFixed(1) + ' ' + (H-pad);
+            pts.forEach(function(p){ area += ' L' + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+            area += ' L' + X(pts[pts.length-1][0]).toFixed(1) + ' ' + (H-pad) + ' Z';
+            svg += '<path d="'+area+'" fill="'+s.color+'" fill-opacity="0.22"/>';
+            var line = ''; pts.forEach(function(p,i){ line += (i?' L':'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+            svg += '<path d="'+line+'" fill="none" stroke="'+s.color+'" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+          });
+          svg += '</svg>';
+          container.innerHTML = svg + '<div class="prof-cap"><span>'+Math.round(maxE)+' m</span><span>'+Math.round(minE)+' m</span></div>';
+        };
+        (function(){
+          var S = window.__stages || [], segs = [], off = 0;
+          S.forEach(function(s){ var pts = (s.prof || []).map(function(p){ return [off + p[0], p[1]]; }); segs.push({ color: s.color, pts: pts }); if (s.prof && s.prof.length) off += s.prof[s.prof.length-1][0]; });
+          window.__buildProfile(document.getElementById('global-profile'), segs);
         })();
         </script>
         """
@@ -532,6 +586,17 @@ public enum HTMLReportRenderer {
     .ed-body { padding:18px 16px; flex:0 0 auto; }
     .ed-body h2 { margin:0 0 6px; font-size:22px; font-weight:700; letter-spacing:-.01em; }
     #ed-meta { margin:0 0 14px; color:var(--sec); font-size:15px; }
+    .prof { position:relative; margin:0 0 16px; }
+    .prof-svg { width:100%; height:130px; display:block; border-radius:10px; background:var(--card); border:1px solid var(--line); }
+    .prof-global { padding:0 16px; }
+    .prof-global .prof-svg { height:210px; }
+    .prof-cap span { position:absolute; left:8px; font-size:11px; color:var(--sec); background:var(--card); padding:0 3px; border-radius:3px; }
+    .prof-global .prof-cap span { left:24px; }
+    .prof-cap span:first-child { top:5px; }
+    .prof-cap span:last-child { bottom:8px; }
+    .prof-legend { display:flex; flex-wrap:wrap; gap:12px; padding:10px 16px 24px; font-size:13px; color:var(--sec); }
+    .prof-legend .li { display:inline-flex; align-items:center; gap:5px; }
+    .prof-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; }
     #ed-pois { margin:0 0 14px; }
     .ed-poi-title { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--sec); margin:0 0 6px; }
     .ed-poi { padding:4px 0; border-bottom:1px solid var(--line); }
