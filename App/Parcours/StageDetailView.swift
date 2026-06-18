@@ -348,7 +348,12 @@ struct StageDetailView: View {
         let leave = allStages[stageIndex - 1].endIndex
         isRouting = true
         Task {
-            let rejoin = nearestTrackIndex(to: p, in: leave...max(leave, allStages[stageIndex].endIndex - 1))
+            // Rejoindre la trace DANS LE SENS DE LA MARCHE, au plus court — pas au point quitté la veille,
+            // et sans se borner au changement d'étape (recherche jusqu'à la fin du tracé, puis clamp pour rester valide).
+            let last = fullPoints.count - 1
+            let lo = Swift.min(leave + 1, last)
+            let cand = nearestTrackIndex(to: p, in: lo...last)
+            let rejoin = Swift.min(cand, Swift.max(lo, allStages[stageIndex].endIndex - 1))
             let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
             let departure = await AppServices.shared.buildConnector(from: p, to: rejoinCoord)
             allStages[stageIndex].startIndex = rejoin
@@ -444,9 +449,13 @@ struct StageDetailView: View {
             allStages[stageIndex].endOffTrackLatitude = point.latitude
             allStages[stageIndex].endOffTrackLongitude = point.longitude
             allStages[stageIndex].endConnectorData = try? TrackPointCodec.encode(arrival)
-            // Départ du lendemain : on rejoint la trace au point le plus proche de P **dans l'étape suivante** (le plus court).
-            if hasNext, boundary <= nextEnd - 1 {
-                let rejoin = nearestTrackIndex(to: point, in: boundary...(nextEnd - 1))
+            // Départ du lendemain : rejoindre la trace DANS LE SENS DE LA MARCHE, au plus court — en avant du point
+            // quitté (pas de retour en arrière), sans se borner au changement d'étape (clamp pour rester valide).
+            if hasNext, leave + 1 <= nextEnd - 1 {
+                let last = fullPoints.count - 1
+                let lo = Swift.min(leave + 1, last)
+                let cand = nearestTrackIndex(to: point, in: lo...last)
+                let rejoin = Swift.min(cand, Swift.max(lo, nextEnd - 1))
                 let rejoinCoord = CLLocationCoordinate2D(latitude: fullPoints[rejoin].latitude, longitude: fullPoints[rejoin].longitude)
                 let departure = await AppServices.shared.buildConnector(from: point, to: rejoinCoord)
                 allStages[stageIndex + 1].startIndex = rejoin
