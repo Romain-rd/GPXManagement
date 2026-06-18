@@ -90,6 +90,7 @@ struct ParcoursDetailView: View {
     @State private var showSplitSheet = false
     @State private var coverData: Data?
     @State private var coverPickerItem: PhotosPickerItem?
+    @State private var fullscreenMap = false
     @AppStorage("parcSecInfo") private var secInfoExpanded = true
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
@@ -240,6 +241,7 @@ struct ParcoursDetailView: View {
 
     private var coreBody: some View {
         inspectorLayout
+        .overlay { parcoursFullscreenOverlay }
         .navigationTitle(activity.title)
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -629,7 +631,17 @@ struct ParcoursDetailView: View {
 
     @ViewBuilder private var mapSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Carte", "map", $secMapExpanded)
+            HStack(spacing: 6) {
+                sectionChevron($secMapExpanded)
+                Label("Carte", systemImage: "map").font(.headline)
+                    .contentShape(Rectangle())
+                    .onTapGesture { withAnimation(.snappy(duration: 0.2)) { secMapExpanded.toggle() } }
+                Spacer()
+                if secMapExpanded, !coords.isEmpty {
+                    Button { fullscreenMap = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                        .buttonStyle(.borderless).help("Carte en plein écran")
+                }
+            }
             if secMapExpanded {
                 toolPalette
                 if activity.isEditableRoute {
@@ -640,6 +652,26 @@ struct ParcoursDetailView: View {
                     resizeHandle($mapHeight, min: 140, max: 700)
                 }
             }
+        }
+    }
+
+    /// Carte du parcours en plein écran (overlay couvrant le détail — fenêtre entière en fenêtre autonome).
+    @ViewBuilder private var parcoursFullscreenOverlay: some View {
+        if fullscreenMap {
+            StageColoredMap(activityId: activity.id, activityType: activity.activityType,
+                            coords: activity.isEditableRoute ? routeModel.displayCoords : coords,
+                            stages: activity.isEditableRoute ? displayStages() : stages,
+                            waypoints: activity.isEditableRoute ? routeModel.markers : (poiMarkers + boundaryMarkers),
+                            layer: layerBinding)
+                .ignoresSafeArea()
+                .overlay(alignment: .topLeading) {
+                    Button { fullscreenMap = false } label: {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left").font(.title3).padding(10)
+                            .background(.regularMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain).padding(16).keyboardShortcut(.cancelAction)
+                }
+                .transition(.opacity)
         }
     }
 
