@@ -809,6 +809,9 @@ struct ParcoursDetailView: View {
                             .buttonStyle(.borderless).disabled(count <= 2)
                     }
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+                    // Trait UNIQUEMENT après un arrêt interne (= frontière d'étape), pas entre chaque point.
+                    .listRowSeparator((wp.role == .stageStop && i > 0 && i < count - 1) ? .visible : .hidden, edges: .bottom)
+                    .listRowSeparator(.hidden, edges: .top)
                 }
                 .onMove { routeModel.moveWaypoints(fromOffsets: $0, toOffset: $1) }
             }
