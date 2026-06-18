@@ -157,7 +157,7 @@ final class WaypointInteractionRecognizer: NSGestureRecognizer {
     override func mouseDragged(with event: NSEvent) {
         guard picked != nil, let map else { return }
         current = map.convert(event.locationInWindow, from: nil)
-        if !moved, hypot(current.x - down.x, current.y - down.y) > 3 { moved = true }
+        if !moved, hypot(current.x - down.x, current.y - down.y) > 8 { moved = true }
         state = .changed
     }
     override func mouseUp(with event: NSEvent) {
@@ -723,7 +723,8 @@ public struct TrackMapView: NSViewRepresentable {
                 let ap = mapView.convert(ann.coordinate, toPointTo: mapView)
                 grabOffset = CGPoint(x: ap.x - g.current.x, y: ap.y - g.current.y)
                 mapView.isScrollEnabled = false
-                NSLog("🟦MAP waypoint BEGAN wp \(ann.index + 1)")
+                onWaypointTapped?(ann.waypointId)   // sélection dès qu'on touche le point (clic OU début de drag)
+                NSLog("🟦MAP waypoint BEGAN/select wp \(ann.index + 1)")
             case .changed where g.moved:
                 let t = CGPoint(x: g.current.x + grabOffset.x, y: g.current.y + grabOffset.y)
                 ann.coordinate = mapView.convert(t, toCoordinateFrom: mapView)
@@ -734,9 +735,6 @@ public struct TrackMapView: NSViewRepresentable {
                     ann.coordinate = c
                     onWaypointMoved?(ann.waypointId, c)
                     NSLog("🟦MAP waypoint MOVED wp \(ann.index + 1)")
-                } else {
-                    onWaypointTapped?(ann.waypointId)
-                    NSLog("🟦MAP waypoint TAP → select wp \(ann.index + 1)")
                 }
                 mapView.isScrollEnabled = true
             default: break

@@ -440,7 +440,7 @@ struct ParcoursDetailView: View {
                             if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
                         },
-                        onWaypointTapped: { routeModel.selectedWaypointId = ($0 == routeModel.selectedWaypointId ? nil : $0) },
+                        onWaypointTapped: { routeModel.selectedWaypointId = $0 },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, layer: layerBinding)
             .overlay(alignment: .top) {
