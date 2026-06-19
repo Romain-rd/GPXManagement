@@ -1289,7 +1289,10 @@ struct ParcoursDetailView: View {
                             .buttonStyle(.borderless).disabled(count <= 2)
                     }
                     .contentShape(Rectangle())
-                    .onHover { highlightedWaypointId = $0 ? wp.id : nil }
+                    .onHover { hovering in
+                        if hovering { highlightedWaypointId = wp.id }
+                        else if highlightedWaypointId == wp.id { highlightedWaypointId = nil }
+                    }
                     .listRowBackground(
                         HStack(spacing: 0) {
                             Rectangle().fill(routeModel.selectedWaypointId == wp.id ? Color.accentColor : .clear).frame(width: 3)

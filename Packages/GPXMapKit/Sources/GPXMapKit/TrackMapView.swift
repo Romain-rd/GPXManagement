@@ -152,21 +152,24 @@ final class PassthroughMarkerView: MKMarkerAnnotationView {
 final class PassthroughDotView: MKAnnotationView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     private var emphasized = false
-    /// Met en évidence le marqueur (survol liste ou clic) : il grossit UNE fois (animation ~0,5 s) puis RESTE plus gros.
+    /// Anime le « pop » du marqueur quand il devient (dé)mis en évidence. La GRANDE taille est portée par l'image
+    /// (déjà agrandie quand sélectionné) ; ici on ne fait que l'animation, qui FINIT à l'identité — donc MapKit ne
+    /// la réinitialise pas et le marqueur reste gros tant que son image est grande.
     func setEmphasized(_ on: Bool) {
         guard on != emphasized else { return }
         emphasized = on
         wantsLayer = true
         guard let layer = layer else { return }
-        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        let from: CGFloat = on ? 1.0 : 1.6
-        let to: CGFloat = on ? 1.6 : 1.0
-        layer.transform = CATransform3DMakeScale(to, to, 1)   // état final persistant (reste gros)
+        let f = TrackMapView.Coordinator.emphasisFactor
+        // grossir : image grande → on part de 1/f (taille normale) et on grandit à 1. rétrécir : image normale →
+        // on part de f (paraît encore grand) et on revient à 1.
+        let from: CGFloat = on ? 1.0 / f : f
         let grow = CABasicAnimation(keyPath: "transform.scale")
         grow.fromValue = from
-        grow.toValue = to
-        grow.duration = 0.5
+        grow.toValue = 1.0
+        grow.duration = 0.45
         grow.timingFunction = CAMediaTimingFunction(name: on ? .easeOut : .easeIn)
+        grow.isRemovedOnCompletion = true
         layer.add(grow, forKey: "emph")
     }
 }
@@ -720,7 +723,25 @@ public struct TrackMapView: NSViewRepresentable {
             return img
         }
 
+        /// Facteur de grossissement d'un marqueur mis en évidence (sélection/survol). La GRANDE taille est portée par
+        /// l'image elle-même (persistante) ; l'animation `setEmphasized` ne fait que le « pop » (finit à l'identité).
+        static let emphasisFactor: CGFloat = 1.5
+
+        private static func scaledUp(_ img: NSImage, _ factor: CGFloat) -> NSImage {
+            let s = NSSize(width: img.size.width * factor, height: img.size.height * factor)
+            let out = NSImage(size: s)
+            out.lockFocus()
+            img.draw(in: NSRect(origin: .zero, size: s), from: NSRect(origin: .zero, size: img.size), operation: .sourceOver, fraction: 1)
+            out.unlockFocus()
+            return out
+        }
+
         private static func waypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool, stageIndex: Int?, label: String?) -> NSImage {
+            let base = baseWaypointImage(role: role, isDeparture: isDeparture, isArrival: isArrival, isSelected: isSelected, stageIndex: stageIndex, label: label)
+            return isSelected ? scaledUp(base, emphasisFactor) : base
+        }
+
+        private static func baseWaypointImage(role: RouteWaypoint.Role, isDeparture: Bool, isArrival: Bool, isSelected: Bool, stageIndex: Int?, label: String?) -> NSImage {
             // Arrêt d'arrivée d'étape : badge « Jn » dans la couleur de l'étape (cohérent avec le tracé et le web).
             if let n = stageIndex {
                 return roundedBadge("J\(n)", isSelected ? .controlAccentColor : MapTrackPalette.color(at: n - 1))
