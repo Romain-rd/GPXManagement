@@ -134,6 +134,13 @@ final class RouteEditingModel {
     }
 
     /// Fait défiler le rôle d'un point : tracé muet → point d'intérêt → arrêt d'étape.
+    func setRole(_ role: RouteWaypoint.Role, for id: UUID) {
+        guard let j = waypoints.firstIndex(where: { $0.id == id }), waypoints[j].role != role else { return }
+        snapshot("Changer le rôle")
+        waypoints[j].role = role
+        markDirty()
+    }
+
     func cycleRole(_ id: UUID) {
         guard let j = waypoints.firstIndex(where: { $0.id == id }) else { return }
         snapshot("Changer le rôle")
