@@ -147,7 +147,10 @@ public struct Stage: Identifiable, Sendable, Hashable {
             let idx = Swift.max(0, Swift.min(result[k].endIndex, lastIndex))
             let p = points[idx]
             let id = result[k].stopWaypointId ?? UUID()
-            let name = result[k].stopWaypointId.flatMap { existingById[$0]?.name }
+            // Le nom de l'étape devient le nom du point d'arrêt (source unique) ; repli sur l'existant si vide.
+            let existing = result[k].stopWaypointId.flatMap { existingById[$0]?.name }
+            let stageName = result[k].name.trimmingCharacters(in: .whitespaces)
+            let name = stageName.isEmpty ? existing : stageName
             stops.append(RouteWaypoint(id: id, latitude: p.latitude, longitude: p.longitude, name: name, role: .stageStop))
             result[k].stopWaypointId = id
         }

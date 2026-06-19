@@ -454,7 +454,18 @@ extension CoreDataActivityRepository {
     public func fetchStagesResolved(activityId: UUID, points: [TrackPoint]) async throws -> [Stage] {
         let stages = try await fetchStages(activityId: activityId)
         let waypoints = RouteWaypointCodec.decode(try await fetchRouteWaypointsData(id: activityId))
-        return Stage.assignBoundaries(stages, from: waypoints, points: points)
+        var resolved = Stage.assignBoundaries(stages, from: waypoints, points: points)
+        // Nom d'étape = nom du point d'ARRIVÉE (le waypoint est la source unique du nom → plus d'ambiguïté
+        // entre le nom du point dans la liste et le nom de l'étape).
+        if !waypoints.isEmpty {
+            let byId = Dictionary(waypoints.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            let lastName = waypoints.last?.name?.trimmingCharacters(in: .whitespaces)
+            for i in resolved.indices {
+                let name = resolved[i].stopWaypointId.flatMap { byId[$0]?.name?.trimmingCharacters(in: .whitespaces) } ?? lastName
+                if let name, !name.isEmpty { resolved[i].name = name }
+            }
+        }
+        return resolved
     }
 
     /// Enregistre un parcours étapé : dérive les stops `.stageStop` des bornes des étapes (en préservant les autres
