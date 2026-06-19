@@ -152,23 +152,22 @@ final class PassthroughMarkerView: MKMarkerAnnotationView {
 final class PassthroughDotView: MKAnnotationView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     private var emphasized = false
-    /// Met en évidence le marqueur (survol liste ou clic) : pulsation de grossissement, bien visible.
+    /// Met en évidence le marqueur (survol liste ou clic) : il grossit UNE fois (animation ~0,5 s) puis RESTE plus gros.
     func setEmphasized(_ on: Bool) {
         guard on != emphasized else { return }
         emphasized = on
         wantsLayer = true
         guard let layer = layer else { return }
         layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        layer.removeAnimation(forKey: "emph")
-        guard on else { layer.transform = CATransform3DIdentity; return }
-        let pulse = CABasicAnimation(keyPath: "transform.scale")
-        pulse.fromValue = 1.0
-        pulse.toValue = 1.6
-        pulse.duration = 0.8
-        pulse.autoreverses = true
-        pulse.repeatCount = .infinity
-        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        layer.add(pulse, forKey: "emph")
+        let from: CGFloat = on ? 1.0 : 1.6
+        let to: CGFloat = on ? 1.6 : 1.0
+        layer.transform = CATransform3DMakeScale(to, to, 1)   // état final persistant (reste gros)
+        let grow = CABasicAnimation(keyPath: "transform.scale")
+        grow.fromValue = from
+        grow.toValue = to
+        grow.duration = 0.5
+        grow.timingFunction = CAMediaTimingFunction(name: on ? .easeOut : .easeIn)
+        layer.add(grow, forKey: "emph")
     }
 }
 

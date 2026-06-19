@@ -988,9 +988,12 @@ struct ParcoursDetailView: View {
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
                         },
                         onWaypointTapped: { wpId in
-                            routeModel.selectedWaypointId = wpId
-                            highlightedWaypointId = wpId    // surligne aussi la ligne de liste (comme au survol)
-                            if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
+                            // Mutation d'état depuis un callback AppKit (gesture) → async pour garantir le rafraîchissement SwiftUI.
+                            DispatchQueue.main.async {
+                                routeModel.selectedWaypointId = wpId
+                                highlightedWaypointId = wpId    // surligne aussi la ligne de liste (comme au survol)
+                                if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
+                            }
                         },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, crosshairSymbol: toolSymbol, layer: layerBinding)
