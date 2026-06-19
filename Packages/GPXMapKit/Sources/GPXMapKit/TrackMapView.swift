@@ -151,6 +151,25 @@ final class PassthroughMarkerView: MKMarkerAnnotationView {
 /// Petite pastille d'annotation (image custom), transparente aux événements (interactions gérées par le reconnaisseur).
 final class PassthroughDotView: MKAnnotationView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    private var emphasized = false
+    /// Met en évidence le marqueur (survol liste ou clic) : pulsation de grossissement, bien visible.
+    func setEmphasized(_ on: Bool) {
+        guard on != emphasized else { return }
+        emphasized = on
+        wantsLayer = true
+        guard let layer = layer else { return }
+        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        layer.removeAnimation(forKey: "emph")
+        guard on else { layer.transform = CATransform3DIdentity; return }
+        let pulse = CABasicAnimation(keyPath: "transform.scale")
+        pulse.fromValue = 1.0
+        pulse.toValue = 1.6
+        pulse.duration = 0.8
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(pulse, forKey: "emph")
+    }
 }
 
 /// Croix de visée rouge affichée pendant le glissement d'un point (le sommet de l'épingle masque l'emplacement exact).
@@ -492,6 +511,7 @@ public struct TrackMapView: NSViewRepresentable {
                     ann.isSelected = m.isSelected; ann.label = m.label; ann.stageIndex = m.stageIndex
                     if let view = mapView.view(for: ann) as? PassthroughDotView {
                         view.image = Self.waypointImage(role: ann.role, isDeparture: ann.isDeparture, isArrival: ann.isArrival, isSelected: ann.isSelected, stageIndex: ann.stageIndex, label: ann.label)
+                        view.setEmphasized(ann.isSelected)
                     }
                 }
             }
@@ -784,6 +804,7 @@ public struct TrackMapView: NSViewRepresentable {
                     ?? PassthroughDotView(annotation: annotation, reuseIdentifier: identifier)
                 view.annotation = annotation
                 view.image = Self.waypointImage(role: wp.role, isDeparture: wp.isDeparture, isArrival: wp.isArrival, isSelected: wp.isSelected, stageIndex: wp.stageIndex, label: wp.label)
+                view.setEmphasized(wp.isSelected)
                 view.centerOffset = .zero
                 view.canShowCallout = (wp.title?.isEmpty == false)
                 let marker = view   // alias pour la suite (réglages communs)

@@ -989,6 +989,7 @@ struct ParcoursDetailView: View {
                         },
                         onWaypointTapped: { wpId in
                             routeModel.selectedWaypointId = wpId
+                            highlightedWaypointId = wpId    // surligne aussi la ligne de liste (comme au survol)
                             if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
                         },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
