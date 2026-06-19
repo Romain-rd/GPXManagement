@@ -989,11 +989,7 @@ struct ParcoursDetailView: View {
                         },
                         onWaypointTapped: { wpId in
                             // Mutation d'état depuis un callback AppKit (gesture) → async pour garantir le rafraîchissement SwiftUI.
-                            DispatchQueue.main.async {
-                                routeModel.selectedWaypointId = wpId
-                                highlightedWaypointId = wpId    // surligne aussi la ligne de liste (comme au survol)
-                                if let sid = stageId(forWaypoint: wpId) { openStage(sid) }   // arrêt d'étape → ouvre sa fiche
-                            }
+                            DispatchQueue.main.async { selectRow(wpId) }
                         },
                         onMapClick: roleForTool.map { role in { c in routeModel.addWaypoint(at: c, role: role) } },
                         proxy: routeModel.proxy, crosshairSymbol: toolSymbol, layer: layerBinding)
@@ -1289,6 +1285,7 @@ struct ParcoursDetailView: View {
                             .buttonStyle(.borderless).disabled(count <= 2)
                     }
                     .contentShape(Rectangle())
+                    .onTapGesture { selectRow(wp.id) }
                     .onHover { hovering in
                         if hovering { highlightedWaypointId = wp.id }
                         else if highlightedWaypointId == wp.id { highlightedWaypointId = nil }
@@ -1520,6 +1517,30 @@ struct ParcoursDetailView: View {
         guard let id else { return }
         navigation.selectedStageId = id
         navigation.showStageInspector = true
+    }
+
+    /// Étape qui CONTIENT un waypoint (pas seulement son arrivée) : la première étape dont l'arrivée est à/après lui.
+    private func stageContainingWaypoint(_ wpId: UUID) -> UUID? {
+        let wps = routeModel.waypoints
+        guard let i = wps.firstIndex(where: { $0.id == wpId }) else { return nil }
+        let lastIdx = wps.count - 1
+        let arrivals: [(idx: Int, id: UUID)] = stages.compactMap { s in
+            if let stopId = s.stopWaypointId, let si = wps.firstIndex(where: { $0.id == stopId }) { return (si, s.id) }
+            return (lastIdx, s.id)
+        }.sorted { $0.idx < $1.idx }
+        return arrivals.first(where: { $0.idx >= i })?.id ?? arrivals.last?.id
+    }
+
+    /// Clic sur une ligne de la liste : sélectionne le point ; ouvre l'étape si c'est une ligne d'étape (arrivée),
+    /// sinon — si une étape est déjà affichée à droite — bascule sur l'étape qui contient ce point.
+    private func selectRow(_ wpId: UUID) {
+        routeModel.selectedWaypointId = wpId
+        highlightedWaypointId = wpId
+        if let direct = stageId(forWaypoint: wpId) {
+            openStage(direct)
+        } else if navigation.selectedStageId != nil, let containing = stageContainingWaypoint(wpId) {
+            openStage(containing)
+        }
     }
 
     /// Étape correspondant à un arrêt tapé sur la carte : arrêt interne via `stopWaypointId`, arrivée → dernière étape.
