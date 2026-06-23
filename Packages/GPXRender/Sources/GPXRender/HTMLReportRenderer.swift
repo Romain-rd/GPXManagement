@@ -304,7 +304,7 @@ public enum HTMLReportRenderer {
 
         let stageRows = stages.map { s -> String in
             let meta = [s.dateText, fmtDistance(s.distance), "+\(Int(s.gain.rounded())) m"].filter { !$0.isEmpty }.joined(separator: " · ")
-            let route = s.arrival.isEmpty ? esc(s.name) : "\(esc(s.name)) — \(esc(s.arrival))"
+            let route = (s.departure.isEmpty || s.arrival.isEmpty) ? esc(s.name) : "\(esc(s.departure)) → \(esc(s.arrival))"
             return "<a class=\"st-row\" data-stage=\"\(s.index)\"><span class=\"st-badge\" style=\"background:\(s.color)\">J\(s.index)</span><div class=\"st-info\"><span class=\"st-title\">\(route)</span><span class=\"st-meta\">\(esc(meta))</span></div><span class=\"st-chev\">›</span></a>"
         }.joined()
         let chips = stages.map { "<a class=\"ed-chip\" data-go=\"\($0.index)\">J\($0.index)</a>" }.joined()
@@ -437,7 +437,7 @@ public enum HTMLReportRenderer {
           // Badge Jn (couleur de l'étape) à l'arrivée de chaque étape — clic → ouvre l'étape.
           groups.forEach(function(g,i){ var c=g.coords; if(!c.length) return;
             var b = L.marker(c[c.length-1], { icon: badge('J'+(i+1), g.color) }).addTo(map);
-            var s = S[i]; if (s) b.bindTooltip('J'+(i+1)+' · '+(s.name||'')+(s.arr?' — '+s.arr:''));
+            var s = S[i]; if (s) b.bindTooltip('J'+(i+1)+' · '+((s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : (s.name||'')));
             b.on('click', function(){ if (window.__showTab) window.__showTab('etapes'); if (window.__openStage) window.__openStage(i); });
           });
           // POI
@@ -487,9 +487,8 @@ public enum HTMLReportRenderer {
           function open(i){
             if (i<0 || i>=S.length) return;
             cur = i; var s = S[i];
-            document.getElementById('ed-title').textContent = s.name + (s.arr ? ' — ' + s.arr : '');
-            var route = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : '';
-            document.getElementById('ed-meta').textContent = [s.date, route, s.dist, s.gain].filter(Boolean).join(' · ');
+            document.getElementById('ed-title').textContent = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : (s.name || 'Étape');
+            document.getElementById('ed-meta').textContent = [s.date, s.dist, s.gain].filter(Boolean).join(' · ');
             if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [] }]);
             var cv = document.getElementById('ed-cover'); if (s.cover){ cv.src = s.cover; cv.hidden = false; } else { cv.hidden = true; cv.removeAttribute('src'); }
             var pe = document.getElementById('ed-pois'); pe.innerHTML = '';
