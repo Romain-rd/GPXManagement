@@ -1259,21 +1259,14 @@ struct ParcoursDetailView: View {
         let info = stageInfoByStop()
         let count = routeModel.waypoints.count
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Cliquer une ligne situe le point et affiche son étape · glisser pour réordonner · clic droit sur la pastille pour le rôle")
+            Text("Cliquer une ligne situe le point et affiche son étape · glisser pour réordonner · clic droit sur la ligne pour le rôle")
                 .font(.caption).foregroundStyle(.secondary)
             ScrollViewReader { proxy in
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
-                        Button { selectRow(wp.id) } label: { pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id], label: routeModel.typedLabels[wp.id]) }
-                            .buttonStyle(.plain).help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Cliquer pour situer/afficher l'étape · clic droit pour changer le rôle"))
-                            .contextMenu {
-                                if i > 0 && i < count - 1 {
-                                    Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-                                    Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
-                                    Button { routeModel.setRole(.stageStop, for: wp.id) } label: { Label("Fin d'étape", systemImage: "flag.fill") }
-                                }
-                            }
+                        pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id], label: routeModel.typedLabels[wp.id])
+                            .help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Cliquer pour situer/afficher l'étape · clic droit pour changer le rôle"))
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
                             .textFieldStyle(.plain).font(.caption).frame(maxWidth: 220, alignment: .leading)
@@ -1295,6 +1288,14 @@ struct ParcoursDetailView: View {
                     .contentShape(Rectangle())
                     // simultaneousGesture (et non onTapGesture) : laisse passer le glisser-déposer de réordonnancement (.onMove).
                     .simultaneousGesture(TapGesture().onEnded { selectRow(wp.id) })
+                    // Changement de rôle : clic droit n'importe où sur la ligne (le clic gauche reste « situer/afficher l'étape »).
+                    .contextMenu {
+                        if i > 0 && i < count - 1 {
+                            Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
+                            Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
+                            Button { routeModel.setRole(.stageStop, for: wp.id) } label: { Label("Fin d'étape", systemImage: "flag.fill") }
+                        }
+                    }
                     .onHover { hovering in
                         if hovering { highlightedWaypointId = wp.id }
                         else if highlightedWaypointId == wp.id { highlightedWaypointId = nil }
