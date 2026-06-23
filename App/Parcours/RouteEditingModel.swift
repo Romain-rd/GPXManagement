@@ -172,13 +172,16 @@ final class RouteEditingModel {
         markDirty()
     }
 
-    /// Insère le point à sa place le long du tracé : juste après le segment routé qui passe le plus près de `c`
-    /// (au-delà de la fin → ajout en bout ; au-delà du début → en tête). Cohérent pour le clic ET la recherche.
+    /// Insère le point à sa place le long du tracé en projetant `c` sur la polyligne routée (arête la plus proche).
+    /// L'extension (en bout / en tête) ne se déclenche que si le clic tombe vraiment au-delà d'une extrémité.
+    /// Point de mise en forme : posé SUR le tracé (l'utilisateur le déplace ensuite) ; POI/arrêt : à l'endroit cliqué.
     func addWaypoint(at c: CLLocationCoordinate2D, role: RouteWaypoint.Role = .shaping, name: String? = nil) {
         guard !busy else { return }
         snapshot("Ajouter un point")
-        let wp = RouteWaypoint(latitude: c.latitude, longitude: c.longitude, name: name, role: role)
-        let p = bestInsertionIndex(for: c)
+        let proj = projectionOnRoute(c)
+        let p = proj?.index ?? waypoints.count
+        let pos = (role == .shaping ? proj?.snapped : nil) ?? c
+        let wp = RouteWaypoint(latitude: pos.latitude, longitude: pos.longitude, name: name, role: role)
         waypoints.insert(wp, at: p)
         if waypoints.count == 2 { segments = [nil] }
         else if p == 0 { segments.insert(nil, at: 0) }
@@ -196,26 +199,40 @@ final class RouteEditingModel {
         invalidateAll()
     }
 
-    /// Position d'insertion d'un point = juste après le segment routé le plus proche de `c`.
-    private func bestInsertionIndex(for c: CLLocationCoordinate2D) -> Int {
-        guard waypoints.count >= 2 else { return waypoints.count }
+    /// Projette `c` sur la polyligne routée : segment de waypoints le plus proche (projection orthogonale sur ses
+    /// arêtes) → index d'insertion + point projeté sur le tracé. L'extension (index 0 / en bout) n'est retenue que
+    /// si la projection retombe exactement sur l'extrémité terminale (clic au-delà du départ ou de l'arrivée).
+    private func projectionOnRoute(_ c: CLLocationCoordinate2D) -> (index: Int, snapped: CLLocationCoordinate2D)? {
+        guard waypoints.count >= 2 else { return nil }
         let kx = cos(c.latitude * .pi / 180)
-        func d2(_ p: CLLocationCoordinate2D) -> Double {
-            let dx = (p.longitude - c.longitude) * kx, dy = p.latitude - c.latitude
-            return dx * dx + dy * dy
-        }
+        let cx = c.longitude * kx, cy = c.latitude
+        let lastSeg = waypoints.count - 2
         var bestD = Double.greatestFiniteMagnitude
-        var bestSeg = 0, atStart = false, atEnd = false
-        for i in 0..<(waypoints.count - 1) {
+        var bestSeg = 0
+        var bestPoint = c
+        var atRouteStart = false, atRouteEnd = false
+        for i in 0...lastSeg {
             let seg = (i < segments.count ? segments[i] : nil) ?? [coord(waypoints[i]), coord(waypoints[i + 1])]
-            for (j, p) in seg.enumerated() {
-                let d = d2(p)
-                if d < bestD { bestD = d; bestSeg = i; atStart = (j == 0); atEnd = (j == seg.count - 1) }
+            guard seg.count >= 2 else { continue }
+            for j in 0..<(seg.count - 1) {
+                let ax = seg[j].longitude * kx, ay = seg[j].latitude
+                let bx = seg[j + 1].longitude * kx, by = seg[j + 1].latitude
+                let dx = bx - ax, dy = by - ay
+                let len2 = dx * dx + dy * dy
+                let t = len2 > 0 ? max(0, min(1, ((cx - ax) * dx + (cy - ay) * dy) / len2)) : 0
+                let px = ax + t * dx, py = ay + t * dy
+                let ex = px - cx, ey = py - cy
+                let d = ex * ex + ey * ey
+                if d < bestD {
+                    bestD = d; bestSeg = i
+                    bestPoint = CLLocationCoordinate2D(latitude: py, longitude: px / kx)
+                    atRouteStart = (i == 0 && j == 0 && t == 0)
+                    atRouteEnd = (i == lastSeg && j == seg.count - 2 && t == 1)
+                }
             }
         }
-        if bestSeg == waypoints.count - 2, atEnd { return waypoints.count }   // au-delà de la fin → en bout
-        if bestSeg == 0, atStart { return 0 }                                 // au-delà du début → en tête
-        return bestSeg + 1
+        let index = atRouteStart ? 0 : (atRouteEnd ? waypoints.count : bestSeg + 1)
+        return (index, bestPoint)
     }
 
     func delete(_ id: UUID) {
