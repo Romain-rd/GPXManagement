@@ -1293,7 +1293,8 @@ struct ParcoursDetailView: View {
                             .buttonStyle(.borderless).disabled(count <= 2)
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture { selectRow(wp.id) }
+                    // simultaneousGesture (et non onTapGesture) : laisse passer le glisser-déposer de réordonnancement (.onMove).
+                    .simultaneousGesture(TapGesture().onEnded { selectRow(wp.id) })
                     .onHover { hovering in
                         if hovering { highlightedWaypointId = wp.id }
                         else if highlightedWaypointId == wp.id { highlightedWaypointId = nil }
