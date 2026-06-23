@@ -16,6 +16,7 @@ import GPXMapKit
 private struct SlideOverInspector<Inspector: View>: ViewModifier {
     @Binding var width: Double
     let isPresented: Bool
+    let onClose: (() -> Void)?
     @ViewBuilder let inspector: () -> Inspector
     @State private var accum: CGFloat = 0
 
@@ -36,6 +37,13 @@ private struct SlideOverInspector<Inspector: View>: ViewModifier {
                                     .onEnded { _ in accum = 0 }
                             )
                         inspector().frame(width: width)
+                            .overlay(alignment: .topTrailing) {
+                                if let onClose {
+                                    Button(action: onClose) { Image(systemName: "xmark.circle.fill").font(.title3) }
+                                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                                        .padding(8).help("Fermer la fiche")
+                                }
+                            }
                     }
                     .background(.regularMaterial)
                     .shadow(color: .black.opacity(0.15), radius: 8, x: -2)
@@ -47,9 +55,9 @@ private struct SlideOverInspector<Inspector: View>: ViewModifier {
 }
 
 extension View {
-    func slideOverInspector<Inspector: View>(width: Binding<Double>, isPresented: Bool,
+    func slideOverInspector<Inspector: View>(width: Binding<Double>, isPresented: Bool, onClose: (() -> Void)? = nil,
                                              @ViewBuilder inspector: @escaping () -> Inspector) -> some View {
-        modifier(SlideOverInspector(width: width, isPresented: isPresented, inspector: inspector))
+        modifier(SlideOverInspector(width: width, isPresented: isPresented, onClose: onClose, inspector: inspector))
     }
 }
 

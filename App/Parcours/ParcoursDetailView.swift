@@ -213,7 +213,8 @@ struct ParcoursDetailView: View {
             }
         } else {
             mainContent.slideOverInspector(width: $inspectorWidth,
-                                isPresented: showsInlineInspector && navigation.selectedStageId != nil && navigation.showStageInspector) {
+                                isPresented: showsInlineInspector && navigation.selectedStageId != nil && navigation.showStageInspector,
+                                onClose: { navigation.selectedStageId = nil }) {
                 if let stageId = navigation.selectedStageId {
                     StageDetailView(activity: activity, stageId: stageId, repository: repository)
                 }

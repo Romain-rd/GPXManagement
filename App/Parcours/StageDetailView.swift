@@ -55,6 +55,16 @@ struct StageDetailView: View {
     }
 
     private var stage: Stage? { allStages.indices.contains(stageIndex) ? allStages[stageIndex] : nil }
+    /// Nom du point de départ du parcours (premier waypoint) — départ de la première étape.
+    @State private var routeDepartureName = ""
+    /// Titre de l'étape « départ → arrivée » : arrivée = nom de l'étape (point d'arrivée unifié),
+    /// départ = arrivée de l'étape précédente (ou départ du parcours pour la première). Repli sur le nom seul.
+    private var stageTitle: String {
+        let arrival = (stage?.name ?? "").trimmingCharacters(in: .whitespaces)
+        let departure = (stageIndex > 0 ? allStages[stageIndex - 1].name : routeDepartureName).trimmingCharacters(in: .whitespaces)
+        if !departure.isEmpty, !arrival.isEmpty { return "\(departure) → \(arrival)" }
+        return arrival.isEmpty ? "Étape \(stageIndex + 1)" : arrival
+    }
     private var slicePoints: [TrackPoint] { stage?.slice(of: fullPoints) ?? [] }
     private var isFirst: Bool { stageIndex == 0 }
     private var isLast: Bool { stageIndex == allStages.count - 1 }
@@ -177,12 +187,8 @@ struct StageDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 8) {
-                            Text("Étape \(stageIndex + 1)").font(.title2.bold()).foregroundStyle(.secondary)
-                            TextField("Nom de l'étape", text: $nameDraft)
-                                .font(.title2.bold()).textFieldStyle(.plain)
-                                .onSubmit { persist() }
-                        }
+                        // Titre = « départ → arrivée » (même règle que l'export HTML) ; le nom s'édite dans la liste de points.
+                        Text(stageTitle).font(.title2.bold())
                         if let pd = stage?.plannedDate {
                             Text(Self.ficheDateFormatter.string(from: pd)).font(.subheadline).foregroundStyle(.secondary)
                         }
@@ -542,6 +548,8 @@ struct StageDetailView: View {
         dists = d
         allStages = stages
         stageIndex = idx
+        let wps = RouteWaypointCodec.decode((try? await repository.fetchRouteWaypointsData(id: activity.id)) ?? Data())
+        routeDepartureName = wps.first?.name ?? ""
         nameDraft = stages[idx].name
         notesDraft = stages[idx].notes ?? ""
         // Fenêtre loupe : ~3 km de contexte de part et d'autre, borné aux étapes voisines.

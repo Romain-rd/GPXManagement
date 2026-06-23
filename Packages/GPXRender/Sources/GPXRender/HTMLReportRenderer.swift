@@ -262,7 +262,9 @@ public enum HTMLReportRenderer {
                 let lo = max(0, min(s.startIndex, points.count - 1)), hi = max(0, min(s.endIndex, points.count - 1))
                 let slice = lo <= hi ? Array(points[lo...hi]) : []
                 let st = s.stats(in: points)
-                let arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
+                // Dernière étape : elle se termine à l'arrivée du parcours (pas d'arrêt interne), son arrivée = dernier waypoint.
+                var arrival = s.stopWaypointId.flatMap { wpById[$0]?.name } ?? ""
+                if arrival.isEmpty, i == stages.count - 1 { arrival = waypoints.last?.name ?? "" }
                 var coverRef: String?
                 if options.includePhotos, let cov = s.coverImageData, !cov.isEmpty {
                     let rel = "images/etape-\(i + 1).\(imageExt(cov))"; files[rel] = cov; coverRef = rel
