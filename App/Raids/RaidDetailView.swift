@@ -167,7 +167,8 @@ struct RaidDetailView: View {
                     .frame(minWidth: 360, idealWidth: inspectorWidth)
             }
         } else {
-            mainContent.slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector) {
+            mainContent.slideOverInspector(width: $inspectorWidth, isPresented: selectedMember != nil && navigation.showStageInspector,
+                                           onClose: { navigation.listSelection = [] }) {
                 if let member = selectedMember {
                     ActivityDetailView(activity: member, listVM: listVM, repository: repository, windowModel: window, navigation: navigation, fullscreenMap: $memberFullscreen)
                 }
