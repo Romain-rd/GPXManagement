@@ -29,6 +29,8 @@ struct ActivityDetailView: View {
     @State private var exportError: String?
     @State private var isExportingPDF = false
     @State private var isReprocessing = false
+    @State private var isCalendarBusy = false
+    @State private var calendarSaved = false
     @State private var elevationAlert: String?
     @State private var sensorSeries: SensorSeries?
     @AppStorage("detailSectionHeartRate") private var secHeartRateExpanded = true
@@ -161,6 +163,7 @@ struct ActivityDetailView: View {
             Task { await model.loadPublishState(activityId: activity.id) }
             Task { await loadMediaState() }
             Task { await loadSensorSeries() }
+            calendarSaved = CalendarExportService.shared.isSaved(calendarIdentity)
         }
         .onChange(of: activity.id) { _, _ in
             notesDraft = activity.notes ?? ""
@@ -277,6 +280,19 @@ struct ActivityDetailView: View {
                 }
                 .disabled(isExportingWeb || !model.hasTrack)
                 .help("Génère une page web de présentation (même contenu que le détail), prête pour un CDN")
+                Button {
+                    Task { await toggleCalendar() }
+                } label: {
+                    if isCalendarBusy {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label(calendarSaved ? "Retirer du Calendrier" : "Ajouter au Calendrier",
+                              systemImage: calendarSaved ? "calendar.badge.minus" : "calendar.badge.plus")
+                    }
+                }
+                .disabled(isCalendarBusy)
+                .help(calendarSaved ? "Retire cette activité du Calendrier Apple (calendrier « GPXManagement »)"
+                                    : "Ajoute cette activité au Calendrier Apple (calendrier « GPXManagement », synchronisé iCloud)")
                 Button {
                     showVideoOptions = true
                 } label: {
@@ -1731,6 +1747,33 @@ struct ActivityDetailView: View {
         do {
             _ = try await ExportService.exportGPX(activity: activity, repository: repository)
         } catch ExportError.userCancelled {
+        } catch {
+            exportError = error.localizedDescription
+        }
+    }
+
+    private var calendarIdentity: String { "gpx:activity/\(activity.id.uuidString)" }
+
+    /// Lieu de départ (géocodage inverse du premier point) pour renseigner le champ « Lieu » de l'événement.
+    private func startPlace() async -> String? {
+        guard let data = try? await repository.fetchTrackData(id: activity.id),
+              let pts = try? TrackPointCodec.decode(data), let f = pts.first else { return nil }
+        return await ReverseGeocoder.placeName(latitude: f.latitude, longitude: f.longitude, preferPOI: false)
+    }
+
+    private func toggleCalendar() async {
+        isCalendarBusy = true
+        defer { isCalendarBusy = false }
+        do {
+            if calendarSaved {
+                try await CalendarExportService.shared.remove(calendarIdentity, around: activity.startDate)
+                calendarSaved = false
+            } else {
+                let place = await startPlace()
+                let webURL = (try? await repository.fetchWebPublishedURL(id: activity.id)) ?? nil
+                try await CalendarExportService.shared.save(.activity(activity, location: place, webURL: webURL))
+                calendarSaved = true
+            }
         } catch {
             exportError = error.localizedDescription
         }

@@ -76,6 +76,38 @@ public extension ActivityType {
 }
 
 public extension ActivityType {
+    /// Emoji textuel (titres de Calendrier, partages) — regroupé par famille.
+    var emoji: String {
+        switch self {
+        case .cyclingRoad, .cyclingGravel, .virtualRide, .velomobile, .eBike: return "🚴"
+        case .cyclingMTB, .eMountainBike:  return "🚵"
+        case .handcycle, .wheelchair:      return "🦽"
+        case .motorcycle:                  return "🏍️"
+        case .walking:                     return "🚶"
+        case .hiking, .mountaineering:     return "🥾"
+        case .running, .virtualRun, .trailRunning: return "🏃"
+        case .skiingAlpine, .skiingFreeride: return "⛷️"
+        case .skiingNordic, .skiingTouring, .rollerSki: return "🎿"
+        case .snowboard:                   return "🏂"
+        case .snowshoe:                    return "🥾"
+        case .iceSkate:                    return "⛸️"
+        case .inlineSkate, .skateboard:    return "🛹"
+        case .swimming:                    return "🏊"
+        case .rowing, .virtualRow, .canoeing, .kayaking: return "🚣"
+        case .standUpPaddling, .surfing:   return "🏄"
+        case .kitesurf, .windsurf, .sailing: return "⛵"
+        case .climbing:                    return "🧗"
+        case .strengthTraining:            return "🏋️"
+        case .crossfit, .hiit, .workout, .elliptical, .stairStepper: return "💪"
+        case .pilates, .yoga:              return "🧘"
+        case .golf:                        return "⛳"
+        case .badminton:                   return "🏸"
+        case .tennis, .tableTennis, .pickleball, .racquetball, .squash: return "🎾"
+        case .soccer:                      return "⚽"
+        case .other:                       return "📍"
+        }
+    }
+
     var symbolName: String {
         switch self {
         case .cyclingRoad, .cyclingGravel, .virtualRide, .velomobile: return "bicycle"
