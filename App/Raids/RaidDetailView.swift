@@ -41,6 +41,8 @@ struct RaidDetailView: View {
     @State private var filmProgress: Double = 0
     @State private var filmStatus = ""
     @State private var exportError: String?
+    @State private var isCalendarBusy = false
+    @State private var calendarSaved = false
     @State private var showWebExportOptions = false
     @State private var isExportingWeb = false
     @State private var webOptions = WebExportOptions()
@@ -208,6 +210,7 @@ struct RaidDetailView: View {
             }
             ToolbarItemGroup { raidActions }
         }
+        .onAppear { calendarSaved = CalendarExportService.shared.isSaved(CalendarEvent.raidChapeauKey(raid.id)) }
         .task(id: "\(raid.id.uuidString)|\(trackColorModeRaw)") { await loadMap() }
         .task(id: raid.id) { await loadStageLayouts() }
         .task(id: raid.id) { await model.loadPublishState(raidId: raid.id) }
@@ -291,6 +294,35 @@ struct RaidDetailView: View {
             Label("Film du raid", systemImage: "film")
         }
         .disabled(members.isEmpty || isExportingFilm)
+
+        Button {
+            Task { await toggleRaidCalendar() }
+        } label: {
+            if isCalendarBusy { ProgressView().controlSize(.small) }
+            else { Label(calendarSaved ? "Retirer du Calendrier" : "Ajouter au Calendrier",
+                         systemImage: calendarSaved ? "calendar.badge.minus" : "calendar.badge.plus") }
+        }
+        .disabled(members.isEmpty || isCalendarBusy)
+        .help(calendarSaved ? "Retire le raid et ses activités du Calendrier Apple"
+                            : "Ajoute chaque activité du raid au Calendrier Apple (+ un événement couvrant tout le raid)")
+    }
+
+    private func toggleRaidCalendar() async {
+        isCalendarBusy = true
+        defer { isCalendarBusy = false }
+        let events = await CalendarEvent.raid(raid, members: members, repository: repository)
+        guard !events.isEmpty else { return }
+        do {
+            if calendarSaved {
+                try await CalendarExportService.shared.remove(events)
+                calendarSaved = false
+            } else {
+                try await CalendarExportService.shared.save(events)
+                calendarSaved = true
+            }
+        } catch {
+            exportError = error.localizedDescription
+        }
     }
 
     // MARK: Publication web

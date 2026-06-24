@@ -151,4 +151,9 @@ final class CalendarExportService {
         do { try store.remove(ek, span: .thisEvent, commit: true) } catch { throw CalendarError.underlying(error.localizedDescription) }
         setStoredEventId(nil, for: identityKey)
     }
+
+    /// Retire plusieurs événements liés (parcours/raid).
+    func remove(_ events: [CalendarEvent]) async throws {
+        for e in events { try await remove(e.identityKey, around: e.startDate) }
+    }
 }

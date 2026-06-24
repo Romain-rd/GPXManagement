@@ -249,11 +249,13 @@ struct ParcoursDetailView: View {
         .overlay { parcoursFullscreenOverlay }
         .navigationTitle(activity.title)
         .toolbar {
+            ToolbarItem(placement: .automatic) { calendarToolbarButton }
             ToolbarItem(placement: .automatic) {
                 Button { showWebSheet = true } label: { Image(systemName: "globe") }
                     .help("Page web du parcours (aperçu / publication)")
             }
         }
+        .modifier(ParcoursCalendarSupport(calendarSaved: $calendarSaved, calendarError: $calendarError, activityId: activity.id))
         .sheet(isPresented: $showWebSheet) { routeWebSheet }
         .onChange(of: window?.duplicateToken ?? 0) { _, _ in
             Task { await AppServices.shared.duplicateParcours(parent: activity) }
@@ -438,6 +440,9 @@ struct ParcoursDetailView: View {
     @State private var webPublishedURL: String?
     @State private var webPublishConfig: String?
     @State private var webError: String?
+    @State private var isCalendarBusy = false
+    @State private var calendarSaved = false
+    @State private var calendarError: String?
 
     private var routeWebSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -509,6 +514,37 @@ struct ParcoursDetailView: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(.tint.opacity(0.08)))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.tint.opacity(0.25)))
+        }
+    }
+
+    @ViewBuilder private var calendarToolbarButton: some View {
+        Button { Task { await toggleParcoursCalendar() } } label: {
+            if isCalendarBusy { ProgressView().controlSize(.small) }
+            else { Image(systemName: calendarSaved ? "calendar.badge.minus" : "calendar.badge.plus") }
+        }
+        .disabled(isCalendarBusy)
+        .help(calendarSaved ? "Retirer les étapes du Calendrier Apple"
+                            : "Ajouter les étapes datées au Calendrier Apple (une par jour + un événement couvrant tout le parcours)")
+    }
+
+    private func toggleParcoursCalendar() async {
+        isCalendarBusy = true
+        defer { isCalendarBusy = false }
+        let events = await CalendarEvent.route(activity, repository: repository)
+        guard !events.isEmpty else {
+            calendarError = "Aucune étape datée : renseignez les dates des étapes pour les ajouter au Calendrier."
+            return
+        }
+        do {
+            if calendarSaved {
+                try await CalendarExportService.shared.remove(events)
+                calendarSaved = false
+            } else {
+                try await CalendarExportService.shared.save(events)
+                calendarSaved = true
+            }
+        } catch {
+            calendarError = error.localizedDescription
         }
     }
 
@@ -1759,5 +1795,20 @@ struct ParcoursDetailView: View {
                 extraWaypoints[j].name = t.isEmpty ? nil : v
             }
         )
+    }
+}
+
+/// Regroupe l'état Calendrier (rafraîchissement à l'apparition + alerte d'erreur) en un seul modificateur,
+/// pour ne pas alourdir le `body` du détail de parcours (limite de type-checking).
+private struct ParcoursCalendarSupport: ViewModifier {
+    @Binding var calendarSaved: Bool
+    @Binding var calendarError: String?
+    let activityId: UUID
+    func body(content: Content) -> some View {
+        content
+            .onAppear { calendarSaved = CalendarExportService.shared.isSaved(CalendarEvent.routeChapeauKey(activityId)) }
+            .alert("Calendrier", isPresented: Binding(get: { calendarError != nil }, set: { if !$0 { calendarError = nil } })) {
+                Button("OK") { calendarError = nil }
+            } message: { Text(calendarError ?? "") }
     }
 }
