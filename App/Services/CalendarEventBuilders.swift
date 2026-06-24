@@ -124,24 +124,27 @@ extension CalendarEvent {
     /// Raid : 1 événement horaire par activité membre + 1 chapeau journée entière couvrant le raid.
     static func raid(_ raid: Raid, members: [ActivitySummary], repository: CoreDataActivityRepository) async -> [CalendarEvent] {
         guard !members.isEmpty else { return [] }
+        // Page web du raid : chaque événement du raid y pointe (sauf un membre publié individuellement → sa propre page).
+        let raidURL = (try? await repository.fetchRaidWebPublishedURL(id: raid.id)) ?? nil
+        let raidLink = (raidURL?.isEmpty == false) ? raidURL : nil
         var events: [CalendarEvent] = []
         for m in members {
-            let webURL = (try? await repository.fetchWebPublishedURL(id: m.id)) ?? nil
+            let memberURL = (try? await repository.fetchWebPublishedURL(id: m.id)) ?? nil
+            let link = (memberURL?.isEmpty == false) ? memberURL : raidLink
             let end = m.endDate > m.startDate ? m.endDate : m.startDate.addingTimeInterval(max(m.duration, 3600))
             events.append(CalendarEvent(identityKey: "gpx:raid/\(raid.id.uuidString)/member/\(m.id.uuidString)",
                                         title: "\(m.activityType.emoji) \(m.title)",
                                         startDate: m.startDate, endDate: end, isAllDay: false, location: nil,
                                         notes: detailNotes(type: m.activityType, stats: stats(of: m)),
-                                        url: webURL.flatMap { URL(string: $0) }))
+                                        url: link.flatMap { URL(string: $0) }))
         }
         let start = raid.startDate ?? members.map(\.startDate).min() ?? members[0].startDate
         let last = raid.endDate ?? members.map(\.endDate).max() ?? members[0].endDate
-        let raidURL = (try? await repository.fetchRaidWebPublishedURL(id: raid.id)) ?? nil
         events.append(CalendarEvent(identityKey: raidChapeauKey(raid.id),
                                     title: "🏕️ \(raid.name)",
                                     startDate: start, endDate: allDayEnd(last), isAllDay: true, location: raid.place,
                                     notes: "\(members.count) activité\(members.count > 1 ? "s" : "")",
-                                    url: raidURL.flatMap { $0.isEmpty ? nil : URL(string: $0) }))
+                                    url: raidLink.flatMap { URL(string: $0) }))
         return events
     }
 
