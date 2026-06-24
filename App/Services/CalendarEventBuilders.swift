@@ -4,6 +4,13 @@ import GPXCore
 /// Construction des événements Calendrier pour les parcours et les raids (le contenu pur, sans EventKit).
 extension CalendarEvent {
 
+    /// Fin d'un événement journée entière couvrant jusqu'au jour `last` INCLUS : EventKit traite la fin comme
+    /// exclusive (l'événement s'arrête au début de `endDate`), il faut donc viser le lendemain de `last`.
+    private static func allDayEnd(_ last: Date) -> Date {
+        let cal = Calendar.current
+        return cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
+    }
+
     private static func metric(_ distance: Double, _ gain: Double) -> [String] {
         var parts: [String] = []
         if distance > 0 { parts.append(String(format: "%.1f km", distance / 1000)) }
@@ -44,11 +51,12 @@ extension CalendarEvent {
         }
         guard let first = dates.min(), let last = dates.max() else { return [] }
         let webURL = (try? await repository.fetchWebPublishedURL(id: activity.id)) ?? nil
+        var notes = "\(stageEvents.count) étape\(stageEvents.count > 1 ? "s" : "")"
+        if let webURL, !webURL.isEmpty { notes += "\n\n\(webURL)" }
         let chapeau = CalendarEvent(identityKey: "gpx:route/\(activity.id.uuidString)",
                                     title: "\(activity.activityType.emoji) \(activity.title)",
-                                    startDate: first, endDate: last, isAllDay: true, location: nil,
-                                    notes: "\(stageEvents.count) étape\(stageEvents.count > 1 ? "s" : "")",
-                                    url: webURL.flatMap { URL(string: $0) })
+                                    startDate: first, endDate: allDayEnd(last), isAllDay: true, location: nil,
+                                    notes: notes, url: webURL.flatMap { URL(string: $0) })
         return stageEvents + [chapeau]
     }
 
@@ -71,10 +79,10 @@ extension CalendarEvent {
                                         url: webURL.flatMap { URL(string: $0) }))
         }
         let start = raid.startDate ?? members.map(\.startDate).min() ?? members[0].startDate
-        let end = raid.endDate ?? members.map(\.endDate).max() ?? members[0].endDate
+        let last = raid.endDate ?? members.map(\.endDate).max() ?? members[0].endDate
         events.append(CalendarEvent(identityKey: raidChapeauKey(raid.id),
                                     title: "🏕️ \(raid.name)",
-                                    startDate: start, endDate: end, isAllDay: true, location: raid.place,
+                                    startDate: start, endDate: allDayEnd(last), isAllDay: true, location: raid.place,
                                     notes: "\(members.count) activité\(members.count > 1 ? "s" : "")", url: nil))
         return events
     }
