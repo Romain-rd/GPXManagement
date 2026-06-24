@@ -98,7 +98,6 @@ extension CalendarEvent {
                       : (arrival.isEmpty ? "Étape \(i + 1)" : arrival)
             var extra: [String] = []
             if let n = s.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty { extra.append(n) }
-            if let url { extra.append(url) }
             stageEvents.append(CalendarEvent(identityKey: "gpx:stage/\(s.id.uuidString)",
                                              title: "J\(i + 1) · \(route)",
                                              startDate: date, endDate: date, isAllDay: true,
@@ -108,8 +107,7 @@ extension CalendarEvent {
             dates.append(date)
         }
         guard let first = dates.min(), let last = dates.max() else { return [] }
-        var extra = ["\(stageEvents.count) étape\(stageEvents.count > 1 ? "s" : "")"]
-        if let url { extra.append(url) }
+        let extra = ["\(stageEvents.count) étape\(stageEvents.count > 1 ? "s" : "")"]
         let chapeau = CalendarEvent(identityKey: routeChapeauKey(activity.id),
                                     title: "\(activity.activityType.emoji) \(activity.title)",
                                     startDate: first, endDate: allDayEnd(last), isAllDay: true, location: nil,
@@ -138,10 +136,12 @@ extension CalendarEvent {
         }
         let start = raid.startDate ?? members.map(\.startDate).min() ?? members[0].startDate
         let last = raid.endDate ?? members.map(\.endDate).max() ?? members[0].endDate
+        let raidURL = (try? await repository.fetchRaidWebPublishedURL(id: raid.id)) ?? nil
         events.append(CalendarEvent(identityKey: raidChapeauKey(raid.id),
                                     title: "🏕️ \(raid.name)",
                                     startDate: start, endDate: allDayEnd(last), isAllDay: true, location: raid.place,
-                                    notes: "\(members.count) activité\(members.count > 1 ? "s" : "")", url: nil))
+                                    notes: "\(members.count) activité\(members.count > 1 ? "s" : "")",
+                                    url: raidURL.flatMap { $0.isEmpty ? nil : URL(string: $0) }))
         return events
     }
 
