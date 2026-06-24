@@ -14,21 +14,6 @@ struct CalendarEvent {
     let url: URL?
 }
 
-extension CalendarEvent {
-    /// Événement horaire d'une activité réalisée (début → fin réels, repli durée/+1 h si la fin n'est pas après le début).
-    static func activity(_ a: ActivitySummary, location: String?, webURL: String?) -> CalendarEvent {
-        var parts = [a.activityType.displayName]
-        if a.distance > 0 { parts.append(String(format: "%.1f km", a.distance / 1000)) }
-        if a.elevationGain > 0 { parts.append("+\(Int(a.elevationGain.rounded())) m de D+") }
-        let end = a.endDate > a.startDate ? a.endDate : a.startDate.addingTimeInterval(max(a.duration, 3600))
-        return CalendarEvent(identityKey: "gpx:activity/\(a.id.uuidString)",
-                             title: "\(a.activityType.emoji) \(a.title)",
-                             startDate: a.startDate, endDate: end, isAllDay: false,
-                             location: location, notes: parts.joined(separator: " · "),
-                             url: webURL.flatMap { URL(string: $0) })
-    }
-}
-
 /// Pont vers Calendrier.app via EventKit : autorisation, calendrier dédié « GPXManagement », et écriture idempotente.
 @MainActor
 final class CalendarExportService {
