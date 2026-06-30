@@ -99,11 +99,14 @@ final class RouteEditingModel {
         return out
     }
 
-    /// Numéro d'étape (Jn) de chaque arrêt d'arrivée (arrêt d'étape interne ou point d'arrivée) — exclut le départ.
+    /// Numéro d'étape (Jn) de chaque arrêt d'arrivée — UNIQUEMENT si le parcours a au moins un arrêt interne.
+    /// Sans arrêt, c'est un parcours simple (départ → arrivée, sortie à la journée) : aucune étape, donc aucun Jn.
     var stageArrivalNumbers: [UUID: Int] {
+        let c = waypoints.count
+        let hasStops = waypoints.indices.contains { $0 > 0 && $0 < c - 1 && waypoints[$0].role == .stageStop }
+        guard hasStops else { return [:] }
         var out: [UUID: Int] = [:]
         var n = 0
-        let c = waypoints.count
         for (i, wp) in waypoints.enumerated() where i > 0 && (wp.role == .stageStop || i == c - 1) {
             n += 1; out[wp.id] = n
         }
@@ -277,7 +280,8 @@ final class RouteEditingModel {
     }
 
     func delete(_ id: UUID) {
-        guard !busy, let k = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 2 else { return }
+        // On autorise la suppression de n'importe quel point, y compris le départ/l'arrivée (jusqu'à n'en garder qu'un).
+        guard !busy, let k = waypoints.firstIndex(where: { $0.id == id }), waypoints.count > 1 else { return }
         snapshot("Supprimer un point")
         if k == 0 { if !segments.isEmpty { segments.removeFirst() } }
         else if k == waypoints.count - 1 { if !segments.isEmpty { segments.removeLast() } }
@@ -285,6 +289,26 @@ final class RouteEditingModel {
         waypoints.remove(at: k)
         if selectedWaypointId == id { selectedWaypointId = nil }
         markDirty()
+    }
+
+    /// Replace un point en tête (départ) ; redevient un simple ancrage `.shaping` (départ = position, pas un rôle).
+    func makeDeparture(_ id: UUID) {
+        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }), i != 0 else { return }
+        snapshot("Définir le départ")
+        var wp = waypoints.remove(at: i); wp.role = .shaping
+        waypoints.insert(wp, at: 0)
+        selectedWaypointId = wp.id
+        invalidateAll()
+    }
+
+    /// Replace un point en fin (arrivée) ; redevient un simple ancrage `.shaping`.
+    func makeArrival(_ id: UUID) {
+        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }), i != waypoints.count - 1 else { return }
+        snapshot("Définir l'arrivée")
+        var wp = waypoints.remove(at: i); wp.role = .shaping
+        waypoints.append(wp)
+        selectedWaypointId = wp.id
+        invalidateAll()
     }
 
     func reroute() {
