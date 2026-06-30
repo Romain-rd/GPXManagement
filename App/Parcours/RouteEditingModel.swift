@@ -162,14 +162,55 @@ final class RouteEditingModel {
     func moveWaypoint(id: UUID, to c: CLLocationCoordinate2D) {
         guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
         snapshot("Déplacer un point")
+        // Aimantation boucle : glisser une extrémité tout près de l'autre la colle exactement dessus (arrivée = départ).
+        var target = c
+        let n = waypoints.count
+        if n >= 3, i == 0 || i == n - 1 {
+            let other = waypoints[i == 0 ? n - 1 : 0]
+            let oc = CLLocationCoordinate2D(latitude: other.latitude, longitude: other.longitude)
+            if isWithinSnapDistance(target, oc) { target = oc }
+        }
         // Changement de PLACE (> 400 m) → on efface le nom pour qu'il soit re-déduit ; un simple ajustement le conserve.
         let moved = CLLocation(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)
-            .distance(from: CLLocation(latitude: c.latitude, longitude: c.longitude))
-        waypoints[i].latitude = c.latitude
-        waypoints[i].longitude = c.longitude
+            .distance(from: CLLocation(latitude: target.latitude, longitude: target.longitude))
+        waypoints[i].latitude = target.latitude
+        waypoints[i].longitude = target.longitude
         if moved > 400 { waypoints[i].name = nil }
         touch(i)
         markDirty()
+    }
+
+    /// Proximité à l'écran (indépendante du zoom) entre deux coordonnées ; repli métrique si la carte n'est pas dispo.
+    private func isWithinSnapDistance(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Bool {
+        if let mv = proxy.mapView {
+            let pa = mv.convert(a, toPointTo: mv), pb = mv.convert(b, toPointTo: mv)
+            return hypot(pa.x - pb.x, pa.y - pb.y) < 24
+        }
+        return CLLocation(latitude: a.latitude, longitude: a.longitude)
+            .distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude)) < 40
+    }
+
+    /// Ferme le parcours en boucle : ajoute une arrivée aux coordonnées exactes du départ (le retour est routé).
+    func closeLoop() {
+        guard !busy, waypoints.count >= 2, let first = waypoints.first, let last = waypoints.last else { return }
+        let firstC = CLLocationCoordinate2D(latitude: first.latitude, longitude: first.longitude)
+        let lastC = CLLocationCoordinate2D(latitude: last.latitude, longitude: last.longitude)
+        // Déjà bouclé (dernier ≈ départ) → ne rien faire.
+        if CLLocation(latitude: lastC.latitude, longitude: lastC.longitude)
+            .distance(from: CLLocation(latitude: firstC.latitude, longitude: firstC.longitude)) < 20 { return }
+        snapshot("Fermer la boucle")
+        let wp = RouteWaypoint(latitude: first.latitude, longitude: first.longitude, role: .shaping)
+        waypoints.append(wp)
+        segments.append(nil)
+        selectedWaypointId = wp.id
+        markDirty()
+    }
+
+    /// Vrai si le parcours forme déjà une boucle (arrivée ≈ départ) — pour l'état du bouton « Fermer la boucle ».
+    var isLoop: Bool {
+        guard waypoints.count >= 2, let first = waypoints.first, let last = waypoints.last else { return false }
+        return CLLocation(latitude: first.latitude, longitude: first.longitude)
+            .distance(from: CLLocation(latitude: last.latitude, longitude: last.longitude)) < 20
     }
 
     /// Insère le point à sa place le long du tracé en projetant `c` sur la polyligne routée (arête la plus proche).

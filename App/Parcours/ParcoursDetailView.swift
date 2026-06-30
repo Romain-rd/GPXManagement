@@ -779,6 +779,12 @@ struct ParcoursDetailView: View {
             if activity.isEditableRoute {
                 toolButton(.route, "point.topleft.down.to.point.bottomright.curvepath",
                            "Point de tracé — un clic sur la carte ajoute un point muet qui force l'itinéraire à passer par là (ni POI, ni étape).")
+                Button { routeModel.closeLoop(); routeModel.reroute() } label: {
+                    Image(systemName: "arrow.triangle.capsulepath").frame(width: 30, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .disabled(routeModel.waypoints.count < 2 || routeModel.isLoop || routeModel.busy)
+                .help("Fermer la boucle — ajoute une arrivée au même endroit que le départ")
             }
         }
     }
@@ -1297,14 +1303,25 @@ struct ParcoursDetailView: View {
         let info = stageInfoByStop()
         let count = routeModel.waypoints.count
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Cliquer une ligne situe le point et affiche son étape · glisser pour réordonner · clic droit sur la ligne pour le rôle")
+            Text("Cliquer une ligne situe le point et affiche son étape · cliquer la pastille change son type · glisser pour réordonner")
                 .font(.caption).foregroundStyle(.secondary)
             ScrollViewReader { proxy in
             List {
                 ForEach(Array(routeModel.waypoints.enumerated()), id: \.element.id) { i, wp in
                     HStack(spacing: 8) {
-                        pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id], label: routeModel.typedLabels[wp.id])
-                            .help(i == 0 ? "Départ" : (i == count - 1 ? "Arrivée" : "Cliquer pour situer/afficher l'étape · clic droit pour changer le rôle"))
+                        let badge = pointBadge(wp.role, i, count, selected: routeModel.selectedWaypointId == wp.id, stage: routeModel.stageArrivalNumbers[wp.id], label: routeModel.typedLabels[wp.id])
+                        if i > 0 && i < count - 1 {
+                            // Clic gauche sur la pastille = menu de type (départ/arrivée exclus, ce sont des positions).
+                            Menu {
+                                Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
+                                Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
+                                Button { routeModel.setRole(.stageStop, for: wp.id) } label: { Label("Fin d'étape", systemImage: "flag.fill") }
+                            } label: { badge }
+                                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                                .help("Changer le type du point")
+                        } else {
+                            badge.help(i == 0 ? "Départ" : "Arrivée")
+                        }
                         TextField(wp.role == .shaping ? "Point de tracé" : "Nom",
                                   text: Binding(get: { routeModel.name(for: wp.id) }, set: { routeModel.setName($0, for: wp.id) }))
                             .textFieldStyle(.plain).font(.caption).frame(maxWidth: 220, alignment: .leading)
