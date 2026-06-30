@@ -88,6 +88,16 @@ extension CalendarEvent {
         let webURL = (try? await repository.fetchWebPublishedURL(id: activity.id)) ?? nil
         let url = (webURL?.isEmpty == false) ? webURL : nil
 
+        // Sortie à la journée (parcours sans arrêt = 1 étape implicite) : un seul événement, sur la date du parcours.
+        if stages.count == 1 {
+            guard let date = stages[0].plannedDate else { return [] }
+            return [CalendarEvent(identityKey: routeChapeauKey(activity.id),
+                                  title: "\(activity.activityType.emoji) \(activity.title)",
+                                  startDate: date, endDate: date, isAllDay: true, location: nil,
+                                  notes: detailNotes(type: activity.activityType, stats: ActivityStatsCalculator.compute(points: points), extra: []),
+                                  url: url.flatMap { URL(string: $0) })]
+        }
+
         var stageEvents: [CalendarEvent] = []
         var dates: [Date] = []
         for (i, s) in stages.enumerated() {

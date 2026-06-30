@@ -581,7 +581,16 @@ struct ParcoursDetailView: View {
         Task { @MainActor in
             defer { isPublishing = false; progress.end() }
             do {
-                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: opts, publicBaseURL: publicBaseURL) { f, s in progress.update(f * 0.6, s) }
+                let multiDay = stages.count > 1 || routeModel.waypoints.contains(where: { $0.role == .stageStop })
+                let files: [String: Data]
+                if multiDay {
+                    files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: opts, publicBaseURL: publicBaseURL) { f, s in progress.update(f * 0.6, s) }
+                } else {
+                    // Sortie à la journée : page « activité » (carte + profil dynamique synchronisé), pas la page d'étapes.
+                    progress.update(0.2, "Page web…")
+                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: opts, photos: [], publicBaseURL: publicBaseURL)
+                    if case .folder(let f) = output { files = f } else { files = [:] }
+                }
                 try await BunnyStorageService.publish(files: files, folder: "routes/\(uuid)") { f, s in progress.update(0.6 + f * 0.4, s) }
                 let url = "https://www.gpxmanagement.net/routes/\(uuid)/"
                 let configJSON = (try? JSONEncoder().encode(opts)).flatMap { String(data: $0, encoding: .utf8) }
@@ -614,7 +623,14 @@ struct ParcoursDetailView: View {
         Task { @MainActor in
             defer { webPreviewBusy = false }
             do {
-                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: WebExportOptions())
+                let multiDay = stages.count > 1 || routeModel.waypoints.contains(where: { $0.role == .stageStop })
+                let files: [String: Data]
+                if multiDay {
+                    files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: WebExportOptions())
+                } else {
+                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: WebExportOptions(), photos: [])
+                    if case .folder(let f) = output { files = f } else { files = [:] }
+                }
                 let downloads = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
                 let dir = downloads.appendingPathComponent("GPXManagement-apercu/\(act.id.uuidString)", isDirectory: true)
                 try? FileManager.default.removeItem(at: dir)
@@ -732,7 +748,7 @@ struct ParcoursDetailView: View {
 
     @ViewBuilder private var stagesCollapsible: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(activity.isEditableRoute ? "Le long du parcours" : "Étapes", "flag.fill", $secStagesExpanded)
+            sectionHeader(activity.isEditableRoute ? "Le long du parcours" : (stages.count > 1 ? "Étapes" : "Itinéraire"), "flag.fill", $secStagesExpanded)
             if secStagesExpanded { listsSection }
         }
     }
@@ -1436,15 +1452,19 @@ struct ParcoursDetailView: View {
         guard !stages.isEmpty, !points.isEmpty else { return [] }
         let pois = extraWaypoints.filter { $0.role == .poi }
         func idx(_ w: RouteWaypoint) -> Int { RouteWaypoint.nearestIndex(latitude: w.latitude, longitude: w.longitude, in: points) }
+        // Sortie à la journée (1 étape, aucun arrêt) : on n'affiche pas d'en-tête « Étape », juste départ → arrivée.
+        let singleDay = stages.count == 1
         var items: [OutlineItem] = [OutlineItem(id: "start", kind: .departure)]
         for (k, s) in stages.enumerated() {
             for w in pois where idx(w) > s.startIndex && idx(w) <= s.endIndex {
                 items.append(OutlineItem(id: "poi-\(w.id)", kind: .poi, poiId: w.id))
             }
-            items.append(OutlineItem(id: "stage-\(s.id)", kind: .stageHeader, number: k + 1,
-                                     stats: String(format: "%.1f km · +%d m", stageKm(s), stageGain(s)),
-                                     date: s.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
-                                     offTrack: offTrackExtra(s), stageId: s.id))
+            if !singleDay {
+                items.append(OutlineItem(id: "stage-\(s.id)", kind: .stageHeader, number: k + 1,
+                                         stats: String(format: "%.1f km · +%d m", stageKm(s), stageGain(s)),
+                                         date: s.plannedDate.map { Self.stageDateFormatter.string(from: $0) },
+                                         offTrack: offTrackExtra(s), stageId: s.id))
+            }
             items.append(OutlineItem(id: "stop-\(s.id)", kind: k == stages.count - 1 ? .arrival : .stop, stageId: s.id))
         }
         return items
