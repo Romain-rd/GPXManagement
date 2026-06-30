@@ -55,7 +55,7 @@ public enum HTMLReportRenderer {
         case folder(files: [String: Data]) // contient "index.html"
     }
 
-    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset]) async throws -> Output {
+    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset], publicBaseURL: String? = nil) async throws -> Output {
         guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty else {
             throw HTMLReportError.noTrackData
         }
@@ -66,6 +66,16 @@ public enum HTMLReportRenderer {
             let mapRect = framedMapRect(bounds, aspect: mapAspect)
             let overlay = TrackOverlayInput(activityId: activity.id, activityType: activity.activityType, coordinates: points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
             mapPNG = try? await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: [overlay], maxDimension: 2000, trackColor: activity.activityType.trackColor)
+        }
+        // Aperçu du lien partagé (og:image) : la carte du tracé sur fond IGN. En mode image statique on
+        // réutilise la carte déjà produite ; en interactif on en génère une dédiée, uniquement à la publication.
+        var previewRef: String?
+        var previewPNG: Data?
+        if mapPNG != nil {
+            previewRef = "images/carte.png"
+        } else if publicBaseURL != nil {
+            previewPNG = await previewSnapshotPNG(points: points, activity: activity, layer: layer)
+            if previewPNG != nil { previewRef = "images/apercu.png" }
         }
         let mapPoints = options.map == .interactive ? decimatedPoints(points, max: 2000) : []
         let trackCoords = mapPoints.map { (lat: $0.latitude, lon: $0.longitude) }
@@ -115,11 +125,13 @@ public enum HTMLReportRenderer {
         let html = buildHTML(activity: activity, assets: assets, options: options,
                              slopeLegend: slopeLegendItems(distanceScale: distanceScale, scale: activity.activityType.slopeScale),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
-                             layer: layer, trackCoords: trackCoords, trackSpeedColors: trackColors.speed, trackSlopeColors: trackColors.slope, profilePayload: profilePayload)
+                             layer: layer, trackCoords: trackCoords, trackSpeedColors: trackColors.speed, trackSlopeColors: trackColors.slope, profilePayload: profilePayload,
+                             ogImageRef: previewRef, publicBaseURL: publicBaseURL)
 
         do {
             var files: [String: Data] = ["index.html": html.data(using: .utf8) ?? Data()]
             if let map = mapPNG { files["images/carte.png"] = map }
+            if let p = previewPNG { files["images/apercu.png"] = p }
             if let d = distancePNG { files["images/profil-distance.png"] = d }
             if let t = timePNG { files["images/profil-temps.png"] = t }
             for (i, item) in photoItems.enumerated() {
@@ -224,7 +236,7 @@ public enum HTMLReportRenderer {
 
     /// Génère la page web d'un parcours en étapes : un seul `index.html`, tab bar fixe (Carte/Étapes/Profil/Infos),
     /// carte interactive colorée par étape. Phase 1 : onglet Carte complet ; Étapes/Infos basiques ; Profil à venir.
-    public static func renderRoute(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]] = [:], onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
+    public static func renderRoute(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, stagePhotos: [UUID: [PHAsset]] = [:], publicBaseURL: String? = nil, onProgress: ((Double, String) -> Void)? = nil) async throws -> [String: Data] {
         guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty,
               let points = try? TrackPointCodec.decode(data), points.count >= 2 else {
             throw HTMLReportError.noTrackData
@@ -290,13 +302,20 @@ public enum HTMLReportRenderer {
             markers.append(RouteMarkerVM(lat: wp.latitude, lon: wp.longitude, kind: kind, label: "\(i + 1)", name: wp.name ?? ""))
         }
 
+        var previewRef: String?
+        if publicBaseURL != nil, let png = await previewSnapshotPNG(points: points, activity: activity, layer: layer) {
+            files["images/apercu.png"] = png
+            previewRef = "images/apercu.png"
+        }
+
         onProgress?(0.6, "Page web…")
-        let html = buildRouteHTML(activity: activity, stages: stageVMs, markers: markers, tile: tile, accent: accent)
+        let html = buildRouteHTML(activity: activity, stages: stageVMs, markers: markers, tile: tile, accent: accent,
+                                  ogImageRef: previewRef, publicBaseURL: publicBaseURL)
         files["index.html"] = html.data(using: .utf8) ?? Data()
         return files
     }
 
-    private static func buildRouteHTML(activity: ActivitySummary, stages: [RouteStageVM], markers: [RouteMarkerVM], tile: WebTileLayer, accent: String) -> String {
+    private static func buildRouteHTML(activity: ActivitySummary, stages: [RouteStageVM], markers: [RouteMarkerVM], tile: WebTileLayer, accent: String, ogImageRef: String? = nil, publicBaseURL: String? = nil) -> String {
         let totalKm = fmtDistance(activity.distance)
         let totalGain = "\(Int(activity.elevationGain.rounded())) m"
         let n = stages.count
@@ -334,6 +353,7 @@ public enum HTMLReportRenderer {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <title>\(esc(activity.title))</title>
+        \(ogMeta(title: activity.title, description: summary, imageRef: ogImageRef, baseURL: publicBaseURL))
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
         <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
         <style>\(css(accent: accent))\(routeCSS)</style>
@@ -1091,7 +1111,7 @@ public enum HTMLReportRenderer {
         return scale.categories.map { LegendItem(label: scale.label(for: $0), color: hex($0.color)) }
     }
 
-    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval, ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String) -> String {
+    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval, ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String, ogImageRef: String? = nil, publicBaseURL: String? = nil) -> String {
         let accent = hex(activity.activityType.trackColor)
         let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
         let interactiveProfile = options.profile == .interactive && !profilePayload.isEmpty
@@ -1343,6 +1363,7 @@ public enum HTMLReportRenderer {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>\(esc(activity.title))</title>
+        \(ogMeta(title: activity.title, description: "\(activity.activityType.displayName) · \(fmtDistance(activity.distance)) · +\(Int(activity.elevationGain.rounded())) m · \(fmtDate(activity.startDate))", imageRef: ogImageRef, baseURL: publicBaseURL))
         \(leafletHead)
         <style>\(css(accent: accent))</style>
         </head>
@@ -1651,6 +1672,37 @@ public enum HTMLReportRenderer {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
     private static func nl2br(_ s: String) -> String { esc(s).replacingOccurrences(of: "\n", with: "<br>") }
+
+    /// Balises Open Graph / Twitter pour l'aperçu du lien partagé. `imageRef` est relatif au dossier publié ;
+    /// `baseURL` (URL publique, suffixée « / ») le rend absolu — requis pour que les scrapers chargent l'image.
+    private static func ogMeta(title: String, description: String, imageRef: String?, baseURL: String?) -> String {
+        var lines = [
+            "<meta property=\"og:type\" content=\"website\">",
+            "<meta property=\"og:site_name\" content=\"GPXManagement\">",
+            "<meta property=\"og:title\" content=\"\(esc(title))\">"
+        ]
+        if !description.isEmpty {
+            lines.append("<meta name=\"description\" content=\"\(esc(description))\">")
+            lines.append("<meta property=\"og:description\" content=\"\(esc(description))\">")
+        }
+        if let base = baseURL { lines.append("<meta property=\"og:url\" content=\"\(esc(base))\">") }
+        if let ref = imageRef {
+            let img = esc((baseURL ?? "") + ref)
+            lines.append("<meta property=\"og:image\" content=\"\(img)\">")
+            lines.append("<meta name=\"twitter:card\" content=\"summary_large_image\">")
+            lines.append("<meta name=\"twitter:image\" content=\"\(img)\">")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Snapshot PNG du tracé sur fond IGN, utilisé comme image d'aperçu (og:image) à la publication.
+    private static func previewSnapshotPNG(points: [TrackPoint], activity: ActivitySummary, layer: MapLayer) async -> Data? {
+        guard let bounds = PDFReportRenderer.boundingMapRect(points) else { return nil }
+        let mapRect = framedMapRect(bounds, aspect: mapAspect)
+        let overlay = TrackOverlayInput(activityId: activity.id, activityType: activity.activityType,
+                                        coordinates: points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
+        return try? await MapImageExporter.renderPNG(layer: layer, mapRect: mapRect, tracks: [overlay], maxDimension: 1600, trackColor: activity.activityType.trackColor)
+    }
 
     private static func fmtDate(_ d: Date) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateStyle = .long; f.timeStyle = .short

@@ -577,10 +577,11 @@ struct ParcoursDetailView: View {
         let act = activity, repo = repository, layer = MapLayer.base(fromRawValue: layerRaw)
         var opts = webOptions; opts.output = .publishBunny
         let uuid = routeUUID() ?? UUID().uuidString.lowercased()
+        let publicBaseURL = "https://www.gpxmanagement.net/routes/\(uuid)/"
         Task { @MainActor in
             defer { isPublishing = false; progress.end() }
             do {
-                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: opts) { f, s in progress.update(f * 0.6, s) }
+                let files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: opts, publicBaseURL: publicBaseURL) { f, s in progress.update(f * 0.6, s) }
                 try await BunnyStorageService.publish(files: files, folder: "routes/\(uuid)") { f, s in progress.update(0.6 + f * 0.4, s) }
                 let url = "https://www.gpxmanagement.net/routes/\(uuid)/"
                 let configJSON = (try? JSONEncoder().encode(opts)).flatMap { String(data: $0, encoding: .utf8) }

@@ -1865,13 +1865,16 @@ struct ActivityDetailView: View {
         // Seules les photos sélectionnées (affichées sur la carte) sont exportées.
         let photos = webOptions.includePhotos ? photoAssets.filter { isPhotoShown($0.localIdentifier) } : []
         let safeName = activity.title.replacingOccurrences(of: "/", with: "-")
+        // UUID décidé avant le rendu : l'aperçu (og:image) a besoin de l'URL publique absolue.
+        let publishUUID = webOptions.output == .publishBunny ? (model.existingPublishUUID() ?? UUID().uuidString.lowercased()) : nil
+        let publicBaseURL = publishUUID.map { "https://www.gpxmanagement.net/traces/\($0)/" }
         do {
-            let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos)
+            let output = try await HTMLReportRenderer.render(activity: activity, repository: repository, layer: layer, options: webOptions, photos: photos, publicBaseURL: publicBaseURL)
             progress.update(0.6, "Préparation des fichiers…")
             switch output {
             case .folder(let files):
-                if webOptions.output == .publishBunny {
-                    try await publishToBunny(files: files) { f, s in progress.update(0.6 + f * 0.4, s) }
+                if let uuid = publishUUID {
+                    try await publishToBunny(uuid: uuid, files: files) { f, s in progress.update(0.6 + f * 0.4, s) }
                 } else {
                     let panel = NSSavePanel()
                     panel.title = "Exporter le dossier de la page web"
@@ -1892,8 +1895,7 @@ struct ActivityDetailView: View {
         }
     }
 
-    private func publishToBunny(files: [String: Data], onProgress: ((Double, String) -> Void)? = nil) async throws {
-        let uuid = model.existingPublishUUID() ?? UUID().uuidString.lowercased()
+    private func publishToBunny(uuid: String, files: [String: Data], onProgress: ((Double, String) -> Void)? = nil) async throws {
         try await BunnyStorageService.publish(files: files, folder: "traces/\(uuid)", onProgress: onProgress)
         let url = "https://www.gpxmanagement.net/traces/\(uuid)/"
         let configJSON = (try? JSONEncoder().encode(webOptions)).flatMap { String(data: $0, encoding: .utf8) }
