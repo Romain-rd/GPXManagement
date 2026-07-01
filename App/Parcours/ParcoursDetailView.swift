@@ -41,6 +41,7 @@ struct ParcoursDetailView: View {
     @AppStorage("parcoursInspectorWidth") private var inspectorWidth: Double = 360
     @State private var routeModel: RouteEditingModel
     @State private var titleDraft = ""
+    @State private var notesDraft = ""
     @State private var contentWidth: CGFloat = 0
     @State private var hasStoredWaypoints = false
     @State private var placeSearch = PlaceSearchModel()
@@ -99,6 +100,7 @@ struct ParcoursDetailView: View {
     @AppStorage("parcSecMap") private var secMapExpanded = true
     @AppStorage("parcSecProfile") private var secProfileExpanded = true
     @AppStorage("parcSecStages") private var secStagesExpanded = true
+    @AppStorage("parcSecNotes") private var secNotesExpanded = true
     @AppStorage("parcoursRecalcKm") private var recalcKmRaw = "20"
     @AppStorage("parcoursRecalcGain") private var recalcGainRaw = ""
 
@@ -194,6 +196,7 @@ struct ParcoursDetailView: View {
                         mapSection
                         profileCollapsible
                         stagesCollapsible
+                        notesSection
                     }
                     .padding()
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
@@ -270,11 +273,12 @@ struct ParcoursDetailView: View {
         }
         .task(id: activity.id) {
             layerRaw = UserDefaults.standard.string(forKey: layerKey) ?? defaultLayerRaw   // fond propre à ce parcours
-            titleDraft = activity.title; routeModel.undoManager = undoManager
+            titleDraft = activity.title; notesDraft = activity.notes ?? ""; routeModel.undoManager = undoManager
             coverData = try? await repository.fetchActivityCoverData(id: activity.id)
             await load(); await loadWebState()
         }
         .onChange(of: activity.title) { titleDraft = $1 }
+        .onChange(of: activity.notes) { notesDraft = $1 ?? "" }
         .onChange(of: undoManager) { routeModel.undoManager = $1 }
         .onDisappear { commitTitle(); routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
         .task(id: AppServices.shared.libraryRevision) {
@@ -682,6 +686,30 @@ struct ParcoursDetailView: View {
                     if let d = baseDate { MetricCard(icon: "calendar", value: Self.infoDateFormatter.string(from: d), label: "Départ", tint: .purple) }
                 }
                 webPublishedSection
+            }
+        }
+    }
+
+    /// Note libre du parcours entier (comme pour une activité), distincte des notes par étape.
+    @ViewBuilder private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                sectionChevron($secNotesExpanded)
+                Label("Notes", systemImage: "note.text").font(.headline)
+                Spacer()
+                if secNotesExpanded {
+                    Button("Enregistrer") { Task { await listVM.updateNotes(id: activity.id, notes: notesDraft) } }
+                        .disabled(notesDraft == (activity.notes ?? ""))
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.snappy(duration: 0.2)) { secNotesExpanded.toggle() } }
+            if secNotesExpanded {
+                TextEditor(text: $notesDraft)
+                    .frame(minHeight: 100)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(.background.secondary))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
             }
         }
     }
