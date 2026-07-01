@@ -215,19 +215,19 @@ public enum HTMLReportRenderer {
         let index: Int; let name: String; let departure: String; let arrival: String; let dateText: String; let notes: String
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
         let pois: [(name: String, lat: Double, lon: Double)]
-        let profile: [(d: Double, e: Double)]   // distance (m depuis le début de l'étape), altitude (m)
+        let profile: [(d: Double, e: Double, lat: Double, lon: Double)]   // distance (m), altitude (m), lat, lon (survol↔carte)
         let coverRef: String?                   // chemin relatif de la photo de couverture de l'étape, si présente
     }
 
-    /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude).
-    private static func stageProfile(_ pts: [TrackPoint], max: Int = 140) -> [(d: Double, e: Double)] {
+    /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude, lat, lon).
+    private static func stageProfile(_ pts: [TrackPoint], max: Int = 140) -> [(d: Double, e: Double, lat: Double, lon: Double)] {
         let prof = ElevationProfileBuilder.build(points: pts)
         guard prof.count >= 2 else { return [] }
         let step = prof.count > max ? Double(prof.count) / Double(max) : 1
-        var out: [(Double, Double)] = []
+        var out: [(Double, Double, Double, Double)] = []
         var i = 0.0
-        while Int(i) < prof.count { let p = prof[Int(i)]; out.append((p.distanceFromStart, p.altitude)); i += step }
-        if let last = prof.last { out.append((last.distanceFromStart, last.altitude)) }
+        while Int(i) < prof.count { let p = prof[Int(i)]; out.append((p.distanceFromStart, p.altitude, p.latitude ?? 0, p.longitude ?? 0)); i += step }
+        if let last = prof.last { out.append((last.distanceFromStart, last.altitude, last.latitude ?? 0, last.longitude ?? 0)) }
         return out
     }
     private struct RouteMarkerVM {
@@ -332,7 +332,7 @@ public enum HTMLReportRenderer {
         let stagesJS = stages.map { s -> String in
             let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
             let pois = "[" + s.pois.map { "{name:\(jsString($0.name)),lat:\(String(format: "%.6f", $0.lat)),lon:\(String(format: "%.6f", $0.lon))}" }.joined(separator: ",") + "]"
-            let prof = "[" + s.profile.map { "[\(Int($0.d)),\(Int($0.e))]" }.joined(separator: ",") + "]"
+            let prof = "[" + s.profile.map { "[\(Int($0.d)),\(Int($0.e)),\(String(format: "%.5f", $0.lat)),\(String(format: "%.5f", $0.lon))]" }.joined(separator: ",") + "]"
             let cover = s.coverRef.map { jsString($0) } ?? "null"
             return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof),cover:\(cover)}"
         }.joined(separator: ",")
@@ -485,7 +485,8 @@ public enum HTMLReportRenderer {
           var S = window.__stages || [];
           var detail = document.getElementById('etape-detail'), list = document.getElementById('etapes-list');
           if (!detail || !list) return;
-          var smap = null, slayers = [], cur = 0;
+          var smap = null, slayers = [], cur = 0, scursor = null, xline = null;
+          var edProfile = document.getElementById('ed-profile');
           function pin(glyph,bg){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-pin" style="background:'+bg+'">'+glyph+'</div>', iconSize:[24,24], iconAnchor:[12,12] }); }
           function poiDot(){ return L.divIcon({ className:'rm-wrap', html:'<div class="rm-dot" style="background:#f58231"></div>', iconSize:[14,14], iconAnchor:[7,7] }); }
           function ensureMap(){
@@ -506,9 +507,32 @@ public enum HTMLReportRenderer {
               setTimeout(function(){ smap.invalidateSize(); smap.fitBounds(L.latLngBounds(c), { padding:[26,26] }); }, 30);
             }
           }
+          // Survol du profil de l'étape → crosshair + marqueur mobile sur la carte de l'étape (comme la page activité).
+          function clearHighlight(){ if (scursor && smap){ smap.removeLayer(scursor); } scursor = null; if (xline){ xline.style.display = 'none'; } }
+          function highlightAt(clientX){
+            var pts = (S[cur] && S[cur].prof) || []; if (pts.length < 2 || !edProfile) return;
+            var r = edProfile.getBoundingClientRect(); if (!r.width) return;
+            var t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+            var d0 = pts[0][0], d1 = pts[pts.length-1][0], target = d0 + t * (d1 - d0);
+            var best = 0, bd = Infinity; for (var k=0;k<pts.length;k++){ var dd = Math.abs(pts[k][0]-target); if (dd<bd){ bd=dd; best=k; } }
+            var p = pts[best];
+            if (!xline || !edProfile.contains(xline)){ xline = document.createElement('div'); xline.className = 'prof-x'; edProfile.appendChild(xline); }
+            xline.style.left = ((p[0]-d0)/((d1-d0)||1)*100) + '%'; xline.style.display = 'block';
+            if (p.length >= 4 && (p[2] || p[3]) && smap){
+              if (!scursor){ scursor = L.circleMarker([p[2],p[3]], { radius:6, color:'#fff', weight:2, fillColor:S[cur].color, fillOpacity:1 }).addTo(smap); }
+              else { scursor.setLatLng([p[2],p[3]]); }
+            }
+          }
+          if (edProfile){
+            edProfile.addEventListener('mousemove', function(e){ highlightAt(e.clientX); });
+            edProfile.addEventListener('mouseleave', clearHighlight);
+            edProfile.addEventListener('touchmove', function(e){ if (e.touches[0]) highlightAt(e.touches[0].clientX); }, {passive:true});
+            edProfile.addEventListener('touchend', clearHighlight);
+          }
           function open(i){
             if (i<0 || i>=S.length) return;
             cur = i; var s = S[i];
+            clearHighlight(); xline = null;   // le profil est reconstruit (innerHTML) → l'ancien crosshair est détaché
             document.getElementById('ed-title').textContent = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : (s.name || 'Étape');
             document.getElementById('ed-meta').textContent = [s.date, s.dist, s.gain].filter(Boolean).join(' · ');
             if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [] }]);
@@ -638,6 +662,7 @@ public enum HTMLReportRenderer {
     #ed-meta { margin:0 0 14px; color:var(--sec); font-size:15px; }
     .prof { position:relative; margin:0 0 16px; }
     .prof-svg { width:100%; height:130px; display:block; border-radius:10px; background:var(--card); border:1px solid var(--line); }
+    .prof-x { position:absolute; top:0; height:130px; width:1px; background:rgba(0,0,0,0.45); pointer-events:none; display:none; }
     .prof-global { padding:0 16px; }
     .prof-global .prof-svg { height:210px; }
     .prof-cap span { position:absolute; left:8px; font-size:11px; color:var(--sec); background:var(--card); padding:0 3px; border-radius:3px; }
