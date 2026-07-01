@@ -215,19 +215,19 @@ public enum HTMLReportRenderer {
         let index: Int; let name: String; let departure: String; let arrival: String; let dateText: String; let notes: String
         let distance: Double; let gain: Double; let coords: [(lat: Double, lon: Double)]; let color: String
         let pois: [(name: String, lat: Double, lon: Double)]
-        let profile: [(d: Double, e: Double, lat: Double, lon: Double)]   // distance (m), altitude (m), lat, lon (survol↔carte)
+        let profile: [(d: Double, e: Double, lat: Double, lon: Double, slope: Double)]   // dist, alt, lat, lon, pente %
         let coverRef: String?                   // chemin relatif de la photo de couverture de l'étape, si présente
     }
 
-    /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude, lat, lon).
-    private static func stageProfile(_ pts: [TrackPoint], max: Int = 140) -> [(d: Double, e: Double, lat: Double, lon: Double)] {
+    /// Profil altimétrique décimé d'une portion de trace : (distance depuis le début, altitude, lat, lon, pente).
+    private static func stageProfile(_ pts: [TrackPoint], max: Int = 140) -> [(d: Double, e: Double, lat: Double, lon: Double, slope: Double)] {
         let prof = ElevationProfileBuilder.build(points: pts)
         guard prof.count >= 2 else { return [] }
         let step = prof.count > max ? Double(prof.count) / Double(max) : 1
-        var out: [(Double, Double, Double, Double)] = []
+        var out: [(Double, Double, Double, Double, Double)] = []
         var i = 0.0
-        while Int(i) < prof.count { let p = prof[Int(i)]; out.append((p.distanceFromStart, p.altitude, p.latitude ?? 0, p.longitude ?? 0)); i += step }
-        if let last = prof.last { out.append((last.distanceFromStart, last.altitude, last.latitude ?? 0, last.longitude ?? 0)) }
+        while Int(i) < prof.count { let p = prof[Int(i)]; out.append((p.distanceFromStart, p.altitude, p.latitude ?? 0, p.longitude ?? 0, p.slope)); i += step }
+        if let last = prof.last { out.append((last.distanceFromStart, last.altitude, last.latitude ?? 0, last.longitude ?? 0, last.slope)) }
         return out
     }
     private struct RouteMarkerVM {
@@ -333,8 +333,10 @@ public enum HTMLReportRenderer {
             let coords = "[" + s.coords.map { String(format: "[%.6f,%.6f]", $0.lat, $0.lon) }.joined(separator: ",") + "]"
             let pois = "[" + s.pois.map { "{name:\(jsString($0.name)),lat:\(String(format: "%.6f", $0.lat)),lon:\(String(format: "%.6f", $0.lon))}" }.joined(separator: ",") + "]"
             let prof = "[" + s.profile.map { "[\(Int($0.d)),\(Int($0.e)),\(String(format: "%.5f", $0.lat)),\(String(format: "%.5f", $0.lon))]" }.joined(separator: ",") + "]"
+            // Couleur de pente par point (détail d'étape uniquement) ; le profil global reste coloré par jour.
+            let cols = "[" + s.profile.map { jsString(hexRGB(SlopeScale.percent.category(for: $0.slope).rgb)) }.joined(separator: ",") + "]"
             let cover = s.coverRef.map { jsString($0) } ?? "null"
-            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof),cover:\(cover)}"
+            return "{i:\(s.index),name:\(jsString(s.name)),dep:\(jsString(s.departure)),arr:\(jsString(s.arrival)),date:\(jsString(s.dateText)),dist:\(jsString(fmtDistance(s.distance))),gain:\(jsString("+\(Int(s.gain.rounded())) m")),color:\(jsString(s.color)),notes:\(jsString(s.notes)),coords:\(coords),pois:\(pois),prof:\(prof),cols:\(cols),cover:\(cover)}"
         }.joined(separator: ",")
 
         let infoCards = [
@@ -535,7 +537,7 @@ public enum HTMLReportRenderer {
             clearHighlight(); xline = null;   // le profil est reconstruit (innerHTML) → l'ancien crosshair est détaché
             document.getElementById('ed-title').textContent = (s.dep && s.arr) ? (s.dep + ' → ' + s.arr) : (s.name || 'Étape');
             document.getElementById('ed-meta').textContent = [s.date, s.dist, s.gain].filter(Boolean).join(' · ');
-            if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [] }]);
+            if (window.__buildProfile) window.__buildProfile(document.getElementById('ed-profile'), [{ color: s.color, pts: s.prof || [], cols: s.cols || null }]);
             var cv = document.getElementById('ed-cover'); if (s.cover){ cv.src = s.cover; cv.hidden = false; } else { cv.hidden = true; cv.removeAttribute('src'); }
             var pe = document.getElementById('ed-pois'); pe.innerHTML = '';
             if (s.pois && s.pois.length){
@@ -593,12 +595,23 @@ public enum HTMLReportRenderer {
           function Y(e){ return (H - pad - (e - minE) / (maxE - minE) * (H - 2*pad)); }
           var svg = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="prof-svg">';
           segments.forEach(function(s){ var pts = s.pts || []; if (pts.length < 2) return;
-            var area = 'M' + X(pts[0][0]).toFixed(1) + ' ' + (H-pad);
-            pts.forEach(function(p){ area += ' L' + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
-            area += ' L' + X(pts[pts.length-1][0]).toFixed(1) + ' ' + (H-pad) + ' Z';
-            svg += '<path d="'+area+'" fill="'+s.color+'" fill-opacity="0.22"/>';
-            var line = ''; pts.forEach(function(p,i){ line += (i?' L':'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
-            svg += '<path d="'+line+'" fill="none" stroke="'+s.color+'" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+            var cols = s.cols;
+            if (cols && cols.length === pts.length){
+              // Détail d'étape : aire colorée par PENTE (un quadrilatère par segment), ligne sombre par-dessus.
+              for (var q=0;q<pts.length-1;q++){
+                var d = 'M'+X(pts[q][0]).toFixed(1)+' '+(H-pad)+' L'+X(pts[q][0]).toFixed(1)+' '+Y(pts[q][1]).toFixed(1)+' L'+X(pts[q+1][0]).toFixed(1)+' '+Y(pts[q+1][1]).toFixed(1)+' L'+X(pts[q+1][0]).toFixed(1)+' '+(H-pad)+' Z';
+                svg += '<path d="'+d+'" fill="'+cols[q]+'" fill-opacity="0.55"/>';
+              }
+              var l = ''; pts.forEach(function(p,i){ l += (i?' L':'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+              svg += '<path d="'+l+'" fill="none" stroke="#3a3a3c" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+            } else {
+              var area = 'M' + X(pts[0][0]).toFixed(1) + ' ' + (H-pad);
+              pts.forEach(function(p){ area += ' L' + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+              area += ' L' + X(pts[pts.length-1][0]).toFixed(1) + ' ' + (H-pad) + ' Z';
+              svg += '<path d="'+area+'" fill="'+s.color+'" fill-opacity="0.22"/>';
+              var line = ''; pts.forEach(function(p,i){ line += (i?' L':'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1); });
+              svg += '<path d="'+line+'" fill="none" stroke="'+s.color+'" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+            }
           });
           svg += '</svg>';
           container.innerHTML = svg + '<div class="prof-cap"><span>'+Math.round(maxE)+' m</span><span>'+Math.round(minE)+' m</span></div>';
