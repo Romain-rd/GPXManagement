@@ -25,43 +25,8 @@ private enum MovementState {
     var color: Color { self == .moving ? .green : .gray }
 }
 
-/// Point d'une aire colorée. Les points consécutifs de même catégorie partagent un `runKey`, ce qui en
-/// fait une série distincte dans Swift Charts → une aire locale au segment (pas reliée à tout le graphe).
-private struct AreaPoint: Identifiable {
-    let id: Int
-    let x: Double
-    let y: Double
-    let runKey: String
-}
-
-private struct ProfileLinePoint: Identifiable {
-    let id: Int
-    let x: Double
-    let y: Double
-}
-
-/// Point de la courbe de fréquence cardiaque. `plotY` est la FC normalisée sur l'échelle d'altitude
-/// (axe Y partagé) ; l'axe de droite ré-étiquette ces positions en bpm.
-private struct HRPoint: Identifiable {
-    let id: Int
-    let x: Double
-    let plotY: Double
-}
-
-/// Données complètes d'un point pour le cartouche affiché au survol.
-private struct HoverSample {
-    let x: Double
-    let distanceKm: Double
-    let altitude: Double
-    let slope: Double
-    let speed: Double      // vitesse en unité d'affichage (km/h ou nœuds)
-    let plotY: Double      // valeur tracée sur l'axe Y (altitude ou vitesse)
-    let hr: Double?
-    let elapsed: TimeInterval?
-    let clock: Date?
-    let moving: Bool?
-    let coordinate: CLLocationCoordinate2D?
-}
+// Types du graphe (SlopeAreaPoint / SlopeLinePoint / SlopeHRPoint / SlopeHoverSample) et rendu interactif
+// (crosshair, survol↔carte, sélection de plage) : partagés avec l'éditeur de parcours → voir SlopeProfileChart.
 
 struct ElevationProfileTabView: View {
     let activityId: UUID
@@ -99,8 +64,8 @@ struct ElevationProfileTabView: View {
     @State private var maxSpeedDisplay: Double = 0
     @State private var avgSpeedDisplay: Double = 0
 
-    @State private var areaPoints: [AreaPoint] = []
-    @State private var linePoints: [ProfileLinePoint] = []
+    @State private var areaPoints: [SlopeAreaPoint] = []
+    @State private var linePoints: [SlopeLinePoint] = []
     @State private var styleScale: [String: Color] = [:]
     @State private var xAxisLabel = "Distance (km)"
 
@@ -111,17 +76,16 @@ struct ElevationProfileTabView: View {
     @State private var pausedRanges: [ClosedRange<Date>] = []
     @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
     @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
+    /// Axe vertical adapté au dénivelé (départ ≠ 0), comme la lib JS du web ; sinon depuis 0. Partagé avec le parcours.
+    @AppStorage("profileFitElevation") private var fitElevation = true
 
-    @State private var hrLine: [HRPoint] = []
+    @State private var hrLine: [SlopeHRPoint] = []
     @State private var hrMin: Double = 0
     @State private var hrMax: Double = 0
     @State private var yDomainHi: Double = 0
     private var showHR: Bool { mode == .time && !hrLine.isEmpty && hrMax > hrMin }
 
-    @State private var hoverSamples: [HoverSample] = []
-    @State private var selectedIndex: Int?
-    @State private var dragStartIndex: Int?
-    @State private var dragCurrentIndex: Int?
+    @State private var hoverSamples: [SlopeHoverSample] = []
 
     @State private var totalKm: Double = 0
     @State private var xDomainHi: Double = 0
@@ -308,6 +272,14 @@ struct ElevationProfileTabView: View {
                 statBlock("D−", "\(Int(dMinus.rounded())) m")
             }
             Spacer()
+            if metric == .altitude && mode == .distance {
+                Button { fitElevation.toggle() } label: {
+                    Image(systemName: fitElevation ? "arrow.up.and.down.square.fill" : "arrow.up.and.down.square")
+                }
+                .buttonStyle(.borderless)
+                .help(fitElevation ? "Axe vertical adapté au dénivelé (départ ≠ 0) — cliquer pour partir de 0"
+                                   : "Axe vertical depuis 0 — cliquer pour l'adapter au dénivelé")
+            }
         }
     }
 
@@ -318,143 +290,34 @@ struct ElevationProfileTabView: View {
         }
     }
 
+    /// Domaine vertical : adapté au dénivelé (comme le web) en mode altitude/distance si l'option est active, sinon 0.
+    private var yBounds: (lo: Double, hi: Double) {
+        if metric == .altitude, mode == .distance, fitElevation {
+            let pad = max((altMax - altMin) * 0.08, 10)
+            return (altMin - pad, altMax + pad)
+        }
+        return (0, max(yDomainHi, 1))
+    }
+    /// Segment survolé dans le tableau (mètres) converti en unités X du graphe, pour la bande surlignée.
+    private var highlightXRange: ClosedRange<Double>? {
+        guard let range = highlightedDistanceRange, hoverSamples.count == trimmedProfile.count, !hoverSamples.isEmpty else { return nil }
+        let lo = nearestProfileIndex(toMeters: range.lowerBound)
+        let hi = nearestProfileIndex(toMeters: range.upperBound)
+        guard hi > lo else { return nil }
+        return hoverSamples[lo].x...hoverSamples[hi].x
+    }
+
     private var chart: some View {
-        Chart {
-            if let band = selectionBand {
-                RectangleMark(xStart: .value("x", band.lowerBound), xEnd: .value("x", band.upperBound))
-                    .foregroundStyle(Color.accentColor.opacity(0.16))
-            }
-            ForEach(areaPoints) { p in
-                AreaMark(
-                    x: .value("x", p.x),
-                    y: .value("y", p.y),
-                    stacking: .unstacked
-                )
-                .foregroundStyle(by: .value("Segment", p.runKey))
-                .opacity(0.65)
-            }
-            ForEach(linePoints) { p in
-                LineMark(
-                    x: .value("x", p.x),
-                    y: .value("y", p.y)
-                )
-                .foregroundStyle(.primary)
-                .lineStyle(StrokeStyle(lineWidth: 1.2))
-            }
-            if showHR {
-                ForEach(hrLine) { p in
-                    LineMark(
-                        x: .value("x", p.x),
-                        y: .value("FC", p.plotY),
-                        series: .value("série", "fc")
-                    )
-                    .foregroundStyle(.red)
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .interpolationMethod(.linear)
-                }
-            }
-            if let i = selectedIndex, hoverSamples.indices.contains(i) {
-                let s = hoverSamples[i]
-                RuleMark(x: .value("x", s.x))
-                    .foregroundStyle(.secondary.opacity(0.55))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .annotation(position: .top, spacing: 4, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
-                        hoverTooltip(s)
-                    }
-                RuleMark(y: .value("y", s.plotY))
-                    .foregroundStyle(.secondary.opacity(0.3))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                PointMark(x: .value("x", s.x), y: .value("y", s.plotY))
-                    .foregroundStyle(.primary)
-                    .symbolSize(45)
-                if showHR, let hr = s.hr, hr > 0 {
-                    PointMark(x: .value("x", s.x), y: .value("FC", (hr - hrMin) / (hrMax - hrMin) * max(yDomainHi, 1)))
-                        .foregroundStyle(.red)
-                        .symbolSize(40)
-                }
-            }
-        }
-        .chartForegroundStyleScale(domain: scaleDomain, range: scaleRange)
-        .chartLegend(.hidden)
-        .chartXAxisLabel(xAxisLabel)
-        .chartYAxisLabel(metric == .speed ? "Vitesse (\(speedUnitLabel))" : "Altitude (m)")
-        .chartXScale(domain: 0...max(xDomainHi, 1))
-        .chartYScale(domain: 0...max(yDomainHi, 1))
-        .chartYAxis {
-            AxisMarks(position: .leading)
-            if showHR {
-                AxisMarks(position: .trailing, values: hrTicks.map(\.y)) { value in
-                    AxisGridLine().foregroundStyle(.clear)
-                    AxisTick().foregroundStyle(.red)
-                    if let y = value.as(Double.self), let tick = hrTicks.first(where: { abs($0.y - y) < 0.5 }) {
-                        AxisValueLabel { Text("\(tick.bpm)").foregroundStyle(.red) }
-                    }
-                }
-            }
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        guard dragStartIndex == nil else { return } // pas de cartouche pendant une sélection
-                        switch phase {
-                        case .active(let location):
-                            guard let idx = sampleIndex(at: location, proxy: proxy, geo: geo) else { return }
-                            selectedIndex = idx
-                            highlightedCoordinate = hoverSamples[idx].coordinate
-                        case .ended:
-                            selectedIndex = nil
-                            highlightedCoordinate = nil
-                        }
-                    }
-                    .gesture(selectionGesture(proxy: proxy, geo: geo), including: onSelectRange == nil ? .none : .all)
-            }
-        }
-    }
-
-    /// Glissement horizontal = sélection d'une plage → création d'un segment au lâcher.
-    private func selectionGesture(proxy: ChartProxy, geo: GeometryProxy) -> some Gesture {
-        DragGesture(minimumDistance: 6)
-            .onChanged { value in
-                guard let start = sampleIndex(at: value.startLocation, proxy: proxy, geo: geo),
-                      let current = sampleIndex(at: value.location, proxy: proxy, geo: geo) else { return }
-                dragStartIndex = start
-                dragCurrentIndex = current
-                selectedIndex = nil
-                // Suivi temps réel sur la carte : point rond à la position courante du drag.
-                if hoverSamples.indices.contains(current) { highlightedCoordinate = hoverSamples[current].coordinate }
-            }
-            .onEnded { _ in
-                defer { dragStartIndex = nil; dragCurrentIndex = nil; highlightedCoordinate = nil }
-                guard let a = dragStartIndex, let b = dragCurrentIndex else { return }
-                let lo = min(a, b), hi = max(a, b)
-                guard hi > lo, trimmedProfile.indices.contains(hi) else { return }
-                onSelectRange?(trimmedProfile[lo].distanceFromStart, trimmedProfile[hi].distanceFromStart)
-            }
-    }
-
-    /// Index du point de profil le plus proche d'une position souris (bornée au cadre du graphe).
-    private func sampleIndex(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) -> Int? {
-        guard let plotFrame = proxy.plotFrame else { return nil }
-        let rect = geo[plotFrame]
-        let xInPlot = min(max(location.x - rect.origin.x, 0), rect.width)
-        guard let xValue: Double = proxy.value(atX: xInPlot) else { return nil }
-        return nearestIndex(to: xValue)
-    }
-
-    /// Bande surlignée sur le graphe : sélection en cours (drag) sinon segment survolé dans le tableau.
-    private var selectionBand: ClosedRange<Double>? {
-        guard hoverSamples.count == trimmedProfile.count, !hoverSamples.isEmpty else { return nil }
-        if let a = dragStartIndex, let b = dragCurrentIndex, a != b {
-            return hoverSamples[min(a, b)].x...hoverSamples[max(a, b)].x
-        }
-        if let range = highlightedDistanceRange {
-            let lo = nearestProfileIndex(toMeters: range.lowerBound)
-            let hi = nearestProfileIndex(toMeters: range.upperBound)
-            guard hi > lo else { return nil }
-            return hoverSamples[lo].x...hoverSamples[hi].x
-        }
-        return nil
+        SlopeProfileChart(
+            area: areaPoints, line: linePoints, styleScale: styleScale, hover: hoverSamples,
+            hrLine: showHR ? hrLine : [], hrTicks: showHR ? hrTicks : [],
+            xDomainHi: xDomainHi, yDomainLo: yBounds.lo, yDomainHi: yBounds.hi,
+            xAxisLabel: xAxisLabel, yAxisLabel: metric == .speed ? "Vitesse (\(speedUnitLabel))" : "Altitude (m)",
+            highlightedCoordinate: $highlightedCoordinate,
+            highlightRange: highlightXRange,
+            onSelectRange: onSelectRange,
+            tooltip: { s in hoverTooltip(s) }
+        )
     }
 
     private func nearestProfileIndex(toMeters meters: Double) -> Int {
@@ -467,7 +330,7 @@ struct ElevationProfileTabView: View {
     }
 
     @ViewBuilder
-    private func hoverTooltip(_ s: HoverSample) -> some View {
+    private func hoverTooltip(_ s: SlopeHoverSample) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(hoverHeader(s)).font(.caption2.bold())
             if metric == .speed {
@@ -505,27 +368,13 @@ struct ElevationProfileTabView: View {
         }
     }
 
-    private func hoverHeader(_ s: HoverSample) -> String {
+    private func hoverHeader(_ s: SlopeHoverSample) -> String {
         if mode == .distance {
             return String(format: "%.2f %@", s.distanceKm, distanceUnitLabel)
         }
         guard let e = s.elapsed else { return "" }
         let h = Int(e) / 3600, m = (Int(e) % 3600) / 60, sec = Int(e) % 60
         return h > 0 ? String(format: "%dh %02dm %02ds", h, m, sec) : String(format: "%dm %02ds", m, sec)
-    }
-
-    private func nearestIndex(to xValue: Double) -> Int? {
-        guard !hoverSamples.isEmpty else { return nil }
-        var lo = 0, hi = hoverSamples.count - 1
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if hoverSamples[mid].x < xValue { lo = mid + 1 } else { hi = mid }
-        }
-        if lo > 0 {
-            let prev = hoverSamples[lo - 1]
-            return abs(prev.x - xValue) <= abs(hoverSamples[lo].x - xValue) ? lo - 1 : lo
-        }
-        return lo
     }
 
     /// Graduations de l'axe FC (bpm ronds), positionnées sur l'échelle d'altitude.
@@ -544,11 +393,6 @@ struct ElevationProfileTabView: View {
         return ticks
     }
 
-    /// Domaine et plage alignés (mêmes indices) pour la table de couleurs des séries.
-    private var scaleDomain: [String] { Array(styleScale.keys) }
-    private var scaleRange: [Color] {
-        Array(styleScale.keys).map { styleScale[$0] ?? .clear }
-    }
 
     private func load() async {
         isLoading = true
@@ -607,7 +451,7 @@ struct ElevationProfileTabView: View {
         areaPoints = []; linePoints = []; styleScale = [:]
         totalKm = 0; xDomainHi = 0; slopeTimes = [:]; movingTime = 0; pausedTime = 0; pausedRanges = []
         hasAltitude = false; hasSpeed = false; maxSpeedDisplay = 0; avgSpeedDisplay = 0
-        trimmedProfile = []; hrLine = []; hoverSamples = []; selectedIndex = nil
+        trimmedProfile = []; hrLine = []; hoverSamples = []
         highlightedCoordinate = nil
     }
 
@@ -647,7 +491,7 @@ struct ElevationProfileTabView: View {
     /// + couleur mouvement/pause. Regroupe les segments contigus de même catégorie en aires distinctes.
     private func buildChartData(from profile: [ElevationProfilePoint], mode: ProfileMode) {
         guard profile.count >= 2 else {
-            areaPoints = []; linePoints = []; styleScale = [:]; totalKm = 0; hrLine = []; hoverSamples = []; selectedIndex = nil
+            areaPoints = []; linePoints = []; styleScale = [:]; totalKm = 0; hrLine = []; hoverSamples = []
             return
         }
         totalKm = distanceDisplay(meters: profile.last?.distanceFromStart ?? 0)
@@ -681,7 +525,7 @@ struct ElevationProfileTabView: View {
         case .time:
             let stamps = profile.compactMap { $0.timestamp }
             guard let t0 = stamps.first, let tLast = stamps.last, tLast > t0 else {
-                areaPoints = []; linePoints = []; styleScale = [:]; hrLine = []; hoverSamples = []; selectedIndex = nil
+                areaPoints = []; linePoints = []; styleScale = [:]; hrLine = []; hoverSamples = []
                 return
             }
             let useMinutes = tLast.timeIntervalSince(t0) < 5400
@@ -713,10 +557,10 @@ struct ElevationProfileTabView: View {
         }
 
         linePoints = profile.enumerated().map { idx, p in
-            ProfileLinePoint(id: idx, x: xs[idx], y: yValue(idx))
+            SlopeLinePoint(id: idx, x: xs[idx], y: yValue(idx))
         }
 
-        var points: [AreaPoint] = []
+        var points: [SlopeAreaPoint] = []
         var scale: [String: Color] = [:]
         var rowId = 0
         var runIndex = 0
@@ -730,7 +574,7 @@ struct ElevationProfileTabView: View {
             let key = String(format: "%05d", runIndex)
             scale[key] = style.color
             for k in s...(e + 1) {
-                points.append(AreaPoint(id: rowId, x: xs[k], y: yValue(k), runKey: key))
+                points.append(SlopeAreaPoint(id: rowId, x: xs[k], y: yValue(k), runKey: key))
                 rowId += 1
             }
             runIndex += 1
@@ -740,15 +584,16 @@ struct ElevationProfileTabView: View {
         styleScale = scale
 
         let t0 = (mode == .time) ? profile.compactMap(\.timestamp).first : nil
+        let hrSpan = hrMax - hrMin
         hoverSamples = profile.enumerated().map { i, p in
             let elapsed: TimeInterval? = (mode == .time) ? (p.timestamp.flatMap { ts in t0.map { ts.timeIntervalSince($0) } }) : nil
             let moving: Bool? = (mode == .time) ? !isPaused(i) : nil
             let coordinate: CLLocationCoordinate2D? = (p.latitude != nil && p.longitude != nil)
                 ? CLLocationCoordinate2D(latitude: p.latitude!, longitude: p.longitude!) : nil
             let spd = speeds.indices.contains(i) ? speeds[i] : 0
-            return HoverSample(x: xs[i], distanceKm: distanceDisplay(meters: p.distanceFromStart), altitude: p.altitude, slope: p.slope, speed: spd, plotY: yValue(i), hr: p.heartRate, elapsed: elapsed, clock: p.timestamp, moving: moving, coordinate: coordinate)
+            let hrPlotY: Double? = (mode == .time && hrSpan > 0) ? p.heartRate.flatMap { $0 > 0 ? ($0 - hrMin) / hrSpan * max(yDomainHi, 1) : nil } : nil
+            return SlopeHoverSample(x: xs[i], distanceKm: distanceDisplay(meters: p.distanceFromStart), altitude: p.altitude, slope: p.slope, plotY: yValue(i), coordinate: coordinate, speed: spd, hr: p.heartRate, hrPlotY: hrPlotY, elapsed: elapsed, clock: p.timestamp, moving: moving)
         }
-        selectedIndex = nil
         highlightedCoordinate = nil
     }
 
@@ -762,12 +607,12 @@ struct ElevationProfileTabView: View {
         hrMin = lo
         hrMax = hi
         let span = hi - lo
-        var line: [HRPoint] = []
+        var line: [SlopeHRPoint] = []
         var rowId = 0
         for (idx, p) in profile.enumerated() {
             guard let hr = p.heartRate, hr > 0 else { continue }
             let plotY = (hr - lo) / span * max(yDomainHi, 1)
-            line.append(HRPoint(id: rowId, x: xs[idx], plotY: plotY))
+            line.append(SlopeHRPoint(id: rowId, x: xs[idx], plotY: plotY))
             rowId += 1
         }
         hrLine = line

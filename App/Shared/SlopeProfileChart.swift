@@ -35,6 +35,8 @@ struct SlopeHoverSample {
     let coordinate: CLLocationCoordinate2D?
     var speed: Double = 0
     var hr: Double? = nil
+    /// Position Y (échelle d'altitude partagée) du point FC au survol ; nil si pas de FC.
+    var hrPlotY: Double? = nil
     var elapsed: TimeInterval? = nil
     var clock: Date? = nil
     var moving: Bool? = nil
@@ -183,6 +185,11 @@ struct SlopeProfileChart<Tooltip: View>: View {
                 PointMark(x: .value("x", s.x), y: .value("y", s.plotY))
                     .foregroundStyle(.primary)
                     .symbolSize(45)
+                if let hy = s.hrPlotY {
+                    PointMark(x: .value("x", s.x), y: .value("FC", hy))
+                        .foregroundStyle(.red)
+                        .symbolSize(40)
+                }
             }
         }
         .chartForegroundStyleScale(domain: scaleDomain, range: scaleRange)
