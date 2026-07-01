@@ -295,9 +295,10 @@ final class RouteEditingModel {
         markDirty()
     }
 
-    /// Replace un point en tête (départ) ; redevient un simple ancrage `.shaping` (départ = position, pas un rôle).
+    /// Fait de ce point le départ : le replace en tête (si besoin) et le repasse en « tracé » (départ = extrémité shaping).
     func makeDeparture(_ id: UUID) {
-        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }), i != 0 else { return }
+        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        if i == 0 { setRole(.shaping, for: id); return }   // déjà en tête : il suffit de le re-typer en tracé.
         snapshot("Définir le départ")
         var wp = waypoints.remove(at: i); wp.role = .shaping
         waypoints.insert(wp, at: 0)
@@ -305,9 +306,10 @@ final class RouteEditingModel {
         invalidateAll()
     }
 
-    /// Replace un point en fin (arrivée) ; redevient un simple ancrage `.shaping`.
+    /// Fait de ce point l'arrivée : le replace en fin (si besoin) et le repasse en « tracé ».
     func makeArrival(_ id: UUID) {
-        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }), i != waypoints.count - 1 else { return }
+        guard !busy, let i = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        if i == waypoints.count - 1 { setRole(.shaping, for: id); return }   // déjà en fin : re-type en tracé.
         snapshot("Définir l'arrivée")
         var wp = waypoints.remove(at: i); wp.role = .shaping
         waypoints.append(wp)

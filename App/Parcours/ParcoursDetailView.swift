@@ -1329,14 +1329,17 @@ struct ParcoursDetailView: View {
                         if count >= 2 {
                             // Clic gauche sur la pastille = menu du point : type (intérieur) + fixer départ/arrivée.
                             Menu {
-                                Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-                                Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
                                 if i > 0 && i < count - 1 {
+                                    Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
+                                    Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
                                     Button { routeModel.setRole(.stageStop, for: wp.id) } label: { Label("Fin d'étape (parcours sur plusieurs jours)", systemImage: "flag.fill") }
+                                } else {
+                                    // Extrémité : POI, ou la (re)désigner départ/arrivée via les actions ci-dessous.
+                                    Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
                                 }
                                 Divider()
-                                if i != 0 { Button { routeModel.makeDeparture(wp.id) } label: { Label("Définir comme départ", systemImage: "flag.2.crossed.fill") } }
-                                if i != count - 1 { Button { routeModel.makeArrival(wp.id) } label: { Label("Définir comme arrivée", systemImage: "flag.checkered") } }
+                                if !(i == 0 && wp.role == .shaping) { Button { routeModel.makeDeparture(wp.id) } label: { Label("Définir comme départ", systemImage: "flag.2.crossed.fill") } }
+                                if !(i == count - 1 && wp.role == .shaping) { Button { routeModel.makeArrival(wp.id) } label: { Label("Définir comme arrivée", systemImage: "flag.checkered") } }
                             } label: { badge }
                                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                                 .help("Type du point · définir comme départ/arrivée")
