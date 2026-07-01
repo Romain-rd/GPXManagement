@@ -1161,12 +1161,21 @@ struct ParcoursDetailView: View {
             } else {
                 // Repli (pas d'altitude exploitable) : ancien graphe simple.
                 Chart {
-                    ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
+                    ForEach(plot) { p in AreaMark(x: .value("km", p.km), yStart: .value("base", fallbackYDomain.lowerBound), yEnd: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
                     ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
                 }
                 .chartXScale(domain: visibleDomain)
+                .chartYScale(domain: fallbackYDomain)
             }
         }
+    }
+
+    /// Domaine Y du repli (sans pente) : base = point le plus bas réel (ignore les 0), jamais depuis 0.
+    private var fallbackYDomain: ClosedRange<Double> {
+        let positive = alts.filter { $0 > 0 }
+        let lo = (positive.min() ?? alts.min()) ?? 0
+        let hi = alts.max() ?? (lo + 1)
+        return lo...max(hi + max((hi - lo) * 0.08, 10), lo + 1)
     }
 
     /// Positions X (km) des jonctions d'étape, alignées sur l'axe du profil coloré par pente.

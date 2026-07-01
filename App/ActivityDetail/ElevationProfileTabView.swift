@@ -503,10 +503,12 @@ struct ElevationProfileTabView: View {
             yDomainLo = 0
             yDomainHi = (speeds.max() ?? 1) * 1.1
         } else {
-            let aMax = profile.map(\.altitude).max() ?? 1
-            let aMin = profile.map(\.altitude).min() ?? 0
+            let allAlts = profile.map(\.altitude)
+            let positive = allAlts.filter { $0 > 0 }   // ignore les points non enrichis (0) qui écraseraient l'axe
+            let aMin = (positive.isEmpty ? allAlts.min() : positive.min()) ?? 0
+            let aMax = allAlts.max() ?? 1
             let pad = max((aMax - aMin) * 0.08, 10)
-            yDomainLo = aMin - pad
+            yDomainLo = aMin              // base = pile le point le plus bas de la course
             yDomainHi = aMax + pad
         }
 

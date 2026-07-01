@@ -58,7 +58,7 @@ struct SlopeProfileData {
     func yDomain(fit: Bool) -> (lo: Double, hi: Double) {
         if fit {
             let pad = Swift.max((altMax - altMin) * 0.08, 10)
-            return (altMin - pad, altMax + pad)
+            return (altMin, altMax + pad)   // base = pile le point le plus bas
         }
         return (0, altMax * 1.05)
     }
@@ -95,8 +95,12 @@ struct SlopeProfileData {
                                     slope: p.slope, plotY: yAt(i), coordinate: coord)
         }
         let alts = profile.map(\.altitude)
+        // Base = point le plus bas RÉEL : on ignore les altitudes ≤ 0 (points non enrichis) tant qu'il y a du positif,
+        // sinon un seul point à 0 ramènerait l'axe à 0 sur une course en altitude.
+        let positive = alts.filter { $0 > 0 }
+        let aMin = (positive.isEmpty ? alts.min() : positive.min()) ?? 0
         return SlopeProfileData(area: area, line: line, styleScale: scale, hover: hover,
-                                xDomainHi: xs.last ?? 0, altMin: alts.min() ?? 0, altMax: alts.max() ?? 0)
+                                xDomainHi: xs.last ?? 0, altMin: aMin, altMax: alts.max() ?? 0)
     }
 }
 
@@ -151,7 +155,8 @@ struct SlopeProfileChart<Tooltip: View>: View {
                     .foregroundStyle(Color.accentColor.opacity(0.16))
             }
             ForEach(area) { p in
-                AreaMark(x: .value("x", p.x), y: .value("y", p.y), stacking: .unstacked)
+                // Aire ancrée à la BASE du domaine (yDomainLo), pas à 0 : sinon Swift Charts ramène l'axe à 0.
+                AreaMark(x: .value("x", p.x), yStart: .value("base", yDomainLo), yEnd: .value("y", p.y))
                     .foregroundStyle(by: .value("Segment", p.runKey))
                     .opacity(0.65)
             }
