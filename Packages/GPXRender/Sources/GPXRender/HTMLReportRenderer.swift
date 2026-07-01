@@ -55,7 +55,7 @@ public enum HTMLReportRenderer {
         case folder(files: [String: Data]) // contient "index.html"
     }
 
-    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset], publicBaseURL: String? = nil) async throws -> Output {
+    public static func render(activity: ActivitySummary, repository: CoreDataActivityRepository, layer: MapLayer, options: WebExportOptions, photos: [PHAsset], publicBaseURL: String? = nil, hideDynamics: Bool = false) async throws -> Output {
         guard let data = try await repository.fetchTrackData(id: activity.id), !data.isEmpty else {
             throw HTMLReportError.noTrackData
         }
@@ -126,7 +126,7 @@ public enum HTMLReportRenderer {
                              slopeLegend: slopeLegendItems(distanceScale: distanceScale, scale: activity.activityType.slopeScale),
                              movement: movement, hasHeartRate: !timeProfile.hr.isEmpty,
                              layer: layer, trackCoords: trackCoords, trackSpeedColors: trackColors.speed, trackSlopeColors: trackColors.slope, profilePayload: profilePayload,
-                             ogImageRef: previewRef, publicBaseURL: publicBaseURL)
+                             ogImageRef: previewRef, publicBaseURL: publicBaseURL, hideDynamics: hideDynamics)
 
         do {
             var files: [String: Data] = ["index.html": html.data(using: .utf8) ?? Data()]
@@ -1111,7 +1111,7 @@ public enum HTMLReportRenderer {
         return scale.categories.map { LegendItem(label: scale.label(for: $0), color: hex($0.color)) }
     }
 
-    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval, ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String, ogImageRef: String? = nil, publicBaseURL: String? = nil) -> String {
+    private static func buildHTML(activity: ActivitySummary, assets: HTMLAssets, options: WebExportOptions, slopeLegend: [LegendItem], movement: (moving: TimeInterval, paused: TimeInterval, ascending: TimeInterval, descending: TimeInterval, flat: TimeInterval), hasHeartRate: Bool, layer: MapLayer, trackCoords: [(lat: Double, lon: Double)], trackSpeedColors: [String] = [], trackSlopeColors: [String] = [], profilePayload: String, ogImageRef: String? = nil, publicBaseURL: String? = nil, hideDynamics: Bool = false) -> String {
         let accent = hex(activity.activityType.trackColor)
         let interactiveMap = options.map == .interactive && !trackCoords.isEmpty
         let interactiveProfile = options.profile == .interactive && !profilePayload.isEmpty
@@ -1135,27 +1135,29 @@ public enum HTMLReportRenderer {
         var cards: [String] = [
             metricCard("📏", "Distance", distStr),
             metricCard("⬆️", "Dénivelé +", "\(Int(activity.elevationGain.rounded())) m"),
-            metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m"),
-            metricCard("🕐", "Durée totale", fmtDuration(activity.duration)),
-            metricCard("⏱️", "En mouvement", fmtDuration(movement.moving))
+            metricCard("⬇️", "Dénivelé −", "\(Int(activity.elevationLoss.rounded())) m")
         ]
-        // Mêmes temps que l'app : pause + répartition montée/descente/à plat (somme = durée totale), quand disponibles.
-        if movement.paused > 0 { cards.append(metricCard("⏸️", "En pause", fmtDuration(movement.paused))) }
-        if movement.ascending > 0 { cards.append(metricCard("↗️", "Temps en montée", fmtDuration(movement.ascending))) }
-        if movement.descending > 0 { cards.append(metricCard("↘️", "Temps en descente", fmtDuration(movement.descending))) }
-        if movement.flat > 0 { cards.append(metricCard("➡️", "Temps à plat", fmtDuration(movement.flat))) }
-        cards.append(metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)))
-        cards.append(metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed)))
-        if let hr = activity.avgHeartRate { cards.append(metricCard("❤️", "FC moyenne", "\(Int(hr.rounded())) bpm")) }
-        if let hr = activity.maxHeartRate { cards.append(metricCard("❤️", "FC max", "\(Int(hr.rounded())) bpm")) }
+        // Parcours planifié (hideDynamics) : pas de temps / vitesse / FC (aucune donnée réelle enregistrée).
+        if !hideDynamics {
+            cards.append(metricCard("🕐", "Durée totale", fmtDuration(activity.duration)))
+            cards.append(metricCard("⏱️", "En mouvement", fmtDuration(movement.moving)))
+            // Mêmes temps que l'app : pause + répartition montée/descente/à plat (somme = durée totale), quand disponibles.
+            if movement.paused > 0 { cards.append(metricCard("⏸️", "En pause", fmtDuration(movement.paused))) }
+            if movement.ascending > 0 { cards.append(metricCard("↗️", "Temps en montée", fmtDuration(movement.ascending))) }
+            if movement.descending > 0 { cards.append(metricCard("↘️", "Temps en descente", fmtDuration(movement.descending))) }
+            if movement.flat > 0 { cards.append(metricCard("➡️", "Temps à plat", fmtDuration(movement.flat))) }
+            cards.append(metricCard("💨", "Vitesse moy.", speedStr(activity.avgSpeed)))
+            cards.append(metricCard("⚡️", "Vitesse max", speedStr(activity.maxSpeed)))
+            if let hr = activity.avgHeartRate { cards.append(metricCard("❤️", "FC moyenne", "\(Int(hr.rounded())) bpm")) }
+            if let hr = activity.maxHeartRate { cards.append(metricCard("❤️", "FC max", "\(Int(hr.rounded())) bpm")) }
+        }
 
         // Profils (statiques en images, ou graphique interactif canvas)
         var profileSection = ""
         var profileScript = ""
         if interactiveProfile {
-            profileSection = """
-            <section class="section"><h2 id="profile-title">Profil</h2>
-              <div class="chart-block">
+            // Parcours planifié : pas de choix Vitesse/Temps (aucune donnée temporelle) → uniquement altitude/distance.
+            let toolbar = hideDynamics ? "" : """
                 <div class="chart-toolbar">
                   <button class="segm active" data-metric="altitude">Altitude</button>
                   <button class="segm" data-metric="speed">Vitesse</button>
@@ -1163,6 +1165,11 @@ public enum HTMLReportRenderer {
                   <button class="seg active" data-mode="distance">Distance</button>
                   <button class="seg" data-mode="time">Temps</button>
                 </div>
+            """
+            profileSection = """
+            <section class="section"><h2 id="profile-title">Profil</h2>
+              <div class="chart-block">
+                \(toolbar)
                 <div class="chart-wrap"><canvas id="profile"></canvas><div id="profile-tip" class="tip"></div></div>
                 <div class="legend" id="profile-legend"></div>
               </div>

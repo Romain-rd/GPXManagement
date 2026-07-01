@@ -588,7 +588,7 @@ struct ParcoursDetailView: View {
                 } else {
                     // Sortie à la journée : page « activité » (carte + profil dynamique synchronisé), pas la page d'étapes.
                     progress.update(0.2, "Page web…")
-                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: opts, photos: [], publicBaseURL: publicBaseURL)
+                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: opts, photos: [], publicBaseURL: publicBaseURL, hideDynamics: true)
                     if case .folder(let f) = output { files = f } else { files = [:] }
                 }
                 try await BunnyStorageService.publish(files: files, folder: "routes/\(uuid)") { f, s in progress.update(0.6 + f * 0.4, s) }
@@ -628,7 +628,7 @@ struct ParcoursDetailView: View {
                 if multiDay {
                     files = try await HTMLReportRenderer.renderRoute(activity: act, repository: repo, layer: layer, options: WebExportOptions())
                 } else {
-                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: WebExportOptions(), photos: [])
+                    let output = try await HTMLReportRenderer.render(activity: act, repository: repo, layer: layer, options: WebExportOptions(), photos: [], hideDynamics: true)
                     if case .folder(let f) = output { files = f } else { files = [:] }
                 }
                 let downloads = try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
