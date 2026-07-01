@@ -69,8 +69,9 @@ struct ParcoursDetailView: View {
     @State private var extraWaypoints: [RouteWaypoint] = []
     @State private var selectedPoiId: UUID?
     @State private var isLoading = true
-    @State private var grabbed: Int?
-    @State private var dragCoord: CLLocationCoordinate2D?
+    @State private var profileHighlight: CLLocationCoordinate2D?   // survol/drag profil → marqueur mobile sur la carte
+    @State private var slopeData = SlopeProfileData()              // profil coloré par pente (reconstruit au chargement)
+    @AppStorage("profileFitElevation") private var fitElevation = true   // axe Y adapté au dénivelé (comme le web) vs depuis 0
     @State private var zoomSpanKm: Double?
     @State private var centerKm: Double = 0
     @AppStorage("mapLayerParcours") private var defaultLayerRaw = MapLayer.ignScan25.rawValue   // dernier fond choisi (défaut d'un nouveau parcours)
@@ -108,7 +109,6 @@ struct ParcoursDetailView: View {
     }
 
     private var coords: [CLLocationCoordinate2D] { points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
-    private var junctions: [Int] { stages.count > 1 ? stages.dropLast().map { $0.endIndex } : [] }
     private var totalDistance: Double { dists.last ?? 0 }
     private var totalKm: Double { totalDistance / 1000 }
 
@@ -280,7 +280,7 @@ struct ParcoursDetailView: View {
         .onDisappear { commitTitle(); routeModel.saveIfDirty() }   // fermeture/navigation : ne pas perdre les modifications
         .task(id: AppServices.shared.libraryRevision) {
             // Après un enregistrement (manuel ou automatique), recharge profil + étapes depuis le tracé sauvegardé.
-            guard initialToolSet, grabbed == nil, !routeModel.busy else { return }
+            guard initialToolSet, !routeModel.busy else { return }
             await load()
         }
         .alert("Ajouter une étape", isPresented: $showAddDialog) {
@@ -944,7 +944,7 @@ struct ParcoursDetailView: View {
 
     private var overviewMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType, coords: coords, stages: stages,
-                        highlight: dragCoord, waypoints: visibleMarkers(poiMarkers + boundaryMarkers),
+                        highlight: profileHighlight, waypoints: visibleMarkers(poiMarkers + boundaryMarkers),
                         onWaypointMoved: { id, c in moveMarker(id: id, to: c) },
                         onWaypointTapped: { tapMarker($0) },
                         onMapClick: tool == .poi || tool == .stageStop ? { mapClick(at: $0) } : nil,
@@ -1042,7 +1042,8 @@ struct ParcoursDetailView: View {
 
     private var routeMap: some View {
         StageColoredMap(activityId: activity.id, activityType: activity.activityType,
-                        coords: routeModel.displayCoords, stages: displayStages(), waypoints: visibleMarkers(routeModel.markers) + searchPreviewMarkers,
+                        coords: routeModel.displayCoords, stages: displayStages(), highlight: profileHighlight,
+                        waypoints: visibleMarkers(routeModel.markers) + searchPreviewMarkers,
                         onWaypointMoved: { id, c in
                             if id == Self.searchPreviewId { searchResult = (searchResult?.name ?? "", c) }
                             else { routeModel.moveWaypoint(id: id, to: c); routeModel.reroute() }
@@ -1145,21 +1146,66 @@ struct ParcoursDetailView: View {
     }
 
     private var profileChart: some View {
-        Chart {
-            ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
-            ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
-            ForEach(Array(junctions.enumerated()), id: \.element) { _, j in
-                RuleMark(x: .value("km", dists[j] / 1000)).foregroundStyle(.orange).lineStyle(StrokeStyle(lineWidth: 2))
+        Group {
+            if !slopeData.isEmpty {
+                let y = slopeData.yDomain(fit: fitElevation)
+                SlopeProfileChart(
+                    area: slopeData.area, line: slopeData.line, styleScale: slopeData.styleScale, hover: slopeData.hover,
+                    xDomainHi: slopeData.xDomainHi, yDomainLo: y.lo, yDomainHi: y.hi,
+                    highlightedCoordinate: $profileHighlight,
+                    visibleDomain: visibleDomain,
+                    junctions: profileJunctions,
+                    onJunctionDrag: { k, km in moveJunction(k, toKm: km) },
+                    onJunctionDragEnded: { persist() },
+                    tooltip: { s in profileTooltip(s) }
+                )
+            } else {
+                // Repli (pas d'altitude exploitable) : ancien graphe simple.
+                Chart {
+                    ForEach(plot) { p in AreaMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue.opacity(0.15)) }
+                    ForEach(plot) { p in LineMark(x: .value("km", p.km), y: .value("alt", p.alt)).foregroundStyle(.blue) }
+                }
+                .chartXScale(domain: visibleDomain)
             }
         }
-        .chartXScale(domain: visibleDomain)
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .gesture(DragGesture(minimumDistance: 0)
-                        .onChanged { v in onDrag(start: v.startLocation, current: v.location, proxy: proxy, geo: geo) }
-                        .onEnded { _ in grabbed = nil; dragCoord = nil; persist() })
-            }
+    }
+
+    /// Positions X (km) des jonctions d'étape, alignées sur l'axe du profil coloré par pente.
+    private var profileJunctions: [Double] {
+        guard stages.count > 1 else { return [] }
+        return stages.dropLast().compactMap { s in slopeData.hover.indices.contains(s.endIndex) ? slopeData.hover[s.endIndex].x : nil }
+    }
+
+    /// Déplace la frontière d'étape `k` (glissement de jonction sur le profil) vers la position km donnée.
+    private func moveJunction(_ k: Int, toKm km: Double) {
+        guard stages.count > 1, stages.indices.contains(k), stages.indices.contains(k + 1) else { return }
+        var idx = nearestPointIndex(toMeters: km * 1000)
+        let lower = stages[k].startIndex + 1
+        let upper = stages[k + 1].endIndex - 1
+        guard lower <= upper else { return }
+        idx = min(max(idx, lower), upper)
+        stages[k].endIndex = idx
+        stages[k + 1].startIndex = idx
+    }
+
+    private func profileTooltip(_ s: SlopeHoverSample) -> some View {
+        let cat = activity.activityType.slopeScale.category(for: s.slope)
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(String(format: "%.2f km", s.distanceKm)).font(.caption2.bold())
+            tooltipRow("Altitude", "\(Int(s.altitude.rounded())) m", .primary)
+            tooltipRow("Pente", String(format: "%+.0f %%", s.slope), cat.color)
+        }
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.background))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.quaternary))
+        .fixedSize()
+    }
+
+    private func tooltipRow(_ label: String, _ value: String, _ color: Color) -> some View {
+        HStack(spacing: 6) {
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value).font(.caption2.monospacedDigit().bold()).foregroundStyle(color)
         }
     }
 
@@ -1196,6 +1242,10 @@ struct ParcoursDetailView: View {
                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
             Spacer()
+            Button { fitElevation.toggle() } label: {
+                Image(systemName: fitElevation ? "arrow.up.and.down.square.fill" : "arrow.up.and.down.square")
+            }
+            .help(fitElevation ? "Axe vertical adapté au dénivelé (départ ≠ 0) — cliquer pour partir de 0" : "Axe vertical depuis 0 — cliquer pour l'adapter au dénivelé")
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
@@ -1212,35 +1262,6 @@ struct ParcoursDetailView: View {
     private func pan(_ fraction: Double) {
         guard let span = zoomSpanKm else { return }
         centerKm = min(max(centerKm + span * fraction, span / 2), totalKm - span / 2)
-    }
-
-    private func onDrag(start: CGPoint, current: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
-        guard stages.count > 1, let plotFrame = proxy.plotFrame else { return }
-        let rect = geo[plotFrame]
-        func meters(atX x: CGFloat) -> Double? {
-            let xIn = min(max(x - rect.origin.x, 0), rect.width)
-            guard let km: Double = proxy.value(atX: xIn, as: Double.self) else { return nil }
-            return km * 1000
-        }
-        if grabbed == nil {
-            guard let startM = meters(atX: start.x) else { return }
-            var best = 0; var bestDiff = Double.greatestFiniteMagnitude
-            for k in 0..<(stages.count - 1) {
-                let diff = abs(dists[stages[k].endIndex] - startM)
-                if diff < bestDiff { bestDiff = diff; best = k }
-            }
-            guard bestDiff < totalDistance * 0.06 else { return }
-            grabbed = best
-        }
-        guard let k = grabbed, let targetM = meters(atX: current.x) else { return }
-        var idx = nearestPointIndex(toMeters: targetM)
-        let lower = stages[k].startIndex + 1
-        let upper = stages[k + 1].endIndex - 1
-        guard lower <= upper else { return }
-        idx = min(max(idx, lower), upper)
-        stages[k].endIndex = idx
-        stages[k + 1].startIndex = idx
-        if coords.indices.contains(idx) { dragCoord = coords[idx] }
     }
 
     /// Écart hors-trace d'une étape (raccords départ + arrivée), pour l'afficher dans la liste.
@@ -1718,7 +1739,7 @@ struct ParcoursDetailView: View {
                 guard let updated = try? await repository.saveStagedRoute(activityId: activity.id, stages: snapshot, points: pts, pois: pois) else { return }
                 await MainActor.run {
                     // Réinjecte les stopWaypointId créés (stabilité des ids), sans écraser une édition en cours.
-                    guard grabbed == nil, updated.count == stages.count else { return }
+                    guard updated.count == stages.count else { return }
                     for i in stages.indices { stages[i].stopWaypointId = updated[i].stopWaypointId }
                 }
             }
@@ -1756,7 +1777,7 @@ struct ParcoursDetailView: View {
             }
         }
         guard decoded.count > 1 else {
-            points = decoded
+            points = decoded; slopeData = SlopeProfileData()
             return
         }
         let pts = decoded
@@ -1791,6 +1812,10 @@ struct ParcoursDetailView: View {
         hasStoredWaypoints = !wps.isEmpty
         extraWaypoints = wps.filter { $0.role != .stageStop }
         points = pts; dists = d; alts = a; cumGain = g; stages = loaded
+        let profile = ElevationProfileBuilder.build(points: pts)
+        slopeData = profile.count >= 2
+            ? SlopeProfileData.build(profile: profile, slopeScale: activity.activityType.slopeScale)
+            : SlopeProfileData()
     }
 
     // MARK: POI sur la trace (mode fidèle : aimantés au tracé, jamais de re-routage)
