@@ -76,13 +76,12 @@ struct ElevationProfileTabView: View {
     @State private var pausedRanges: [ClosedRange<Date>] = []
     @AppStorage("pauseThresholdMinutes") private var pauseThresholdMinutes: Double = 5
     @AppStorage("pauseRadiusMeters") private var pauseRadiusMeters: Double = 40
-    /// Axe vertical adapté au dénivelé (départ ≠ 0), comme la lib JS du web ; sinon depuis 0. Partagé avec le parcours.
-    @AppStorage("profileFitElevation") private var fitElevation = true
 
     @State private var hrLine: [SlopeHRPoint] = []
     @State private var hrMin: Double = 0
     @State private var hrMax: Double = 0
     @State private var yDomainHi: Double = 0
+    @State private var yDomainLo: Double = 0   // base de l'axe altitude = point le plus bas − marge (jamais 0 en montagne)
     private var showHR: Bool { mode == .time && !hrLine.isEmpty && hrMax > hrMin }
 
     @State private var hoverSamples: [SlopeHoverSample] = []
@@ -272,14 +271,6 @@ struct ElevationProfileTabView: View {
                 statBlock("D−", "\(Int(dMinus.rounded())) m")
             }
             Spacer()
-            if metric == .altitude && mode == .distance {
-                Button { fitElevation.toggle() } label: {
-                    Image(systemName: fitElevation ? "arrow.up.and.down.square.fill" : "arrow.up.and.down.square")
-                }
-                .buttonStyle(.borderless)
-                .help(fitElevation ? "Axe vertical adapté au dénivelé (départ ≠ 0) — cliquer pour partir de 0"
-                                   : "Axe vertical depuis 0 — cliquer pour l'adapter au dénivelé")
-            }
         }
     }
 
@@ -290,14 +281,8 @@ struct ElevationProfileTabView: View {
         }
     }
 
-    /// Domaine vertical : adapté au dénivelé (comme le web) en mode altitude/distance si l'option est active, sinon 0.
-    private var yBounds: (lo: Double, hi: Double) {
-        if metric == .altitude, mode == .distance, fitElevation {
-            let pad = max((altMax - altMin) * 0.08, 10)
-            return (altMin - pad, altMax + pad)
-        }
-        return (0, max(yDomainHi, 1))
-    }
+    /// Domaine vertical affiché (calculé dans buildChartData) : base = point le plus bas − marge en altitude, 0 en vitesse.
+    private var yBounds: (lo: Double, hi: Double) { (yDomainLo, max(yDomainHi, yDomainLo + 1)) }
     /// Segment survolé dans le tableau (mètres) converti en unités X du graphe, pour la bande surlignée.
     private var highlightXRange: ClosedRange<Double>? {
         guard let range = highlightedDistanceRange, hoverSamples.count == trimmedProfile.count, !hoverSamples.isEmpty else { return nil }
@@ -386,7 +371,7 @@ struct ElevationProfileTabView: View {
         var ticks: [(Double, Int)] = []
         var bpm = first
         while bpm <= hrMax {
-            let y = (bpm - hrMin) / span * max(yDomainHi, 1)
+            let y = yDomainLo + (bpm - hrMin) / span * (yDomainHi - yDomainLo)
             ticks.append((y, Int(bpm)))
             bpm += step
         }
@@ -512,9 +497,18 @@ struct ElevationProfileTabView: View {
         func yValue(_ i: Int) -> Double {
             metric == .speed ? (speeds.indices.contains(i) ? speeds[i] : 0) : profile[i].altitude
         }
-        yDomainHi = metric == .speed
-            ? (speeds.max() ?? 1) * 1.1
-            : (profile.map(\.altitude).max() ?? 1) * 1.05
+        // Domaine vertical AFFICHÉ. Altitude : adapté au dénivelé (base = point le plus bas − marge), jamais 0 —
+        // essentiel pour une course en altitude. Vitesse : depuis 0. Marge = 8 % du dénivelé (min 10 m), comme le web.
+        if metric == .speed {
+            yDomainLo = 0
+            yDomainHi = (speeds.max() ?? 1) * 1.1
+        } else {
+            let aMax = profile.map(\.altitude).max() ?? 1
+            let aMin = profile.map(\.altitude).min() ?? 0
+            let pad = max((aMax - aMin) * 0.08, 10)
+            yDomainLo = aMin - pad
+            yDomainHi = aMax + pad
+        }
 
         let xs: [Double]
         switch mode {
@@ -591,7 +585,7 @@ struct ElevationProfileTabView: View {
             let coordinate: CLLocationCoordinate2D? = (p.latitude != nil && p.longitude != nil)
                 ? CLLocationCoordinate2D(latitude: p.latitude!, longitude: p.longitude!) : nil
             let spd = speeds.indices.contains(i) ? speeds[i] : 0
-            let hrPlotY: Double? = (mode == .time && hrSpan > 0) ? p.heartRate.flatMap { $0 > 0 ? ($0 - hrMin) / hrSpan * max(yDomainHi, 1) : nil } : nil
+            let hrPlotY: Double? = (mode == .time && hrSpan > 0) ? p.heartRate.flatMap { $0 > 0 ? yDomainLo + ($0 - hrMin) / hrSpan * (yDomainHi - yDomainLo) : nil } : nil
             return SlopeHoverSample(x: xs[i], distanceKm: distanceDisplay(meters: p.distanceFromStart), altitude: p.altitude, slope: p.slope, plotY: yValue(i), coordinate: coordinate, speed: spd, hr: p.heartRate, hrPlotY: hrPlotY, elapsed: elapsed, clock: p.timestamp, moving: moving)
         }
         highlightedCoordinate = nil
@@ -611,7 +605,7 @@ struct ElevationProfileTabView: View {
         var rowId = 0
         for (idx, p) in profile.enumerated() {
             guard let hr = p.heartRate, hr > 0 else { continue }
-            let plotY = (hr - lo) / span * max(yDomainHi, 1)
+            let plotY = yDomainLo + (hr - lo) / span * (yDomainHi - yDomainLo)
             line.append(SlopeHRPoint(id: rowId, x: xs[idx], plotY: plotY))
             rowId += 1
         }

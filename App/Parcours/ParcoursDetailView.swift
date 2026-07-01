@@ -71,7 +71,6 @@ struct ParcoursDetailView: View {
     @State private var isLoading = true
     @State private var profileHighlight: CLLocationCoordinate2D?   // survol/drag profil → marqueur mobile sur la carte
     @State private var slopeData = SlopeProfileData()              // profil coloré par pente (reconstruit au chargement)
-    @AppStorage("profileFitElevation") private var fitElevation = true   // axe Y adapté au dénivelé (comme le web) vs depuis 0
     @State private var zoomSpanKm: Double?
     @State private var centerKm: Double = 0
     @AppStorage("mapLayerParcours") private var defaultLayerRaw = MapLayer.ignScan25.rawValue   // dernier fond choisi (défaut d'un nouveau parcours)
@@ -1148,7 +1147,7 @@ struct ParcoursDetailView: View {
     private var profileChart: some View {
         Group {
             if !slopeData.isEmpty {
-                let y = slopeData.yDomain(fit: fitElevation)
+                let y = slopeData.yDomain(fit: true)
                 SlopeProfileChart(
                     area: slopeData.area, line: slopeData.line, styleScale: slopeData.styleScale, hover: slopeData.hover,
                     xDomainHi: slopeData.xDomainHi, yDomainLo: y.lo, yDomainHi: y.hi,
@@ -1242,10 +1241,6 @@ struct ParcoursDetailView: View {
                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
             Spacer()
-            Button { fitElevation.toggle() } label: {
-                Image(systemName: fitElevation ? "arrow.up.and.down.square.fill" : "arrow.up.and.down.square")
-            }
-            .help(fitElevation ? "Axe vertical adapté au dénivelé (départ ≠ 0) — cliquer pour partir de 0" : "Axe vertical depuis 0 — cliquer pour l'adapter au dénivelé")
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
