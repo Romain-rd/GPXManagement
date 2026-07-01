@@ -391,6 +391,7 @@ public enum HTMLReportRenderer {
             </section>
             <section class="tabview" id="tab-profil">
               <header class="tv-head"><h1>Profil</h1><p class="tv-sub">\(esc("\(totalKm) · +\(totalGain)"))</p></header>
+              <div id="profil-map" class="profil-map"></div>
               <div id="global-profile" class="prof prof-global"></div>
               <div class="prof-legend">\(stages.map { "<span class=\"li\"><i style=\"background:\($0.color)\"></i>J\($0.index)</span>" }.joined())</div>
             </section>
@@ -410,7 +411,7 @@ public enum HTMLReportRenderer {
         <script>window.__stages=[\(stagesJS)];</script>
         \(routeMapScript(stages: stages, markers: markers, tile: tile, accent: accent))
         \(stageDetailScript(tile: tile))
-        \(profileScript())
+        \(profileScript(tile: tile))
         <script>
         (function(){
           var items = [].slice.call(document.querySelectorAll('.tabitem'));
@@ -421,6 +422,7 @@ public enum HTMLReportRenderer {
             Object.keys(views).forEach(function(k){ views[k].classList.toggle('active', k === tab); });
             if (tab === 'etapes' && window.__closeStage) window.__closeStage();
             if (tab === 'carte' && window.__routeMap) { setTimeout(function(){ window.__routeMap.invalidateSize(); }, 60); }
+            if (tab === 'profil' && window.__profilMapReady) { window.__profilMapReady(); setTimeout(function(){ if (window.__profilMap) window.__profilMap.invalidateSize(); }, 60); }
           }
           window.__showTab = show;
           items.forEach(function(it){ it.addEventListener('click', function(){ show(it.getAttribute('data-tab')); }); });
@@ -579,7 +581,7 @@ public enum HTMLReportRenderer {
         return "<svg class=\"ti-ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\">\(body)</svg>"
     }
 
-    private static func profileScript() -> String {
+    private static func profileScript(tile: WebTileLayer) -> String {
         return """
         <script>
         window.__buildProfile = function(container, segments){
@@ -617,9 +619,47 @@ public enum HTMLReportRenderer {
           container.innerHTML = svg + '<div class="prof-cap"><span>'+Math.round(maxE)+' m</span><span>'+Math.round(minE)+' m</span></div>';
         };
         (function(){
-          var S = window.__stages || [], segs = [], off = 0;
-          S.forEach(function(s){ var pts = (s.prof || []).map(function(p){ return [off + p[0], p[1]]; }); segs.push({ color: s.color, pts: pts }); if (s.prof && s.prof.length) off += s.prof[s.prof.length-1][0]; });
-          window.__buildProfile(document.getElementById('global-profile'), segs);
+          var S = window.__stages || [], segs = [], G = [], off = 0;
+          S.forEach(function(s){
+            var raw = s.prof || [];
+            segs.push({ color: s.color, pts: raw.map(function(p){ return [off + p[0], p[1]]; }) });   // couleur par jour, pas de pente
+            raw.forEach(function(p){ if (p.length >= 4) G.push([off + p[0], p[2], p[3]]); });          // x global → lat/lon
+            if (raw.length) off += raw[raw.length-1][0];
+          });
+          var gp = document.getElementById('global-profile');
+          window.__buildProfile(gp, segs);
+
+          // Carte du parcours entier (onglet Profil) + marqueur mobile lié au survol du profil global.
+          var pmap = null, pcursor = null, gx = null;
+          function ensurePMap(){
+            if (pmap) return;
+            pmap = L.map('profil-map', { scrollWheelZoom:false });
+            L.tileLayer(\(jsString(tile.urlTemplate)), { maxZoom:\(tile.maxZoom), attribution:\(jsString(tile.attribution)) }).addTo(pmap);
+            var all = [];
+            S.forEach(function(s){ if (!s.coords || !s.coords.length) return; L.polyline(s.coords, { color:s.color, weight:4, opacity:0.9 }).addTo(pmap); all = all.concat(s.coords); });
+            window.__profilMap = pmap;
+            if (all.length) setTimeout(function(){ pmap.invalidateSize(); pmap.fitBounds(L.latLngBounds(all), { padding:[24,24] }); }, 30);
+          }
+          window.__profilMapReady = ensurePMap;
+          function clearG(){ if (pcursor && pmap){ pmap.removeLayer(pcursor); } pcursor = null; if (gx){ gx.style.display = 'none'; } }
+          function gAt(clientX){
+            if (!G.length || !gp) return;
+            var r = gp.getBoundingClientRect(); if (!r.width) return;
+            var t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+            var x0 = G[0][0], x1 = G[G.length-1][0], target = x0 + t * (x1 - x0);
+            var best = 0, bd = Infinity; for (var k=0;k<G.length;k++){ var dd = Math.abs(G[k][0]-target); if (dd<bd){ bd=dd; best=k; } }
+            var g = G[best];
+            if (!gx || !gp.contains(gx)){ gx = document.createElement('div'); gx.className = 'prof-x'; gp.appendChild(gx); }
+            gx.style.left = ((g[0]-x0)/((x1-x0)||1)*100) + '%'; gx.style.display = 'block';
+            ensurePMap();
+            if ((g[1] || g[2]) && pmap){ if (!pcursor){ pcursor = L.circleMarker([g[1],g[2]], { radius:6, color:'#fff', weight:2, fillColor:'#1E88E5', fillOpacity:1 }).addTo(pmap); } else { pcursor.setLatLng([g[1],g[2]]); } }
+          }
+          if (gp){
+            gp.addEventListener('mousemove', function(e){ gAt(e.clientX); });
+            gp.addEventListener('mouseleave', clearG);
+            gp.addEventListener('touchmove', function(e){ if (e.touches[0]) gAt(e.touches[0].clientX); }, {passive:true});
+            gp.addEventListener('touchend', clearG);
+          }
         })();
         </script>
         """
@@ -676,7 +716,9 @@ public enum HTMLReportRenderer {
     .prof { position:relative; margin:0 0 16px; }
     .prof-svg { width:100%; height:130px; display:block; border-radius:10px; background:var(--card); border:1px solid var(--line); }
     .prof-x { position:absolute; top:0; height:130px; width:1px; background:rgba(0,0,0,0.45); pointer-events:none; display:none; }
+    .prof-global .prof-x { height:210px; }
     .prof-global { padding:0 16px; }
+    .profil-map { height:300px; margin:0 16px 12px; border-radius:12px; overflow:hidden; border:1px solid var(--line); }
     .prof-global .prof-svg { height:210px; }
     .prof-cap span { position:absolute; left:8px; font-size:11px; color:var(--sec); background:var(--card); padding:0 3px; border-radius:3px; }
     .prof-global .prof-cap span { left:24px; }
