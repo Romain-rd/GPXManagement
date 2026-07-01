@@ -109,7 +109,9 @@ final class RouteEditingModel {
         guard hasStops else { return [:] }
         var out: [UUID: Int] = [:]
         var n = 0
-        for (i, wp) in waypoints.enumerated() where i > 0 && (wp.role == .stageStop || i == c - 1) {
+        // L'arrivée (dernier point) ne compte comme fin d'étape que si elle est restée « tracé » ;
+        // retypée en POI/point de tracé explicite, elle perd son numéro d'étape (le rôle l'emporte).
+        for (i, wp) in waypoints.enumerated() where i > 0 && (wp.role == .stageStop || (i == c - 1 && wp.role == .shaping)) {
             n += 1; out[wp.id] = n
         }
         return out
