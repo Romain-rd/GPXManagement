@@ -73,8 +73,9 @@ final class RouteEditingModel {
         let c = waypoints.count
         var p = 0, t = 0
         return waypoints.enumerated().map { i, w in
-            let isDep = i == 0 && c >= 2
-            let isArr = i == c - 1 && c >= 2
+            // Départ/arrivée = extrémités « nature tracé » ; une extrémité retypée POI/arrêt s'affiche selon son rôle.
+            let isDep = i == 0 && c >= 2 && w.role == .shaping
+            let isArr = i == c - 1 && c >= 2 && w.role == .shaping
             var label: String? = nil
             if stages[w.id] == nil, !isDep, !isArr {
                 if w.role == .poi { p += 1; label = "P\(p)" }
@@ -92,7 +93,8 @@ final class RouteEditingModel {
         var p = 0, t = 0
         for (i, w) in waypoints.enumerated() {
             if let n = stages[w.id] { out[w.id] = "J\(n)"; continue }
-            if i == 0 || i == c - 1 { continue }
+            // On ne saute que les VRAIES extrémités (tracé) — une extrémité retypée POI/tracé reçoit son label.
+            if (i == 0 || i == c - 1) && w.role == .shaping { continue }
             if w.role == .poi { p += 1; out[w.id] = "P\(p)" }
             else if w.role == .shaping { t += 1; out[w.id] = "T\(t)" }
         }

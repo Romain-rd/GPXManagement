@@ -1329,17 +1329,17 @@ struct ParcoursDetailView: View {
                         if count >= 2 {
                             // Clic gauche sur la pastille = menu du point : type (intérieur) + fixer départ/arrivée.
                             Menu {
+                                Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
+                                Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
                                 if i > 0 && i < count - 1 {
-                                    Button { routeModel.setRole(.shaping, for: wp.id) } label: { Label("Point de tracé", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-                                    Button { routeModel.setRole(.poi, for: wp.id) } label: { Label("Point d'intérêt", systemImage: "mappin") }
                                     Button { routeModel.setRole(.stageStop, for: wp.id) } label: { Label("Fin d'étape (parcours sur plusieurs jours)", systemImage: "flag.fill") }
-                                    Divider()
                                 }
+                                Divider()
                                 if i != 0 { Button { routeModel.makeDeparture(wp.id) } label: { Label("Définir comme départ", systemImage: "flag.2.crossed.fill") } }
                                 if i != count - 1 { Button { routeModel.makeArrival(wp.id) } label: { Label("Définir comme arrivée", systemImage: "flag.checkered") } }
                             } label: { badge }
                                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                                .help(i == 0 ? "Départ — menu pour le type/position" : (i == count - 1 ? "Arrivée — menu pour le type/position" : "Type du point · définir comme départ/arrivée"))
+                                .help("Type du point · définir comme départ/arrivée")
                         } else {
                             badge
                         }
@@ -1406,12 +1406,12 @@ struct ParcoursDetailView: View {
     @ViewBuilder private func pointBadge(_ role: RouteWaypoint.Role, _ i: Int, _ count: Int, selected: Bool, stage: Int?, label: String?) -> some View {
         if let n = stage {
             labelBadge("J\(n)", selected ? Color.accentColor : Color(nsColor: MapTrackPalette.color(at: n - 1)))
-        } else if i == 0 && count >= 2 {
-            Image(systemName: "flag.2.crossed.fill").font(.system(size: 15)).foregroundStyle(selected ? Color.accentColor : .green).frame(width: 26)
-        } else if i == count - 1 && count >= 2 {
-            Image(systemName: "flag.checkered").font(.system(size: 14)).foregroundStyle(selected ? Color.accentColor : .red).frame(width: 26)
         } else if role == .poi {
             labelBadge(label ?? "P", selected ? Color.accentColor : .orange)
+        } else if i == 0 && count >= 2 && role == .shaping {
+            Image(systemName: "flag.2.crossed.fill").font(.system(size: 15)).foregroundStyle(selected ? Color.accentColor : .green).frame(width: 26)
+        } else if i == count - 1 && count >= 2 && role == .shaping {
+            Image(systemName: "flag.checkered").font(.system(size: 14)).foregroundStyle(selected ? Color.accentColor : .red).frame(width: 26)
         } else if role == .shaping {
             labelBadge(label ?? "T", selected ? Color.accentColor : .gray, small: true)
         } else {
